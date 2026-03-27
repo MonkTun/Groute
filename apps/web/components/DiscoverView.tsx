@@ -1,9 +1,11 @@
 'use client'
 
 import { useState, useCallback, useRef, useMemo } from 'react'
-import { Calendar } from 'lucide-react'
+import { Calendar, Search, X } from 'lucide-react'
 
 import { SPORT_LABELS } from '@groute/shared'
+
+import { parseSearchQuery } from '@/lib/searchParser'
 
 import { DiscoverMap, type DiscoverMapHandle } from '@/components/DiscoverMap'
 import { ActivityFeed } from '@/components/ActivityFeed'
@@ -44,9 +46,19 @@ export interface ActivityData {
   }>
 }
 
+export interface FriendLocation {
+  id: string
+  name: string
+  avatarUrl: string | null
+  initial: string
+  lat: number
+  lng: number
+}
+
 interface DiscoverViewProps {
   initialActivities: ActivityData[]
   currentUserId: string | null
+  friends?: FriendLocation[]
 }
 
 function todayStr() {
@@ -65,10 +77,25 @@ const TIMEFRAME_OPTIONS = [
   { label: 'Month', days: 30 },
 ] as const
 
-export function DiscoverView({ initialActivities, currentUserId }: DiscoverViewProps) {
+function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 3959 // Earth radius in miles
+  const dLat = ((lat2 - lat1) * Math.PI) / 180
+  const dLon = ((lon2 - lon1) * Math.PI) / 180
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+export function DiscoverView({ initialActivities, currentUserId, friends = [] }: DiscoverViewProps) {
   const [selectedSport, setSelectedSport] = useState<string | null>(null)
+  const [selectedSkill, setSelectedSkill] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [selectedActivity, setSelectedActivity] = useState<ActivityData | null>(null)
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [endDate, setEndDate] = useState(() => {
     const d = new Date()
     d.setDate(d.getDate() + 7)
@@ -82,13 +109,34 @@ export function DiscoverView({ initialActivities, currentUserId }: DiscoverViewP
     const now = new Date()
     const end = endOfDay(endDate)
 
-    return initialActivities.filter((a) => {
-      const scheduled = new Date(a.scheduled_at)
-      if (scheduled < now || scheduled > end) return false
-      if (selectedSport && a.sport_type !== selectedSport) return false
-      return true
-    })
-  }, [initialActivities, selectedSport, endDate])
+    const result = initialActivities
+      .filter((a) => {
+        const scheduled = new Date(a.scheduled_at)
+        if (scheduled < now || scheduled > end) return false
+        if (selectedSport && a.sport_type !== selectedSport) return false
+      if (selectedSkill && a.skill_level !== selectedSkill) return false
+        return true
+      })
+      .map((a) => {
+        let distanceMiles: number | null = null
+        if (userLocation && a.location_lat && a.location_lng) {
+          distanceMiles = haversineDistance(
+            userLocation.lat,
+            userLocation.lng,
+            parseFloat(a.location_lat),
+            parseFloat(a.location_lng)
+          )
+        }
+        return { ...a, distanceMiles }
+      })
+
+    // Sort: nearest first when we have location, otherwise by scheduled date
+    if (userLocation) {
+      result.sort((a, b) => (a.distanceMiles ?? Infinity) - (b.distanceMiles ?? Infinity))
+    }
+
+    return result
+  }, [initialActivities, selectedSport, selectedSkill, endDate, userLocation])
 
   const mapActivities = filtered.map((a) => ({
     id: a.id,
@@ -136,10 +184,51 @@ export function DiscoverView({ initialActivities, currentUserId }: DiscoverViewP
     setEndDate(d.toISOString().slice(0, 10))
   }
 
+  function handleSearch(query: string) {
+    setSearchQuery(query)
+    if (!query.trim()) {
+      // Clear search-applied filters
+      return
+    }
+    const parsed = parseSearchQuery(query)
+    if (parsed.sport) setSelectedSport(parsed.sport)
+    if (parsed.skill) setSelectedSkill(parsed.skill)
+    if (parsed.timeframeDays !== null) setTimeframeDays(parsed.timeframeDays)
+  }
+
+  function clearSearch() {
+    setSearchQuery('')
+    setSelectedSport(null)
+    setSelectedSkill(null)
+  }
+
   return (
     <div className="flex h-[calc(100dvh-3.5rem)] flex-col">
-      {/* Filter bar */}
-      <div className="flex shrink-0 items-center gap-1.5 overflow-x-auto border-b border-border/30 bg-card/50 px-4 py-2.5 sm:py-2.5 scrollbar-none">
+      {/* Search bar */}
+      <div className="shrink-0 border-b border-border/30 bg-card/50 px-4 py-2">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/50" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(searchQuery) }}
+            placeholder='Try "easy hike this weekend" or "surfing tomorrow"...'
+            className="h-9 w-full rounded-xl border border-border/50 bg-muted/30 pl-9 pr-8 text-sm outline-none placeholder:text-muted-foreground/40 focus-visible:border-primary/50 focus-visible:ring-2 focus-visible:ring-primary/20 transition-all"
+          />
+          {searchQuery && (
+            <button
+              onClick={clearSearch}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Filter pills */}
+      <div className="flex shrink-0 items-center gap-1.5 overflow-x-auto border-b border-border/30 px-4 py-2 sm:py-2 scrollbar-none">
         <button
           type="button"
           onClick={() => setSelectedSport(null)}
@@ -225,6 +314,16 @@ export function DiscoverView({ initialActivities, currentUserId }: DiscoverViewP
             selectedSport={selectedSport}
             hoveredActivityId={hoveredId}
             onActivitySelect={handleActivitySelect}
+            onUserLocationChange={(lat, lng) => {
+              setUserLocation({ lat, lng })
+              // Update server with current location (fire and forget)
+              fetch('/api/location', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ latitude: lat, longitude: lng }),
+              }).catch(() => {})
+            }}
+            friends={friends}
           />
         </div>
 

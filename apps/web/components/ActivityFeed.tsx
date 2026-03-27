@@ -2,11 +2,12 @@
 
 import { SPORT_LABELS, SKILL_LABELS } from '@groute/shared'
 import { MapPin, Clock, Users } from 'lucide-react'
+import { UserAvatar } from '@/components/UserAvatar'
 
 import type { ActivityData } from '@/components/DiscoverView'
 
 interface ActivityFeedProps {
-  activities: ActivityData[]
+  activities: (ActivityData & { distanceMiles?: number | null })[]
   hoveredId: string | null
   onHover: (id: string | null) => void
   onSelect: (id: string) => void
@@ -91,6 +92,13 @@ export function ActivityFeed({
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <MapPin className="size-3 shrink-0 text-muted-foreground/60" />
                     <span className="line-clamp-1">{activity.location_name}</span>
+                    {activity.distanceMiles != null && (
+                      <span className="shrink-0 text-muted-foreground/50">
+                        &middot; {activity.distanceMiles < 1
+                          ? `${(activity.distanceMiles * 5280).toFixed(0)} ft`
+                          : `${activity.distanceMiles.toFixed(1)} mi`}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -103,13 +111,22 @@ export function ActivityFeed({
               <div className="flex items-center gap-1">
                 {/* Avatar stack */}
                 <div className="flex -space-x-1.5">
-                  {Array.from({ length: Math.min(goingCount, 3) }).map((_, i) => (
-                    <div
-                      key={i}
-                      className="flex size-5 items-center justify-center rounded-full border-2 border-background bg-primary/15 text-[8px] font-bold text-primary"
-                    >
-                      {i === 0 ? creatorName[0].toUpperCase() : ''}
-                    </div>
+                  {activity.creator && (
+                    <UserAvatar
+                      src={activity.creator.avatar_url}
+                      name={creatorName}
+                      size="xs"
+                      className="ring-2 ring-background"
+                    />
+                  )}
+                  {activity.participants?.slice(0, 2).map((p) => (
+                    <UserAvatar
+                      key={p.id}
+                      src={p.avatar_url}
+                      name={p.first_name ?? p.display_name}
+                      size="xs"
+                      className="ring-2 ring-background"
+                    />
                   ))}
                 </div>
                 <span className="ml-1 text-[11px] text-muted-foreground">

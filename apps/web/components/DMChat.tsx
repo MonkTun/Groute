@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { ArrowLeft, Send } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { UserAvatar } from '@/components/UserAvatar'
 
 interface MessageData {
   id: string
@@ -22,6 +23,7 @@ interface MessageData {
 interface DMChatProps {
   otherUserId: string
   otherUserName: string
+  otherUserAvatar: string | null
   currentUserId: string
   initialMessages: MessageData[]
 }
@@ -29,6 +31,7 @@ interface DMChatProps {
 export function DMChat({
   otherUserId,
   otherUserName,
+  otherUserAvatar,
   currentUserId,
   initialMessages,
 }: DMChatProps) {
@@ -85,12 +88,8 @@ export function DMChat({
         >
           <ArrowLeft className="size-5" />
         </Link>
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium">
-            {otherUserName[0].toUpperCase()}
-          </div>
-          <h2 className="truncate text-sm font-semibold">{otherUserName}</h2>
-        </div>
+        <UserAvatar src={otherUserAvatar} name={otherUserName} size="sm" />
+        <h2 className="truncate text-sm font-semibold">{otherUserName}</h2>
       </div>
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3 scrollbar-none">
@@ -106,9 +105,17 @@ export function DMChat({
           return (
             <div
               key={msg.id}
-              className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
+              className={`flex gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}
             >
-              <div className={`max-w-[75%]`}>
+              {!isMe && (
+                <UserAvatar
+                  src={msg.sender?.avatar_url}
+                  name={otherUserName}
+                  size="sm"
+                  className="mt-1"
+                />
+              )}
+              <div className="max-w-[70%]">
                 <div
                   className={`rounded-2xl px-3 py-2 text-sm ${
                     isMe
@@ -118,7 +125,7 @@ export function DMChat({
                 >
                   {msg.content}
                 </div>
-                <p className="mt-0.5 px-1 text-[10px] text-muted-foreground/60">
+                <p className={`mt-0.5 px-1 text-[10px] text-muted-foreground/60 ${isMe ? 'text-right' : ''}`}>
                   {new Date(msg.createdAt).toLocaleTimeString('en-US', {
                     hour: 'numeric',
                     minute: '2-digit',

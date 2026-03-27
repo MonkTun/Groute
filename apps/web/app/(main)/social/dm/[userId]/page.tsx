@@ -55,6 +55,7 @@ export default async function DMPage({
     <DMChat
       otherUserId={otherUserId}
       otherUserName={otherName}
+      otherUserAvatar={otherUser.avatar_url}
       currentUserId={user.id}
       initialMessages={messages}
     />

@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Pencil } from 'lucide-react'
+import { Pencil, Camera } from 'lucide-react'
 
 import {
   SPORT_LABELS,
@@ -29,6 +29,7 @@ interface ProfileData {
   first_name: string | null
   last_name: string | null
   email: string
+  avatar_url: string | null
   date_of_birth: string | null
   area: string | null
   preferred_language: string | null
@@ -52,7 +53,32 @@ export function ProfileView({ profile, sports: initialSports }: ProfileViewProps
   const router = useRouter()
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
+  const [avatarUrl, setAvatarUrl] = useState(profile.avatar_url)
   const [error, setError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setIsUploadingAvatar(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const res = await fetch('/api/avatar', { method: 'POST', body: formData })
+      if (res.ok) {
+        const data = await res.json()
+        setAvatarUrl(data.data.avatarUrl)
+        router.refresh()
+      }
+    } catch {
+      // ignore
+    } finally {
+      setIsUploadingAvatar(false)
+    }
+  }
 
   // Edit state
   const [firstName, setFirstName] = useState(profile.first_name ?? '')
@@ -149,8 +175,49 @@ export function ProfileView({ profile, sports: initialSports }: ProfileViewProps
   if (!isEditing) {
     return (
       <div className="mx-auto w-full max-w-2xl px-4 py-6 sm:py-8">
-        <div className="mb-4 flex items-center justify-between sm:mb-6">
-          <h1 className="text-xl font-bold sm:text-2xl">Profile</h1>
+        {/* Avatar + header */}
+        <div className="mb-6 flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex flex-col items-center gap-3 sm:flex-row">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="group relative"
+              disabled={isUploadingAvatar}
+            >
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt="Profile"
+                  className="size-20 rounded-full object-cover ring-2 ring-border sm:size-16"
+                />
+              ) : (
+                <div className="flex size-20 items-center justify-center rounded-full bg-primary/10 text-2xl font-bold text-primary ring-2 ring-border sm:size-16 sm:text-xl">
+                  {(profile.first_name?.[0] ?? profile.email[0]).toUpperCase()}
+                </div>
+              )}
+              <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
+                <Camera className="size-5 text-white" />
+              </div>
+              {isUploadingAvatar && (
+                <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50">
+                  <div className="size-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                </div>
+              )}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={handleAvatarUpload}
+              className="hidden"
+            />
+            <div className="text-center sm:text-left">
+              <h1 className="text-xl font-bold sm:text-2xl">
+                {profile.first_name} {profile.last_name}
+              </h1>
+              <p className="text-sm text-muted-foreground">{profile.area ?? profile.email}</p>
+            </div>
+          </div>
           <div className="flex items-center gap-2">
             {profile.edu_verified && (
               <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/30 dark:text-green-400">
@@ -251,8 +318,46 @@ export function ProfileView({ profile, sports: initialSports }: ProfileViewProps
   // ── Edit mode ──
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-6 sm:py-8">
-      <div className="mb-4 flex items-center justify-between sm:mb-6">
-        <h1 className="text-xl font-bold sm:text-2xl">Edit Profile</h1>
+      <div className="mb-6 flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-col items-center gap-3 sm:flex-row">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="group relative"
+            disabled={isUploadingAvatar}
+          >
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt="Profile"
+                className="size-20 rounded-full object-cover ring-2 ring-border sm:size-16"
+              />
+            ) : (
+              <div className="flex size-20 items-center justify-center rounded-full bg-primary/10 text-2xl font-bold text-primary ring-2 ring-border sm:size-16 sm:text-xl">
+                {(profile.first_name?.[0] ?? profile.email[0]).toUpperCase()}
+              </div>
+            )}
+            <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
+              <Camera className="size-5 text-white" />
+            </div>
+            {isUploadingAvatar && (
+              <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50">
+                <div className="size-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              </div>
+            )}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={handleAvatarUpload}
+            className="hidden"
+          />
+          <div>
+            <h1 className="text-xl font-bold sm:text-2xl">Edit Profile</h1>
+            <p className="text-xs text-muted-foreground">Click photo to change</p>
+          </div>
+        </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={handleCancel}>
             Cancel

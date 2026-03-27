@@ -1,254 +1,181 @@
-# Groute Phase 1 Roadmap (Discovery MVP)
+# Groute Roadmap — Discovery MVP
 
 > Last updated: 2026-03-27
+> Platform focus: **Web first** (Next.js). All APIs are REST endpoints consumed by both web and future Expo mobile app.
 
-## Product Summary
+## Architecture Note — Mobile Migration
 
-Groute connects young adults (18-35) through outdoor activities in LA. Core loop: create profile → pick sports/skill levels → optionally connect Strava for verification → browse nearby activities on a map/list → request to join → message the host → meet up IRL.
-
-Architecture: one Next.js backend serving both a web frontend and an Expo mobile app, backed by Supabase (Postgres + PostGIS), Strava API for skill verification, Mapbox for maps, Upstash Redis for caching.
-
-## Phase 1 Scope
-
-**In scope:** user profiles with sports/skill levels, Strava OAuth + skill verification, geolocation-based activity feed (map + list), activity posting and join requests, direct messaging (1:1), map-based discovery view with activity pins.
-
-**Not in scope:** real-time "going out now" beacons, transport coordination, gas splitting, group/club management, guide marketplace, condition reporting.
+All business logic lives in Next.js API routes (`/api/*`). The web frontend is a thin client that calls these endpoints. When we build the Expo mobile app, it will call the **same API endpoints** — no backend changes needed. The shared package (`@groute/shared`) provides types, validators, and constants to both platforms. Mobile-specific work is purely UI: React Native screens, Expo Router navigation, `@rnmapbox/maps` instead of `mapbox-gl`, `AsyncStorage` instead of cookies.
 
 ---
 
-## Milestone 0: Foundation & Tooling
+## What's Built (Completed)
+
+### Foundation & Auth
+- Turborepo + pnpm monorepo, Next.js web, Expo mobile scaffold, shared package
+- Supabase Auth (email/password), middleware route protection, session refresh
+- Profile completion gate with cookie caching (avoids DB hit per request)
+
+### Database Schema (Drizzle ORM + Supabase)
+- `users` — profile fields, avatar_url, live location tracking (last_location_lat/lng/at)
+- `user_sports` — per-sport skill levels
+- `activities` — sport type, skill level, visibility (public/discoverable/private), banner_url, location, scheduling
+- `activity_participants` — join requests with status
+- `messages` — group chat (activity_id) + DMs (receiver_id), unified table
+- `follows` — one-directional follow system, mutual = friends
+- `notifications` — follow, invite, join_accepted, join_request types
+
+### User Profiles
+- Onboarding (3-step: basics → activities → extras), country + state/province selector
+- Profile view + inline edit mode, profile picture upload (Supabase Storage)
+- `UserAvatar` reusable component used everywhere (5 sizes, photo or initial fallback)
+- Sign out from profile page
+
+### Activity CRUD & Discovery
+- Create activity modal: title, description, sport type, skill level, visibility, location picker (Mapbox geocoding + draggable pin), date/time, max participants, friend invite selector
+- Activity feed sidebar with sport-colored badges, avatar stacks, distance from user
+- Delete activity (owner only, with confirmation + cascade)
+- Confetti on activity creation and join
+
+### Map Experience (Phase A — Complete)
+- Mapbox GL native GeoJSON clustering (GPU-rendered, smooth)
+- Clusters: dark circles with orange ring, count label, sport emoji summary per cluster
+- Individual pins: color-coded by difficulty (amber=beginner, blue=intermediate, red=advanced) with sport emoji
+- Friend locations on map: profile photo pins with name labels, pulsing ring, 24h freshness filter
+- User location tracking: auto-geolocate, pushes to server, sorts feed by distance
+- Smart search bar: parses "easy hike this weekend" → sport + difficulty + timeframe filters
+- Timeframe filter pills (Today/3d/Week/2 weeks/Month) + custom date picker
+- Activity detail sheet: centered overlay with banner, 2x2 detail grid, host card, going list, join/request buttons
+
+### Social System
+- **Social tab** with 3 sub-tabs: Friends, Chats, Notifications
+- **Friends**: mutual follows, incoming follow requests with "Follow Back"
+- **Chats**: DM conversations + group chats (per-activity), profile photos on all messages
+- **Notifications**: follow events, activity invites with Join/Decline buttons + confetti
+- **Follow system**: follow/unfollow, auto-notification, invite friends when creating activities
+- **DM chat**: 1:1 with profile photos, back navigation
+- **Group chat**: message bubbles with sender avatars, system messages
+
+### My Trips
+- Upcoming/past sections, host/going/requested badges
+- Pending join request management (accept/decline) inline
+- Chat link + click-through to activity detail page
+
+### Design System
+- Teal/emerald primary + warm orange accent (OKLch with saturation)
+- Brand logo, backdrop-blur nav with avatar in profile tab
+- Sport-specific color coding across feed, detail sheet, map
+- Cards with shadows, polished segmented tabs, loading skeletons on all routes
+- `UserAvatar` component with photo/initial fallback used across entire app
+
+### API Endpoints (27 routes)
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET/POST | `/api/activities` | List + create activities |
+| DELETE | `/api/activities/[id]` | Delete activity (owner) |
+| POST | `/api/activities/[id]/join` | Join or request to join |
+| PATCH | `/api/activities/[id]/participants/[id]` | Accept/decline participant |
+| GET/POST | `/api/profile` | Get + update user profile |
+| POST | `/api/avatar` | Upload profile picture |
+| POST | `/api/location` | Update user's live location |
+| GET | `/api/trips` | User's created + participating activities |
+| GET/POST | `/api/messages/[activityId]` | Group chat messages |
+| GET/POST | `/api/dm/[userId]` | Direct messages |
+| POST/DELETE | `/api/follow` | Follow/unfollow |
+| GET | `/api/friends` | Mutual follows list |
+| GET/PATCH | `/api/notifications` | Fetch + mark read |
+| POST | `/api/invites/[notificationId]` | Accept/decline invite |
+
+---
+
+## What's Next — Prioritized
+
+### Phase B: Trip Cards & Cover Photos (NEXT UP)
+> AllTrails-style cards — photo-forward, easy to scan
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 0.1 | Monorepo setup (Turborepo + pnpm workspaces) | DONE | |
-| 0.2 | Next.js web app scaffold (App Router, Tailwind v4, shadcn/ui) | DONE | |
-| 0.3 | Expo mobile app scaffold (Expo Router, React Native) | DONE | |
-| 0.4 | Shared package with types, constants, Zod validators | DONE | `packages/shared` |
-| 0.5 | Root env var loading for both apps (dotenv-cli) | DONE | Web uses dotenv-cli in scripts, mobile uses dotenv in app.config.ts |
-| 0.6 | ESLint + TypeScript strict mode across all packages | DONE | |
-| 0.7 | CI pipeline (GitHub Actions: lint, typecheck, test) | NOT STARTED | |
-| 0.8 | Vitest setup + workspace config | NOT STARTED | |
+| B.1 | Cover photo upload for activities (Supabase Storage) | NOT STARTED | Reuse avatar upload pattern, store in `activities.banner_url` |
+| B.2 | Photo display in feed cards (gradient fallback if no photo) | PARTIAL | Gradient + emoji fallback exists, need real photo support |
+| B.3 | "Spots left" indicator on cards | NOT STARTED | `max_participants - going_count` |
+| B.4 | Host profile pic on feed cards | DONE | Avatar stack shows creator + participants |
 
----
-
-## Milestone 1: Authentication
+### Phase C: "For You" Personalized Feed
+> Curated horizontal row of recommended trips
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1.1 | Supabase client utilities (server + browser) | DONE | `apps/web/lib/supabase/` |
-| 1.2 | Web auth middleware (session refresh, route protection) | DONE | `apps/web/middleware.ts` |
-| 1.3 | Web login/signup pages | DONE | `apps/web/app/(auth)/` |
-| 1.4 | Web auth callback route (email confirmation) | DONE | `apps/web/app/api/auth/callback/route.ts` |
-| 1.5 | `useAuth()` hook (login, signup, signOut) | DONE | `apps/web/hooks/useAuth.ts` |
-| 1.6 | Protected (main) layout + sign-out | DONE | `apps/web/app/(main)/layout.tsx`, `SignOutButton.tsx` |
-| 1.7 | Mobile Supabase client (AsyncStorage session) | DONE | `apps/mobile/lib/supabase.ts` |
-| 1.8 | Mobile AuthProvider + `useSession()` | DONE | `apps/mobile/lib/AuthProvider.tsx` |
-| 1.9 | Mobile login/signup screens | DONE | `apps/mobile/app/(auth)/` |
-| 1.10 | Mobile tab navigation (Discover, Profile) | DONE | `apps/mobile/app/(tabs)/` |
-| 1.11 | Root redirects (both platforms) | DONE | |
+| C.1 | Recommendation algorithm: match user sports + skill | NOT STARTED | Score by sport overlap, skill proximity, distance |
+| C.2 | Factor in past activity history | NOT STARTED | |
+| C.3 | Prioritize trips by friends / past co-participants | NOT STARTED | |
+| C.4 | Horizontal "Recommended for you" row above feed | NOT STARTED | |
+| C.5 | API: `GET /api/activities/recommended` | NOT STARTED | |
 
-**Architecture:** UI pages call `useAuth()` hook (web) or `supabase` client directly (mobile). No custom API routes for auth — Supabase SDK handles login/signup directly. Auth callback route exists only for email confirmation code exchange. Backend logic is swappable by changing hook internals without touching UI.
-
----
-
-## Milestone 2: Database Schema & ORM
-
-> **Blocked by:** nothing — next priority
-> **Reference:** `docs/data-model.md` has full table definitions, indexes, and RLS policies
+### Phase D: Experience Level Gauge
+> Internal 1-100 score per sport, NOT shown to users
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 2.1 | `drizzle.config.ts` pointing to Supabase | NOT STARTED | In `packages/shared/` |
-| 2.2 | Drizzle schema: `users` table (with PostGIS location) | NOT STARTED | |
-| 2.3 | Drizzle schema: `user_sports` table | NOT STARTED | |
-| 2.4 | Drizzle schema: `activities` table (with PostGIS location) | NOT STARTED | |
-| 2.5 | Drizzle schema: `activity_participants` table | NOT STARTED | |
-| 2.6 | Drizzle schema: `connections` table | NOT STARTED | |
-| 2.7 | Drizzle schema: `messages` table | NOT STARTED | |
-| 2.8 | Drizzle schema: `strava_activities` table | NOT STARTED | |
-| 2.9 | All indexes (GIST spatial, composite, unique constraints) | NOT STARTED | |
-| 2.10 | Supabase RLS policies for all tables | NOT STARTED | Applied via Supabase dashboard or migration SQL |
-| 2.11 | Push schema to Supabase (`pnpm db:push`) | NOT STARTED | |
-| 2.12 | Update barrel exports in `packages/shared` | NOT STARTED | |
+| D.1 | Onboarding questionnaire: trip count, certifications, max distance | NOT STARTED | |
+| D.2 | Compute experience score (1-100) | NOT STARTED | |
+| D.3 | Strava data supplement | NOT STARTED | Depends on Phase F |
+| D.4 | Soft matching signals (prefers mornings, into photography) | NOT STARTED | |
+| D.5 | Use score in recommendation algorithm | NOT STARTED | |
 
----
-
-## Milestone 3: User Profiles & Sports
-
-> **Blocked by:** M2 (database schema)
+### Phase E: Trip Page Polish
+> Full detail page with everything needed to commit
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 3.1 | Zod validators: `updateUserSchema`, `userSportSchema` | NOT STARTED | In `packages/shared/src/validators/` |
-| 3.2 | API: `GET /api/users/[id]` (fetch profile) | NOT STARTED | |
-| 3.3 | API: `PATCH /api/users/me` (update profile, location) | NOT STARTED | |
-| 3.4 | API: `PUT /api/users/me/sports` (set sports + skill levels) | NOT STARTED | |
-| 3.5 | Web: profile setup flow after signup (name, location, sports) | NOT STARTED | |
-| 3.6 | Web: `/profile/[id]` page (view profile + skill cards) | NOT STARTED | |
-| 3.7 | Web: `/settings` page (edit profile, manage sports) | NOT STARTED | |
-| 3.8 | Mobile: profile setup screens | NOT STARTED | |
-| 3.9 | Mobile: profile view screen | NOT STARTED | |
-| 3.10 | Geolocation: `useLocation` hook (web + mobile) | NOT STARTED | Web: browser Geolocation API, Mobile: expo-location |
+| E.1 | Swipeable cover photos (multiple images per trip) | NOT STARTED | |
+| E.2 | Map snippet on trip detail page | NOT STARTED | Small Mapbox embed |
+| E.3 | "What to bring" / "Where to meet" structured fields | NOT STARTED | New activity fields |
+| E.4 | Sticky "Request to join" button at bottom | NOT STARTED | Mobile-focused UX |
 
----
-
-## Milestone 4: Activity CRUD & Discovery
-
-> **Blocked by:** M2 (database schema), M3 (user profiles for creator info)
-
+### Phase F: Strava Integration
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 4.1 | Zod validators: extend `createActivitySchema` | PARTIAL | Basic schema exists in `packages/shared/src/validators/` |
-| 4.2 | API: `POST /api/activities` (create) | NOT STARTED | |
-| 4.3 | API: `GET /api/activities` (discovery feed with PostGIS `ST_DWithin`) | NOT STARTED | Core query pattern documented in `docs/data-model.md` |
-| 4.4 | API: `GET /api/activities/[id]` (detail) | NOT STARTED | |
-| 4.5 | API: `PATCH /api/activities/[id]` (update/cancel) | NOT STARTED | |
-| 4.6 | API: `POST /api/activities/[id]/join` (request to join) | NOT STARTED | |
-| 4.7 | API: `PATCH /api/activities/[id]/participants/[userId]` (accept/decline) | NOT STARTED | |
-| 4.8 | Web: activity creation form | NOT STARTED | |
-| 4.9 | Web: `/discover` list view (replace placeholder) | NOT STARTED | Currently shows hardcoded sport labels |
-| 4.10 | Web: `/activity/[id]` detail page + join button | NOT STARTED | |
-| 4.11 | Mobile: activity creation screen | NOT STARTED | |
-| 4.12 | Mobile: discover list view (replace placeholder) | NOT STARTED | Currently shows hardcoded sport labels |
-| 4.13 | Mobile: activity detail screen | NOT STARTED | |
+| F.1 | Strava OAuth connect flow | NOT STARTED | `docs/strava.md` has full spec |
+| F.2 | Token exchange + refresh | NOT STARTED | |
+| F.3 | Initial sync: 6 months of activities | NOT STARTED | |
+| F.4 | Webhook for new activities | NOT STARTED | |
+| F.5 | Skill verification logic + badge | NOT STARTED | |
+| F.6 | Redis caching (Upstash) | NOT STARTED | |
 
----
-
-## Milestone 5: Map-Based Discovery
-
-> **Blocked by:** M4 (activities API to populate map)
-
+### Phase G: Testing & Deploy
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 5.1 | Mapbox GL JS integration (web) | NOT STARTED | `mapbox-gl` already installed |
-| 5.2 | Web: map view on `/discover` with activity pins | NOT STARTED | |
-| 5.3 | Web: map/list toggle on discover page | NOT STARTED | |
-| 5.4 | `@rnmapbox/maps` integration (mobile) | NOT STARTED | Needs install |
-| 5.5 | Mobile: map view on Discover tab | NOT STARTED | |
-| 5.6 | Pin click → activity detail navigation (both platforms) | NOT STARTED | |
-| 5.7 | Location permission flow (both platforms) | NOT STARTED | |
-| 5.8 | Mapbox geocoding for location search + result caching | NOT STARTED | Cache in Redis |
+| G.1 | Vitest setup + workspace config | NOT STARTED | |
+| G.2 | Zod validator tests | NOT STARTED | |
+| G.3 | API route tests (mocked Supabase) | NOT STARTED | |
+| G.4 | Vercel deployment | NOT STARTED | |
+| G.5 | GitHub Actions CI | NOT STARTED | |
+| G.6 | Error boundaries | NOT STARTED | |
+| G.7 | Supabase Realtime for live chat | NOT STARTED | Currently requires refresh |
 
 ---
 
-## Milestone 6: Direct Messaging
+## Recommended Next Task for New Agent
 
-> **Blocked by:** M2 (database schema)
+**Phase B: Trip Cover Photos** — This is the highest-impact visual improvement remaining. The activity cards and detail sheet already support `banner_url` display, but there's no way to upload a photo when creating an activity. The work is:
 
-| # | Task | Status | Notes |
-|---|------|--------|-------|
-| 6.1 | Zod validators: `sendMessageSchema` | NOT STARTED | |
-| 6.2 | API: `GET /api/messages` (list conversations) | NOT STARTED | |
-| 6.3 | API: `GET /api/messages/[userId]` (conversation thread) | NOT STARTED | |
-| 6.4 | API: `POST /api/messages` (send message) | NOT STARTED | |
-| 6.5 | Supabase Realtime subscription for new messages | NOT STARTED | Mobile connects directly via JWT |
-| 6.6 | Web: `/messages` inbox page | NOT STARTED | |
-| 6.7 | Web: `/messages/[userId]` chat view | NOT STARTED | |
-| 6.8 | Mobile: messages tab + inbox screen | NOT STARTED | |
-| 6.9 | Mobile: chat screen | NOT STARTED | |
-| 6.10 | Unread message indicators (both platforms) | NOT STARTED | |
+1. Add a photo upload field to `CreateActivityModal` — use the same Supabase Storage pattern as avatar upload (`/api/avatar`), but target an `activity-photos` bucket with path `activities/{activityId}.{ext}`
+2. Create `POST /api/activities/[id]/photo` endpoint (or include in the create flow)
+3. Show the uploaded photo in the feed card (replace the gradient+emoji placeholder when a photo exists)
+4. Show "X spots left" on feed cards (`max_participants - participants.length - 1`)
+
+After that: **Phase C (For You feed)** is the biggest product differentiator — personalized recommendations make discovery feel effortless vs manual browsing. The recommendation API should score activities by: sport match (user's sports vs activity sport), skill proximity, distance from user, and friend overlap.
 
 ---
-
-## Milestone 7: Strava Integration
-
-> **Blocked by:** M2 (database schema), M3 (user profiles for storing tokens)
-> **Reference:** `docs/strava.md` has full OAuth flow, sync strategy, and verification logic
-
-| # | Task | Status | Notes |
-|---|------|--------|-------|
-| 7.1 | API: `GET /api/strava/connect` (initiate OAuth redirect) | NOT STARTED | |
-| 7.2 | API: `GET /api/strava/callback` (exchange tokens, store in users table) | NOT STARTED | |
-| 7.3 | API: `POST /api/strava/webhook` (receive new activity notifications) | NOT STARTED | |
-| 7.4 | Strava token refresh utility | NOT STARTED | Check expiry before every API call |
-| 7.5 | Initial sync: fetch 6 months of activities, store in `strava_activities` | NOT STARTED | Paginate with `per_page=100` |
-| 7.6 | Skill verification logic (compute level from activity data per sport) | NOT STARTED | Thresholds in `docs/strava.md` |
-| 7.7 | Redis caching for Strava stats (Upstash, 24h TTL) | NOT STARTED | |
-| 7.8 | Web: "Connect Strava" button on settings page | NOT STARTED | |
-| 7.9 | Web: verification badge on profile skill cards | NOT STARTED | |
-| 7.10 | Mobile: Strava connection flow | NOT STARTED | |
-| 7.11 | Mobile: verification badge on profile | NOT STARTED | |
-
----
-
-## Milestone 8: Connections
-
-> **Blocked by:** M2 (database schema), M3 (user profiles)
-
-| # | Task | Status | Notes |
-|---|------|--------|-------|
-| 8.1 | API: `POST /api/connections` (send connection request) | NOT STARTED | |
-| 8.2 | API: `PATCH /api/connections/[id]` (accept/block) | NOT STARTED | |
-| 8.3 | API: `GET /api/connections` (list user's connections) | NOT STARTED | |
-| 8.4 | Connect button on profiles (both platforms) | NOT STARTED | |
-| 8.5 | Connection request notifications | NOT STARTED | |
-
----
-
-## Milestone 9: Testing & Quality
-
-> **Can start alongside:** M2 (validator tests immediately, API tests as routes are built)
-
-| # | Task | Status | Notes |
-|---|------|--------|-------|
-| 9.1 | Vitest config (root `vitest.config.ts` + workspace) | NOT STARTED | |
-| 9.2 | Zod validator tests (shared package) | NOT STARTED | Test valid/invalid/edge cases |
-| 9.3 | API route tests (mocked Supabase client via `vi.mock`) | NOT STARTED | |
-| 9.4 | Strava verification logic tests | NOT STARTED | Various activity data inputs |
-| 9.5 | PostGIS discovery query integration tests | NOT STARTED | Known coordinates, expected results |
-
----
-
-## Milestone 10: Polish & Deploy
-
-> **Blocked by:** M4+ (needs features to polish)
-
-| # | Task | Status | Notes |
-|---|------|--------|-------|
-| 10.1 | Error boundaries (web + mobile) | NOT STARTED | |
-| 10.2 | Loading skeletons for all data-fetching pages | NOT STARTED | |
-| 10.3 | GitHub Actions CI (lint, typecheck, test on every PR) | NOT STARTED | |
-| 10.4 | Vercel deployment (web, auto-deploy on push) | NOT STARTED | |
-| 10.5 | EAS Build config (mobile, internal distribution for testing) | NOT STARTED | |
-| 10.6 | Staging Supabase project + env separation | NOT STARTED | |
-
----
-
-## Progress Summary
-
-| Milestone | Done | Total | % |
-|-----------|------|-------|---|
-| 0. Foundation | 6 | 8 | 75% |
-| 1. Authentication | 11 | 11 | 100% |
-| 2. Database Schema | 0 | 12 | 0% |
-| 3. User Profiles | 0 | 10 | 0% |
-| 4. Activity CRUD | 0.5 | 13 | 4% |
-| 5. Map Discovery | 0 | 8 | 0% |
-| 6. Messaging | 0 | 10 | 0% |
-| 7. Strava | 0 | 11 | 0% |
-| 8. Connections | 0 | 5 | 0% |
-| 9. Testing | 0 | 5 | 0% |
-| 10. Polish & Deploy | 0 | 6 | 0% |
-| **Total** | **~18** | **99** | **~18%** |
-
-## Critical Path
-
-```
-M2 (Database) → M3 (Profiles) → M4 (Activities) → M5 (Maps)
-                                                  ↘ M6 (Messaging)
-                               → M7 (Strava)
-                               → M8 (Connections)
-```
-
-Everything is blocked on M2 (Database Schema). M6 (Messaging) and M7 (Strava) can be parallelized after M3 is done. M9 (Testing) can start immediately alongside M2 for validator tests.
 
 ## Key Files & References
 
 - **Architecture & conventions:** `CLAUDE.md`
-- **Data model (tables, indexes, RLS, discovery query):** `docs/data-model.md`
-- **Strava integration (OAuth, sync, verification):** `docs/strava.md`
+- **Data model:** `docs/data-model.md`
+- **Strava integration spec:** `docs/strava.md`
 - **Shared types/validators:** `packages/shared/src/`
-- **Web Supabase clients:** `apps/web/lib/supabase/`
-- **Web auth hook:** `apps/web/hooks/useAuth.ts`
-- **Mobile auth provider:** `apps/mobile/lib/AuthProvider.tsx`
-- **Mobile Supabase client:** `apps/mobile/lib/supabase.ts`
+- **All API routes:** `apps/web/app/api/`
+- **Components:** `apps/web/components/`
+- **Reusable avatar:** `apps/web/components/UserAvatar.tsx`
+- **Search parser:** `apps/web/lib/searchParser.ts`
+- **Confetti utility:** `apps/web/hooks/useConfetti.ts`

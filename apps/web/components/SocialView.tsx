@@ -15,6 +15,7 @@ import {
 import { SPORT_LABELS } from '@groute/shared'
 
 import { Button } from '@/components/ui/button'
+import { UserAvatar } from '@/components/UserAvatar'
 import { cn } from '@/lib/utils'
 
 type Tab = 'friends' | 'chats' | 'notifications'
@@ -218,9 +219,7 @@ function ChatsTab({
                   href={`/social/dm/${dm.user.id}`}
                   className="flex items-center gap-3 rounded-lg px-3 py-3 hover:bg-muted/50 transition-colors"
                 >
-                  <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium">
-                    {(dm.user.first_name?.[0] ?? dm.user.display_name[0]).toUpperCase()}
-                  </div>
+                  <UserAvatar src={dm.user.avatar_url} name={name} size="md" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{name}</p>
                     <p className="truncate text-xs text-muted-foreground">{dm.lastMessage}</p>
@@ -381,11 +380,10 @@ function NotificationsTab({
                 !n.read && 'bg-primary/5'
               )}
             >
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                {n.fromUser
-                  ? (n.fromUser.first_name?.[0] ?? n.fromUser.display_name[0]).toUpperCase()
-                  : '?'}
-              </div>
+              <UserAvatar
+                src={n.fromUser?.avatar_url}
+                name={n.fromUser ? (n.fromUser.first_name ?? n.fromUser.display_name) : '?'}
+              />
               <div className="min-w-0 flex-1">
                 <p className="text-sm">
                   <span className="font-medium">{name}</span>{' '}
@@ -440,9 +438,7 @@ function UserRow({ user }: { user: UserInfo }) {
 
   return (
     <div className="flex items-center gap-3 min-w-0">
-      <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium">
-        {(user.first_name?.[0] ?? user.display_name[0]).toUpperCase()}
-      </div>
+      <UserAvatar src={user.avatar_url} name={name} />
       <div className="min-w-0">
         <p className="truncate text-sm font-medium">{name}</p>
         {user.area && (

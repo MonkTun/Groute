@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/dialog'
 import { LocationPicker } from '@/components/LocationPicker'
 import { Plus, Check } from 'lucide-react'
+import { UserAvatar } from '@/components/UserAvatar'
 
 interface FriendInfo {
   id: string
@@ -301,9 +302,7 @@ export function CreateActivityModal() {
                           : 'hover:bg-muted/50'
                       }`}
                     >
-                      <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary">
-                        {(friend.first_name?.[0] ?? friend.display_name[0]).toUpperCase()}
-                      </div>
+                      <UserAvatar src={friend.avatar_url} name={name} size="sm" />
                       <span className="flex-1 truncate text-sm">{name}</span>
                       <div
                         className={`flex size-5 shrink-0 items-center justify-center rounded-md border transition-colors ${

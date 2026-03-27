@@ -5,6 +5,7 @@ import { SPORT_LABELS, SKILL_LABELS, VISIBILITY_LABELS } from '@groute/shared'
 import { MapPin, Clock, Users, Crown } from 'lucide-react'
 
 import { FollowButton } from '@/components/FollowButton'
+import { UserAvatar } from '@/components/UserAvatar'
 import { DeleteActivityButton } from '@/components/DeleteActivityButton'
 
 export default async function ActivityDetailPage({
@@ -141,9 +142,7 @@ export default async function ActivityDetailPage({
                 className="flex items-center justify-between gap-3 rounded-lg border border-border p-3"
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium">
-                    {(member.first_name?.[0] ?? member.display_name[0]).toUpperCase()}
-                  </div>
+                  <UserAvatar src={member.avatar_url} name={name} />
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
                       <p className="truncate text-sm font-medium">{name}</p>

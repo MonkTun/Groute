@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { ArrowLeft, Send, Users } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { UserAvatar } from '@/components/UserAvatar'
 
 interface MessageData {
   id: string
@@ -41,6 +42,13 @@ interface GroupChatProps {
   isCreator: boolean
 }
 
+function getSenderName(sender: MessageData['sender']): string {
+  if (!sender) return 'Unknown'
+  return sender.first_name && sender.last_name
+    ? `${sender.first_name} ${sender.last_name[0]}.`
+    : sender.display_name
+}
+
 export function GroupChat({
   activityId,
   activityTitle,
@@ -53,7 +61,6 @@ export function GroupChat({
   const [isSending, setIsSending] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  // Auto-scroll to bottom
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
   }, [messages.length])
@@ -95,7 +102,6 @@ export function GroupChat({
 
   return (
     <div className="flex h-[calc(100dvh-3.5rem)] flex-col">
-      {/* Chat header */}
       <div className="flex shrink-0 items-center gap-3 border-b border-border/50 px-4 py-3">
         <Link
           href="/social"
@@ -120,15 +126,10 @@ export function GroupChat({
         </Link>
       </div>
 
-      {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3 scrollbar-none">
         {messages.map((msg) => {
           const isMe = msg.sender?.id === currentUserId
-          const senderName = msg.sender
-            ? msg.sender.first_name && msg.sender.last_name
-              ? `${msg.sender.first_name} ${msg.sender.last_name[0]}.`
-              : msg.sender.display_name
-            : 'Unknown'
+          const senderName = getSenderName(msg.sender)
 
           const isSystem = msg.content.endsWith('joined the group!') || msg.content.endsWith('Welcome to the group!')
 
@@ -145,9 +146,17 @@ export function GroupChat({
           return (
             <div
               key={msg.id}
-              className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
+              className={`flex gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}
             >
-              <div className={`max-w-[75%] ${isMe ? 'items-end' : 'items-start'}`}>
+              {!isMe && (
+                <UserAvatar
+                  src={msg.sender?.avatar_url}
+                  name={senderName}
+                  size="sm"
+                  className="mt-5"
+                />
+              )}
+              <div className={`max-w-[70%]`}>
                 {!isMe && (
                   <p className="mb-0.5 px-1 text-[10px] font-medium text-muted-foreground">
                     {senderName}
@@ -162,7 +171,7 @@ export function GroupChat({
                 >
                   {msg.content}
                 </div>
-                <p className="mt-0.5 px-1 text-[10px] text-muted-foreground/60">
+                <p className={`mt-0.5 px-1 text-[10px] text-muted-foreground/60 ${isMe ? 'text-right' : ''}`}>
                   {new Date(msg.createdAt).toLocaleTimeString('en-US', {
                     hour: 'numeric',
                     minute: '2-digit',
@@ -174,7 +183,6 @@ export function GroupChat({
         })}
       </div>
 
-      {/* Input */}
       <form
         onSubmit={handleSend}
         className="flex shrink-0 items-center gap-2 border-t border-border/50 px-4 py-3"

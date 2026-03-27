@@ -8,6 +8,7 @@ import { SPORT_LABELS, SKILL_LABELS, VISIBILITY_LABELS } from '@groute/shared'
 import { fireConfetti } from '@/hooks/useConfetti'
 
 import { Button } from '@/components/ui/button'
+import { UserAvatar } from '@/components/UserAvatar'
 
 const SPORT_COLORS: Record<string, string> = {
   hiking: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
@@ -202,11 +203,10 @@ export function ActivityDetailSheet({
 
           {/* Host */}
           <div className="mt-4 flex items-center gap-3 rounded-xl bg-primary/5 px-3.5 py-3 ring-1 ring-primary/10">
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-semibold text-primary">
-              {activity.creator
-                ? (activity.creator.first_name?.[0] ?? activity.creator.display_name[0]).toUpperCase()
-                : '?'}
-            </div>
+            <UserAvatar
+              src={activity.creator?.avatar_url}
+              name={creatorName}
+            />
             <div className="min-w-0">
               <p className="text-sm font-semibold">{creatorName}</p>
               <p className="text-[11px] text-muted-foreground">Organizer</p>
@@ -223,12 +223,10 @@ export function ActivityDetailSheet({
                 {allGoing.map((person) => (
                   <div
                     key={person.id}
-                    className="flex items-center gap-1.5 rounded-full bg-muted/70 px-2.5 py-1.5 ring-1 ring-border/30"
+                    className="flex items-center gap-1.5 rounded-full bg-muted/70 px-1.5 py-1 ring-1 ring-border/30"
                   >
-                    <div className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[9px] font-bold text-primary">
-                      {person.initial}
-                    </div>
-                    <span className="text-xs font-medium">{person.name}</span>
+                    <UserAvatar src={person.avatarUrl} name={person.name} size="xs" />
+                    <span className="text-xs font-medium pr-1">{person.name}</span>
                   </div>
                 ))}
               </div>
