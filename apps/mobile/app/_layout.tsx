@@ -1,17 +1,13 @@
-import { Stack } from "expo-router";
-import { StatusBar } from "expo-status-bar";
+import { Slot } from 'expo-router'
+import { StatusBar } from 'expo-status-bar'
+
+import { AuthProvider } from '../lib/AuthProvider'
 
 export default function RootLayout() {
   return (
-    <>
-      <StatusBar style="auto" />
-      <Stack
-        screenOptions={{
-          headerStyle: { backgroundColor: "#000" },
-          headerTintColor: "#fff",
-          headerTitle: "Groute",
-        }}
-      />
-    </>
-  );
+    <AuthProvider>
+      <StatusBar style="light" />
+      <Slot />
+    </AuthProvider>
+  )
 }
