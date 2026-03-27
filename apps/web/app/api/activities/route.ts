@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     .from("activities")
     .select(
       `
-      id, title, description, sport_type, skill_level, location_lat, location_lng, location_name, max_participants, scheduled_at, status, created_at,
+      id, title, description, sport_type, skill_level, banner_url, location_lat, location_lng, location_name, max_participants, scheduled_at, status, created_at,
       creator:users!creator_id (
         id,
         display_name,

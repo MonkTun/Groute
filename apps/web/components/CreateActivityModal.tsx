@@ -19,7 +19,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { LocationPicker } from '@/components/LocationPicker'
-import { Plus, Check } from 'lucide-react'
+import { Plus, Check, ImagePlus, X } from 'lucide-react'
 import { UserAvatar } from '@/components/UserAvatar'
 
 interface FriendInfo {
@@ -51,6 +51,8 @@ export function CreateActivityModal() {
   const [location, setLocation] = useState<LocationValue | null>(null)
   const [maxParticipants, setMaxParticipants] = useState('4')
   const [scheduledAt, setScheduledAt] = useState('')
+  const [coverPhoto, setCoverPhoto] = useState<File | null>(null)
+  const [coverPreview, setCoverPreview] = useState<string | null>(null)
   const [friends, setFriends] = useState<FriendInfo[]>([])
   const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set())
 
@@ -80,6 +82,28 @@ export function CreateActivityModal() {
     })
   }
 
+  function handleCoverPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
+    if (!allowedTypes.includes(file.type)) {
+      setError('Only JPEG, PNG, and WebP images are allowed')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Photo must be under 5MB')
+      return
+    }
+    setCoverPhoto(file)
+    setCoverPreview(URL.createObjectURL(file))
+  }
+
+  function removeCoverPhoto() {
+    setCoverPhoto(null)
+    if (coverPreview) URL.revokeObjectURL(coverPreview)
+    setCoverPreview(null)
+  }
+
   function resetForm() {
     setTitle('')
     setDescription('')
@@ -89,6 +113,7 @@ export function CreateActivityModal() {
     setLocation(null)
     setMaxParticipants('4')
     setScheduledAt('')
+    removeCoverPhoto()
     setInvitedIds(new Set())
     setError(null)
   }
@@ -131,11 +156,22 @@ export function CreateActivityModal() {
         }),
       })
 
+      const data = await res.json()
+
       if (!res.ok) {
-        const data = await res.json()
         setError(data.error || 'Failed to create activity')
         setIsSubmitting(false)
         return
+      }
+
+      // Upload cover photo if selected
+      if (coverPhoto && data.data?.id) {
+        const formData = new FormData()
+        formData.append('file', coverPhoto)
+        await fetch(`/api/activities/${data.data.id}/photo`, {
+          method: 'POST',
+          body: formData,
+        })
       }
 
       setOpen(false)
@@ -196,6 +232,38 @@ export function CreateActivityModal() {
               rows={2}
               className="w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 resize-none"
             />
+          </div>
+
+          {/* Cover photo */}
+          <div className="space-y-1.5">
+            <Label>Cover photo (optional)</Label>
+            {coverPreview ? (
+              <div className="relative h-32 w-full overflow-hidden rounded-lg">
+                <img
+                  src={coverPreview}
+                  alt="Cover preview"
+                  className="size-full object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={removeCoverPhoto}
+                  className="absolute right-2 top-2 rounded-full bg-black/50 p-1 text-white hover:bg-black/70 transition-colors"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </div>
+            ) : (
+              <label className="flex h-20 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border hover:border-primary/50 hover:bg-muted/50 transition-colors">
+                <ImagePlus className="size-5 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Add a photo</span>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={handleCoverPhoto}
+                />
+              </label>
+            )}
           </div>
 
           <div className="space-y-1.5">

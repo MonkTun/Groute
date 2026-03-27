@@ -66,6 +66,8 @@ export function ActivityFeed({
         const isHovered = hoveredId === activity.id
         const sportColor = SPORT_COLORS[activity.sport_type] ?? 'bg-muted text-muted-foreground'
 
+        const spotsLeft = activity.max_participants - goingCount
+
         return (
           <button
             key={activity.id}
@@ -79,11 +81,27 @@ export function ActivityFeed({
                 : 'hover:bg-muted/40'
             }`}
           >
-            <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              {/* Cover photo thumbnail */}
+              {activity.banner_url && (
+                <div className="size-14 shrink-0 overflow-hidden rounded-lg bg-muted">
+                  <img
+                    src={activity.banner_url}
+                    alt=""
+                    className="size-full object-cover"
+                  />
+                </div>
+              )}
+
               <div className="min-w-0 flex-1">
-                <h3 className="text-[13px] font-semibold leading-tight line-clamp-1 group-hover:text-primary transition-colors">
-                  {activity.title}
-                </h3>
+                <div className="flex items-start justify-between gap-2">
+                  <h3 className="text-[13px] font-semibold leading-tight line-clamp-1 group-hover:text-primary transition-colors">
+                    {activity.title}
+                  </h3>
+                  <span className={`shrink-0 rounded-lg px-2 py-1 text-[11px] font-semibold ${sportColor}`}>
+                    {SPORT_LABELS[activity.sport_type] ?? activity.sport_type}
+                  </span>
+                </div>
                 <div className="mt-2 space-y-1">
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Clock className="size-3 shrink-0 text-muted-foreground/60" />
@@ -102,9 +120,6 @@ export function ActivityFeed({
                   </div>
                 </div>
               </div>
-              <span className={`shrink-0 rounded-lg px-2 py-1 text-[11px] font-semibold ${sportColor}`}>
-                {SPORT_LABELS[activity.sport_type] ?? activity.sport_type}
-              </span>
             </div>
 
             <div className="mt-2.5 flex items-center justify-between">
@@ -132,6 +147,11 @@ export function ActivityFeed({
                 <span className="ml-1 text-[11px] text-muted-foreground">
                   {goingCount}/{activity.max_participants}
                 </span>
+                {spotsLeft > 0 && spotsLeft <= 3 && (
+                  <span className="ml-1.5 rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                    {spotsLeft} {spotsLeft === 1 ? 'spot' : 'spots'} left
+                  </span>
+                )}
               </div>
               <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                 {SKILL_LABELS[activity.skill_level] ?? activity.skill_level}

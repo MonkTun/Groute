@@ -7,6 +7,7 @@ import { MapPin, Clock, Users, Crown } from 'lucide-react'
 import { FollowButton } from '@/components/FollowButton'
 import { UserAvatar } from '@/components/UserAvatar'
 import { DeleteActivityButton } from '@/components/DeleteActivityButton'
+import { ActivityBanner } from '@/components/ActivityBanner'
 
 export default async function ActivityDetailPage({
   params,
@@ -88,6 +89,14 @@ export default async function ActivityDetailPage({
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-6 sm:py-8">
+      {/* Banner */}
+      <ActivityBanner
+        activityId={id}
+        bannerUrl={activity.banner_url}
+        isCreator={isCreator}
+        sportType={activity.sport_type}
+      />
+
       {/* Activity header */}
       <div className="mb-6">
         <div className="flex items-start justify-between gap-2">
