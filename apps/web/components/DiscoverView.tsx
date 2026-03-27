@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef, useMemo } from 'react'
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import { Calendar, Search, X } from 'lucide-react'
 
 import { SPORT_LABELS } from '@groute/shared'
@@ -11,6 +11,7 @@ import { DiscoverMap, type DiscoverMapHandle } from '@/components/DiscoverMap'
 import { ActivityFeed } from '@/components/ActivityFeed'
 import { CreateActivityModal } from '@/components/CreateActivityModal'
 import { ActivityDetailSheet } from '@/components/ActivityDetailSheet'
+import { RecommendedRow } from '@/components/RecommendedRow'
 
 export interface ActivityData {
   id: string
@@ -90,6 +91,7 @@ function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
 }
 
 export function DiscoverView({ initialActivities, currentUserId, friends = [] }: DiscoverViewProps) {
+  const [recommended, setRecommended] = useState<ActivityData[]>([])
   const [selectedSport, setSelectedSport] = useState<string | null>(null)
   const [selectedSkill, setSelectedSkill] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -102,6 +104,23 @@ export function DiscoverView({ initialActivities, currentUserId, friends = [] }:
     return d.toISOString().slice(0, 10)
   })
   const mapRef = useRef<DiscoverMapHandle>(null)
+
+  // Fetch personalized recommendations on mount
+  useEffect(() => {
+    if (!currentUserId) return
+    async function fetchRecommended() {
+      try {
+        const res = await fetch('/api/activities/recommended')
+        if (res.ok) {
+          const data = await res.json()
+          setRecommended(data.data ?? [])
+        }
+      } catch {
+        // fail silently — feed still works without recommendations
+      }
+    }
+    fetchRecommended()
+  }, [currentUserId])
 
   const today = todayStr()
 
@@ -204,29 +223,6 @@ export function DiscoverView({ initialActivities, currentUserId, friends = [] }:
 
   return (
     <div className="flex h-[calc(100dvh-3.5rem)] flex-col">
-      {/* Search bar */}
-      <div className="shrink-0 border-b border-border/30 bg-card/50 px-4 py-2">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/50" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(searchQuery) }}
-            placeholder='Try "easy hike this weekend" or "surfing tomorrow"...'
-            className="h-9 w-full rounded-xl border border-border/50 bg-muted/30 pl-9 pr-8 text-sm outline-none placeholder:text-muted-foreground/40 focus-visible:border-primary/50 focus-visible:ring-2 focus-visible:ring-primary/20 transition-all"
-          />
-          {searchQuery && (
-            <button
-              onClick={clearSearch}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <X className="size-3.5" />
-            </button>
-          )}
-        </div>
-      </div>
-
       {/* Filter pills */}
       <div className="flex shrink-0 items-center gap-1.5 overflow-x-auto border-b border-border/30 px-4 py-2 sm:py-2 scrollbar-none">
         <button
@@ -292,6 +288,29 @@ export function DiscoverView({ initialActivities, currentUserId, friends = [] }:
       {/* Sidebar + Map */}
       <div className="relative flex flex-1 overflow-hidden">
         <div className="flex w-full flex-col border-r border-border/50 sm:w-80 lg:w-96">
+          {/* Search bar */}
+          <div className="shrink-0 border-b border-border/50 px-3 py-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/50" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(searchQuery) }}
+                placeholder='Try "easy hike this weekend"...'
+                className="h-9 w-full rounded-xl border border-border/50 bg-muted/30 pl-9 pr-8 text-sm outline-none placeholder:text-muted-foreground/40 focus-visible:border-primary/50 focus-visible:ring-2 focus-visible:ring-primary/20 transition-all"
+              />
+              {searchQuery && (
+                <button
+                  onClick={clearSearch}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
           <div className="flex shrink-0 items-center justify-between border-b border-border/50 px-4 py-2">
             <span className="text-xs font-medium text-muted-foreground">
               {filtered.length} {filtered.length === 1 ? 'activity' : 'activities'}
@@ -307,7 +326,17 @@ export function DiscoverView({ initialActivities, currentUserId, friends = [] }:
           />
         </div>
 
-        <div className="hidden flex-1 sm:block">
+        <div className="relative hidden flex-1 sm:block">
+          {/* For You panel */}
+          {recommended.length > 0 && !selectedSport && !selectedSkill && (
+            <div className="absolute right-3 top-3 z-10 w-72">
+              <RecommendedRow
+                activities={recommended}
+                onSelect={handleActivitySelect}
+              />
+            </div>
+          )}
+
           <DiscoverMap
             ref={mapRef}
             activities={mapActivities}
@@ -316,7 +345,6 @@ export function DiscoverView({ initialActivities, currentUserId, friends = [] }:
             onActivitySelect={handleActivitySelect}
             onUserLocationChange={(lat, lng) => {
               setUserLocation({ lat, lng })
-              // Update server with current location (fire and forget)
               fetch('/api/location', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

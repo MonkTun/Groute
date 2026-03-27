@@ -1,7 +1,7 @@
 'use client'
 
 import { SPORT_LABELS, SKILL_LABELS } from '@groute/shared'
-import { MapPin, Clock, Users } from 'lucide-react'
+import { MapPin, Clock, Users, Crown, CheckCircle } from 'lucide-react'
 import { UserAvatar } from '@/components/UserAvatar'
 
 import type { ActivityData } from '@/components/DiscoverView'
@@ -67,6 +67,9 @@ export function ActivityFeed({
         const sportColor = SPORT_COLORS[activity.sport_type] ?? 'bg-muted text-muted-foreground'
 
         const spotsLeft = activity.max_participants - goingCount
+        const isJoined = activity.participantStatus === 'accepted'
+        const isRequested = activity.participantStatus === 'requested'
+        const isMine = activity.isOwner || isJoined
 
         return (
           <button
@@ -76,9 +79,9 @@ export function ActivityFeed({
             onMouseEnter={() => onHover(activity.id)}
             onMouseLeave={() => onHover(null)}
             className={`group w-full border-b border-border/30 px-4 py-3.5 text-left transition-all duration-150 ${
-              isHovered
-                ? 'bg-primary/5'
-                : 'hover:bg-muted/40'
+              isMine
+                ? isHovered ? 'bg-primary/10' : 'bg-primary/5 hover:bg-primary/10'
+                : isHovered ? 'bg-primary/5' : 'hover:bg-muted/40'
             }`}
           >
             <div className="flex items-start gap-3">
@@ -95,9 +98,20 @@ export function ActivityFeed({
 
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-2">
-                  <h3 className="text-[13px] font-semibold leading-tight line-clamp-1 group-hover:text-primary transition-colors">
-                    {activity.title}
-                  </h3>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <h3 className="text-[13px] font-semibold leading-tight line-clamp-1 group-hover:text-primary transition-colors">
+                      {activity.title}
+                    </h3>
+                    {activity.isOwner && (
+                      <Crown className="size-3 shrink-0 text-amber-500" />
+                    )}
+                    {isJoined && !activity.isOwner && (
+                      <CheckCircle className="size-3 shrink-0 text-emerald-500" />
+                    )}
+                    {isRequested && (
+                      <Clock className="size-3 shrink-0 text-muted-foreground" />
+                    )}
+                  </div>
                   <span className={`shrink-0 rounded-lg px-2 py-1 text-[11px] font-semibold ${sportColor}`}>
                     {SPORT_LABELS[activity.sport_type] ?? activity.sport_type}
                   </span>
