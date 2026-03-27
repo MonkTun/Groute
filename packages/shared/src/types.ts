@@ -5,12 +5,16 @@ export type SportType =
   | "surfing"
   | "cycling"
   | "mountain_biking"
-  | "skiing";
+  | "skiing"
+  | "kayaking"
+  | "yoga";
 
-export type SkillLevel = "beginner" | "intermediate" | "advanced" | "expert";
+export type SkillLevel = "beginner" | "intermediate" | "advanced";
 
 export type ActivityStatus = "open" | "full" | "completed" | "cancelled";
 
 export type ParticipantStatus = "requested" | "accepted" | "declined";
+
+export type ActivityVisibility = "public" | "discoverable" | "private";
 
 export type ConnectionStatus = "pending" | "accepted" | "blocked";

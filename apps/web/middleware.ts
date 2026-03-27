@@ -32,7 +32,13 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Redirect unauthenticated users away from protected routes
-  if (!user && pathname.startsWith('/(main)') || (!user && !pathname.startsWith('/login') && !pathname.startsWith('/signup') && !pathname.startsWith('/api') && pathname !== '/')) {
+  if (
+    !user &&
+    !pathname.startsWith('/login') &&
+    !pathname.startsWith('/signup') &&
+    !pathname.startsWith('/api') &&
+    pathname !== '/'
+  ) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
@@ -45,18 +51,49 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  // Check profile completion using cookie cache (avoid DB hit on every request)
+  if (
+    user &&
+    !pathname.startsWith('/onboarding') &&
+    !pathname.startsWith('/api') &&
+    !pathname.startsWith('/login') &&
+    !pathname.startsWith('/signup') &&
+    pathname !== '/'
+  ) {
+    const profileCookie = request.cookies.get('profile_completed')
+
+    if (profileCookie?.value === 'true') {
+      return supabaseResponse
+    }
+
+    // Only hit DB if cookie is missing
+    const { data: profile } = await supabase
+      .from('users')
+      .select('profile_completed')
+      .eq('id', user.id)
+      .single()
+
+    if (!profile || !profile.profile_completed) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/onboarding'
+      return NextResponse.redirect(url)
+    }
+
+    // Cache in cookie so we skip DB on subsequent navigations
+    supabaseResponse.cookies.set('profile_completed', 'true', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24, // 24 hours
+      path: '/',
+    })
+  }
+
   return supabaseResponse
 }
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization)
-     * - favicon.ico (favicon)
-     * - public files (svg, png, jpg, etc.)
-     */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

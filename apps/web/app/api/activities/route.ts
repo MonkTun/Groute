@@ -1,0 +1,144 @@
+import { NextRequest, NextResponse } from "next/server";
+
+import { createActivitySchema } from "@groute/shared";
+
+import { createServerClient } from "@/lib/supabase/server";
+
+export async function GET(request: NextRequest) {
+  const supabase = await createServerClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { searchParams } = request.nextUrl;
+  const sportType = searchParams.get("sportType");
+  const status = searchParams.get("status") || "open";
+
+  let query = supabase
+    .from("activities")
+    .select(
+      `
+      id, title, description, sport_type, skill_level, location_lat, location_lng, location_name, max_participants, scheduled_at, status, created_at,
+      creator:users!creator_id (
+        id,
+        display_name,
+        first_name,
+        last_name,
+        avatar_url,
+        area
+      )
+    `
+    )
+    .eq("status", status)
+    .gte("scheduled_at", new Date().toISOString())
+    .order("scheduled_at", { ascending: true })
+    .limit(50);
+
+  if (sportType) {
+    query = query.eq("sport_type", sportType);
+  }
+
+  const { data: activities, error } = await query;
+
+  if (error) {
+    console.error("Failed to fetch activities:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch activities" },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({ data: activities });
+}
+
+export async function POST(request: NextRequest) {
+  const supabase = await createServerClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const body = await request.json();
+  const invitedUserIds: string[] = body.invitedUserIds ?? [];
+  const parsed = createActivitySchema.safeParse(body);
+
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Validation failed", details: parsed.error.issues },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const { data: activity, error } = await supabase
+      .from("activities")
+      .insert({
+        creator_id: user.id,
+        title: parsed.data.title,
+        description: parsed.data.description || null,
+        sport_type: parsed.data.sportType,
+        skill_level: parsed.data.skillLevel,
+        visibility: parsed.data.visibility,
+        location_lat: String(parsed.data.location.latitude),
+        location_lng: String(parsed.data.location.longitude),
+        location_name: parsed.data.locationName,
+        max_participants: parsed.data.maxParticipants,
+        scheduled_at: parsed.data.scheduledAt,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Failed to create activity:", error);
+      return NextResponse.json(
+        { error: "Failed to create activity" },
+        { status: 500 }
+      );
+    }
+
+    // Create initial group chat message + send invites
+    if (activity) {
+      await supabase.from("messages").insert({
+        activity_id: activity.id,
+        sender_id: user.id,
+        content: "created this activity. Welcome to the group!",
+      });
+
+      // Send invite notifications to selected friends
+      if (invitedUserIds.length > 0) {
+        const notifications = invitedUserIds.map((friendId) => ({
+          user_id: friendId,
+          from_user_id: user.id,
+          type: "invite",
+          activity_id: activity.id,
+        }));
+        await supabase.from("notifications").insert(notifications);
+
+        // Also send a DM to each invited friend
+        const inviteMessages = invitedUserIds.map((friendId) => ({
+          sender_id: user.id,
+          receiver_id: friendId,
+          content: `invited you to "${activity.title}"! Check your notifications to join.`,
+        }));
+        await supabase.from("messages").insert(inviteMessages);
+      }
+    }
+
+    return NextResponse.json({ data: activity }, { status: 201 });
+  } catch (err) {
+    console.error("Activity creation error:", err);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
