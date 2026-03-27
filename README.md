@@ -1,36 +1,122 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Groute
 
-## Getting Started
+Outdoor activity discovery & social platform. Find compatible people to go outside with — right now, near you, at your level.
 
-First, run the development server:
+## Prerequisites
+
+- **Node.js** v18+ (v22 recommended)
+- **pnpm** — install with `npm install -g pnpm`
+- **Xcode** (for iOS Simulator) — install from the Mac App Store
+- **Expo Go** app on your phone (optional, for testing on a real device)
+
+## Setup
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# Clone and navigate to the project root
+cd groute
+
+# Install all dependencies
+pnpm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Project Structure
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+groute/
+├── apps/
+│   ├── web/             → Next.js web app
+│   └── mobile/          → Expo (React Native) mobile app
+├── packages/
+│   └── shared/          → Shared types, Zod schemas, Drizzle ORM
+├── turbo.json           → Turborepo config
+├── pnpm-workspace.yaml  → Workspace definition
+└── .env.example         → Environment variables template
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Running the Apps
 
-## Learn More
+### Web App
 
-To learn more about Next.js, take a look at the following resources:
+From the project root (`groute/`):
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+pnpm dev:web
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Open http://localhost:3000 in your browser.
 
-## Deploy on Vercel
+### Mobile App
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+#### Option A: iOS Simulator (requires Xcode)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+cd apps/mobile
+npx expo start --ios
+```
+
+This launches the iOS Simulator automatically and loads the app.
+
+#### Option B: Real Device with Expo Go
+
+1. Install **Expo Go** from the App Store (iOS) or Play Store (Android)
+2. Make sure your phone and laptop are on the same Wi-Fi network
+3. Run:
+
+```bash
+cd apps/mobile
+npx expo start
+```
+
+4. Scan the QR code in your terminal:
+   - **iOS**: Use your phone's camera app
+   - **Android**: Use the Expo Go app's scanner
+
+#### Option C: Android Emulator (requires Android Studio)
+
+```bash
+cd apps/mobile
+npx expo start --android
+```
+
+### Both Apps at Once
+
+From the project root:
+
+```bash
+pnpm dev
+```
+
+This starts both the web (port 3000) and mobile (port 8081) dev servers in parallel.
+
+## Other Commands
+
+| Command | Description |
+|---------|-------------|
+| `pnpm build` | Build all packages and apps |
+| `pnpm build:web` | Build web app only |
+| `pnpm lint` | Lint all packages |
+| `pnpm typecheck` | Type-check all packages |
+| `pnpm clean` | Remove build artifacts |
+
+## Environment Variables
+
+Copy `.env.example` to `.env` and fill in your keys:
+
+```bash
+cp .env.example .env
+```
+
+Required services (not needed for basic local dev):
+- Supabase (auth + database)
+- Strava API (skill verification)
+- Mapbox (maps)
+- Upstash Redis (caching)
+
+## Tech Stack
+
+- **Monorepo**: Turborepo + pnpm workspaces
+- **Web**: Next.js 16, Tailwind CSS v4, shadcn/ui
+- **Mobile**: Expo 52, React Native
+- **Database**: Supabase (PostgreSQL + PostGIS)
+- **ORM**: Drizzle
+- **Validation**: Zod
