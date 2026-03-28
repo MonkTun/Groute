@@ -157,7 +157,7 @@ export default function OnboardingPage() {
         return
       }
 
-      router.push('/discover')
+      router.push('/rightnow')
       router.refresh()
     } catch {
       setError('Network error. Please try again.')

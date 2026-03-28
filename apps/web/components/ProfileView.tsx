@@ -16,6 +16,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { UserAvatar } from '@/components/UserAvatar'
+import { FollowButton } from '@/components/FollowButton'
 import {
   Card,
   CardContent,
@@ -44,12 +46,34 @@ interface SportData {
   strava_verified_level: string | null
 }
 
+interface UserInfo {
+  id: string
+  display_name: string
+  first_name: string | null
+  last_name: string | null
+  avatar_url: string | null
+  area: string | null
+}
+
+interface NotificationData {
+  id: string
+  type: string
+  read: boolean
+  createdAt: string
+  activityId: string | null
+  fromUser: { id: string; display_name: string; first_name: string | null; last_name: string | null; avatar_url: string | null } | null
+}
+
 interface ProfileViewProps {
   profile: ProfileData
   sports: SportData[]
+  friends?: UserInfo[]
+  incomingFollows?: UserInfo[]
+  notifications?: NotificationData[]
+  currentUserId?: string
 }
 
-export function ProfileView({ profile, sports: initialSports }: ProfileViewProps) {
+export function ProfileView({ profile, sports: initialSports, friends = [], incomingFollows = [], notifications = [], currentUserId }: ProfileViewProps) {
   const router = useRouter()
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -310,6 +334,98 @@ export function ProfileView({ profile, sports: initialSports }: ProfileViewProps
               )}
             </CardContent>
           </Card>
+
+          {/* Friends */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Friends ({friends.length})</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {incomingFollows.length > 0 && (
+                <div className="mb-4">
+                  <p className="mb-2 text-xs font-medium text-muted-foreground">Wants to follow you</p>
+                  <div className="space-y-2">
+                    {incomingFollows.map((u) => {
+                      const name = u.first_name && u.last_name
+                        ? `${u.first_name} ${u.last_name}`
+                        : u.display_name
+                      return (
+                        <div key={u.id} className="flex items-center justify-between gap-3 rounded-lg border border-border p-2.5">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <UserAvatar src={u.avatar_url} name={name} size="sm" />
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium truncate">{name}</p>
+                              {u.area && <p className="text-xs text-muted-foreground">{u.area}</p>}
+                            </div>
+                          </div>
+                          <FollowButton userId={u.id} isFollowing={false} />
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+              {friends.length > 0 ? (
+                <div className="space-y-2">
+                  {friends.map((u) => {
+                    const name = u.first_name && u.last_name
+                      ? `${u.first_name} ${u.last_name}`
+                      : u.display_name
+                    return (
+                      <div key={u.id} className="flex items-center justify-between gap-3 rounded-lg border border-border p-2.5">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <UserAvatar src={u.avatar_url} name={name} size="sm" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{name}</p>
+                            {u.area && <p className="text-xs text-muted-foreground">{u.area}</p>}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : incomingFollows.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No friends yet. Follow someone and have them follow back!</p>
+              ) : null}
+            </CardContent>
+          </Card>
+
+          {/* Notifications */}
+          {notifications.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Notifications</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {notifications.slice(0, 10).map((n) => {
+                    const name = n.fromUser
+                      ? n.fromUser.first_name ?? n.fromUser.display_name
+                      : 'Someone'
+                    const message =
+                      n.type === 'invite' ? `${name} invited you to an activity`
+                      : n.type === 'follow' ? `${name} started following you`
+                      : n.type === 'join_request' ? `${name} wants to join your activity`
+                      : n.type === 'join_accepted' ? `${name} accepted your request`
+                      : `${name} sent a notification`
+                    return (
+                      <div key={n.id} className={`flex items-center gap-2.5 rounded-lg p-2.5 text-sm ${!n.read ? 'bg-primary/5' : ''}`}>
+                        {n.fromUser && (
+                          <UserAvatar src={n.fromUser.avatar_url} name={name} size="sm" />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm">{message}</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            {new Date(n.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     )

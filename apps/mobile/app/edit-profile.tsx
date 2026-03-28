@@ -17,38 +17,105 @@ import * as ImagePicker from 'expo-image-picker'
 import * as FileSystem from 'expo-file-system'
 import { decode } from 'base64-arraybuffer'
 
+import {
+  SPORT_LABELS,
+  SKILL_LABELS,
+  COUNTRIES,
+  REGIONS,
+  PREFERRED_LANGUAGES,
+} from '@groute/shared'
 import { useSession } from '../lib/AuthProvider'
 import { supabase } from '../lib/supabase'
+
+// ── Design tokens matching web ──
+const C = {
+  bg: '#0a0a0f',
+  card: '#12121a',
+  cardBorder: 'rgba(255,255,255,0.08)',
+  inputBg: 'rgba(255,255,255,0.06)',
+  inputBorder: 'rgba(255,255,255,0.1)',
+  primary: '#2dd4a8',
+  primaryMuted: 'rgba(45,212,168,0.12)',
+  primaryText: '#2dd4a8',
+  text: '#f0f0f5',
+  textSecondary: '#8b8b9e',
+  textMuted: '#5b5b72',
+  destructive: '#ef4444',
+  border: 'rgba(255,255,255,0.06)',
+  ring: 'rgba(45,212,168,0.3)',
+}
+
+interface UserSportEntry {
+  sportType: string
+  selfReportedLevel: string
+}
 
 export default function EditProfileScreen() {
   const { user } = useSession()
   const router = useRouter()
+
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
-  const [displayName, setDisplayName] = useState('')
+  const [dateOfBirth, setDateOfBirth] = useState('')
+  const [country, setCountry] = useState('')
+  const [region, setRegion] = useState('')
+  const [preferredLanguage, setPreferredLanguage] = useState('')
+  const [eduEmail, setEduEmail] = useState('')
   const [bio, setBio] = useState('')
-  const [area, setArea] = useState('')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [sports, setSports] = useState<UserSportEntry[]>([])
+
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
 
+  // Dropdown state
+  const [showCountryPicker, setShowCountryPicker] = useState(false)
+  const [showRegionPicker, setShowRegionPicker] = useState(false)
+  const [showLanguagePicker, setShowLanguagePicker] = useState(false)
+
   const fetchProfile = useCallback(async () => {
     if (!user) return
-    const { data } = await supabase
-      .from('users')
-      .select('display_name, first_name, last_name, bio, area, avatar_url')
-      .eq('id', user.id)
-      .single()
 
-    if (data) {
-      setDisplayName(data.display_name ?? '')
-      setFirstName(data.first_name ?? '')
-      setLastName(data.last_name ?? '')
-      setBio(data.bio ?? '')
-      setArea(data.area ?? '')
-      setAvatarUrl(data.avatar_url)
+    const [profileResult, sportsResult] = await Promise.all([
+      supabase
+        .from('users')
+        .select('first_name, last_name, avatar_url, bio, area, date_of_birth, preferred_language, edu_email')
+        .eq('id', user.id)
+        .single(),
+      supabase
+        .from('user_sports')
+        .select('sport_type, self_reported_level')
+        .eq('user_id', user.id),
+    ])
+
+    if (profileResult.data) {
+      const p = profileResult.data
+      setFirstName(p.first_name ?? '')
+      setLastName(p.last_name ?? '')
+      setDateOfBirth(p.date_of_birth ?? '')
+      setBio(p.bio ?? '')
+      setAvatarUrl(p.avatar_url)
+      setPreferredLanguage(p.preferred_language ?? '')
+      setEduEmail(p.edu_email ?? '')
+      // Parse area: "Region, Country"
+      if (p.area) {
+        const parts = p.area.split(', ')
+        if (parts.length === 2) {
+          setRegion(parts[0])
+          setCountry(parts[1])
+        } else {
+          setRegion(p.area)
+        }
+      }
     }
+
+    setSports(
+      (sportsResult.data ?? []).map((s) => ({
+        sportType: s.sport_type,
+        selfReportedLevel: s.self_reported_level,
+      }))
+    )
   }, [user])
 
   useEffect(() => {
@@ -63,7 +130,6 @@ export default function EditProfileScreen() {
       quality: 0.8,
       base64: true,
     })
-
     if (result.canceled || !result.assets[0]) return
 
     const asset = result.assets[0]
@@ -74,18 +140,12 @@ export default function EditProfileScreen() {
       const filePath = `avatars/${user!.id}.${ext}`
       const mimeType = asset.mimeType ?? 'image/jpeg'
 
-      // Use base64 from picker if available, otherwise read from file
       const base64 = asset.base64
-        ?? await FileSystem.readAsStringAsync(asset.uri, {
-          encoding: FileSystem.EncodingType.Base64,
-        })
+        ?? await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 })
 
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(filePath, decode(base64), {
-          upsert: true,
-          contentType: mimeType,
-        })
+        .upload(filePath, decode(base64), { upsert: true, contentType: mimeType })
 
       if (uploadError) {
         Alert.alert('Error', uploadError.message)
@@ -95,12 +155,7 @@ export default function EditProfileScreen() {
 
       const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(filePath)
       const freshUrl = `${publicUrl}?t=${Date.now()}`
-
-      await supabase
-        .from('users')
-        .update({ avatar_url: freshUrl })
-        .eq('id', user!.id)
-
+      await supabase.from('users').update({ avatar_url: freshUrl }).eq('id', user!.id)
       setAvatarUrl(freshUrl)
     } catch {
       Alert.alert('Error', 'Failed to upload photo')
@@ -108,166 +163,426 @@ export default function EditProfileScreen() {
     setIsUploadingAvatar(false)
   }
 
+  function toggleSport(sportType: string) {
+    setSports((prev) => {
+      const exists = prev.find((s) => s.sportType === sportType)
+      if (exists) return prev.filter((s) => s.sportType !== sportType)
+      return [...prev, { sportType, selfReportedLevel: 'beginner' }]
+    })
+  }
+
+  function updateSportLevel(sportType: string, level: string) {
+    setSports((prev) =>
+      prev.map((s) => s.sportType === sportType ? { ...s, selfReportedLevel: level } : s)
+    )
+  }
+
   async function handleSave() {
-    if (!displayName.trim()) {
-      Alert.alert('Error', 'Display name is required')
-      return
-    }
-
     setIsSaving(true)
-    const { error } = await supabase
-      .from('users')
-      .update({
-        display_name: displayName.trim(),
-        first_name: firstName.trim() || null,
-        last_name: lastName.trim() || null,
-        bio: bio.trim() || null,
-        area: area.trim() || null,
-      })
-      .eq('id', user!.id)
+    try {
+      const area = region && country ? `${region}, ${country}` : region || country
 
-    if (error) {
-      Alert.alert('Error', error.message)
-    } else {
+      const { error: profileError } = await supabase
+        .from('users')
+        .update({
+          first_name: firstName.trim() || null,
+          last_name: lastName.trim() || null,
+          date_of_birth: dateOfBirth || null,
+          area: area || null,
+          bio: bio.trim() || null,
+          preferred_language: preferredLanguage || null,
+          edu_email: eduEmail.trim() || null,
+        })
+        .eq('id', user!.id)
+
+      if (profileError) {
+        Alert.alert('Error', profileError.message)
+        setIsSaving(false)
+        return
+      }
+
+      // Update sports: delete all then re-insert
+      await supabase.from('user_sports').delete().eq('user_id', user!.id)
+      if (sports.length > 0) {
+        await supabase.from('user_sports').insert(
+          sports.map((s) => ({
+            user_id: user!.id,
+            sport_type: s.sportType,
+            self_reported_level: s.selfReportedLevel,
+          }))
+        )
+      }
+
       Alert.alert('Saved', 'Your profile has been updated.', [
         { text: 'OK', onPress: () => router.back() },
       ])
+    } catch {
+      Alert.alert('Error', 'Failed to save profile')
     }
     setIsSaving(false)
   }
 
   if (isLoading) {
     return (
-      <View style={styles.loading}>
-        <Stack.Screen options={{ title: 'Edit Profile' }} />
-        <ActivityIndicator size="large" color="#fff" />
+      <View style={s.loadingContainer}>
+        <Stack.Screen options={{ title: 'Edit Profile', headerStyle: { backgroundColor: C.bg }, headerTintColor: C.text }} />
+        <ActivityIndicator size="large" color={C.primary} />
       </View>
     )
   }
 
+  const regionOptions = country && REGIONS[country] ? REGIONS[country] : null
+
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <Stack.Screen options={{ title: 'Edit Profile', headerBackTitle: 'Back' }} />
-      <ScrollView contentContainerStyle={styles.scroll}>
+    <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <Stack.Screen
+        options={{
+          title: 'Edit Profile',
+          headerStyle: { backgroundColor: C.bg },
+          headerTintColor: C.text,
+          headerRight: () => (
+            <Pressable onPress={handleSave} disabled={isSaving} style={{ opacity: isSaving ? 0.5 : 1 }}>
+              <Text style={{ color: C.primary, fontSize: 16, fontWeight: '600' }}>
+                {isSaving ? 'Saving...' : 'Save'}
+              </Text>
+            </Pressable>
+          ),
+        }}
+      />
+
+      <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
         {/* Avatar */}
-        <Pressable style={styles.avatarSection} onPress={handlePickAvatar} disabled={isUploadingAvatar}>
+        <Pressable style={s.avatarWrapper} onPress={handlePickAvatar} disabled={isUploadingAvatar}>
           {avatarUrl ? (
-            <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+            <Image source={{ uri: avatarUrl }} style={s.avatar} />
           ) : (
-            <View style={styles.avatarFallback}>
-              <Text style={styles.avatarInitial}>
-                {(firstName?.[0] ?? displayName[0] ?? '?').toUpperCase()}
+            <View style={s.avatarFallback}>
+              <Text style={s.avatarInitial}>
+                {(firstName?.[0] ?? user?.email?.[0] ?? '?').toUpperCase()}
               </Text>
             </View>
           )}
           {isUploadingAvatar ? (
-            <View style={styles.avatarOverlay}>
+            <View style={s.avatarOverlay}>
               <ActivityIndicator color="#fff" />
             </View>
           ) : (
-            <View style={styles.avatarBadge}>
-              <Text style={styles.avatarBadgeText}>Edit</Text>
+            <View style={s.avatarEditBadge}>
+              <Text style={s.avatarEditText}>Edit</Text>
             </View>
           )}
         </Pressable>
-        <Text style={styles.avatarHint}>Tap to change photo</Text>
+        <Text style={s.avatarHint}>Tap to change photo</Text>
 
-        {/* Fields */}
-        <Text style={styles.label}>Display name</Text>
-        <TextInput
-          style={styles.input}
-          value={displayName}
-          onChangeText={setDisplayName}
-          placeholder="Display name"
-          placeholderTextColor="#71717a"
-        />
+        {/* ── Card: Personal Info ── */}
+        <View style={s.card}>
+          <Text style={s.cardTitle}>Personal Info</Text>
 
-        <View style={styles.row}>
-          <View style={styles.halfField}>
-            <Text style={styles.label}>First name</Text>
+          <View style={s.row}>
+            <View style={s.field}>
+              <Text style={s.label}>First name</Text>
+              <TextInput style={s.input} value={firstName} onChangeText={setFirstName} placeholderTextColor={C.textMuted} placeholder="First" />
+            </View>
+            <View style={s.field}>
+              <Text style={s.label}>Last name</Text>
+              <TextInput style={s.input} value={lastName} onChangeText={setLastName} placeholderTextColor={C.textMuted} placeholder="Last" />
+            </View>
+          </View>
+
+          <View style={s.fieldFull}>
+            <Text style={s.label}>Date of birth</Text>
             <TextInput
-              style={styles.input}
-              value={firstName}
-              onChangeText={setFirstName}
-              placeholder="First"
-              placeholderTextColor="#71717a"
+              style={s.input}
+              value={dateOfBirth}
+              onChangeText={setDateOfBirth}
+              placeholderTextColor={C.textMuted}
+              placeholder="YYYY-MM-DD"
+              keyboardType="numbers-and-punctuation"
             />
           </View>
-          <View style={styles.halfField}>
-            <Text style={styles.label}>Last name</Text>
+
+          <View style={s.row}>
+            <View style={s.field}>
+              <Text style={s.label}>Country</Text>
+              <Pressable style={s.select} onPress={() => setShowCountryPicker(!showCountryPicker)}>
+                <Text style={country ? s.selectText : s.selectPlaceholder}>
+                  {country || 'Select country'}
+                </Text>
+                <Text style={s.selectChevron}>{showCountryPicker ? '\u25B2' : '\u25BC'}</Text>
+              </Pressable>
+              {showCountryPicker && (
+                <ScrollView style={s.dropdown} nestedScrollEnabled>
+                  {COUNTRIES.map((c) => (
+                    <Pressable
+                      key={c}
+                      style={[s.dropdownItem, country === c && s.dropdownItemActive]}
+                      onPress={() => { setCountry(c); setRegion(''); setShowCountryPicker(false) }}
+                    >
+                      <Text style={[s.dropdownText, country === c && s.dropdownTextActive]}>{c}</Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              )}
+            </View>
+            <View style={s.field}>
+              <Text style={s.label}>State / Province</Text>
+              {regionOptions ? (
+                <>
+                  <Pressable style={s.select} onPress={() => setShowRegionPicker(!showRegionPicker)}>
+                    <Text style={region ? s.selectText : s.selectPlaceholder}>
+                      {region || 'Select'}
+                    </Text>
+                    <Text style={s.selectChevron}>{showRegionPicker ? '\u25B2' : '\u25BC'}</Text>
+                  </Pressable>
+                  {showRegionPicker && (
+                    <ScrollView style={s.dropdown} nestedScrollEnabled>
+                      {regionOptions.map((r) => (
+                        <Pressable
+                          key={r}
+                          style={[s.dropdownItem, region === r && s.dropdownItemActive]}
+                          onPress={() => { setRegion(r); setShowRegionPicker(false) }}
+                        >
+                          <Text style={[s.dropdownText, region === r && s.dropdownTextActive]}>{r}</Text>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  )}
+                </>
+              ) : (
+                <TextInput
+                  style={s.input}
+                  value={region}
+                  onChangeText={setRegion}
+                  placeholderTextColor={C.textMuted}
+                  placeholder={country ? 'Enter region' : 'Select country first'}
+                  editable={!!country}
+                />
+              )}
+            </View>
+          </View>
+
+          <View style={s.fieldFull}>
+            <Text style={s.label}>Preferred language</Text>
+            <Pressable style={s.select} onPress={() => setShowLanguagePicker(!showLanguagePicker)}>
+              <Text style={preferredLanguage ? s.selectText : s.selectPlaceholder}>
+                {preferredLanguage || 'None'}
+              </Text>
+              <Text style={s.selectChevron}>{showLanguagePicker ? '\u25B2' : '\u25BC'}</Text>
+            </Pressable>
+            {showLanguagePicker && (
+              <ScrollView style={s.dropdownSmall} nestedScrollEnabled>
+                <Pressable
+                  style={[s.dropdownItem, !preferredLanguage && s.dropdownItemActive]}
+                  onPress={() => { setPreferredLanguage(''); setShowLanguagePicker(false) }}
+                >
+                  <Text style={[s.dropdownText, !preferredLanguage && s.dropdownTextActive]}>None</Text>
+                </Pressable>
+                {PREFERRED_LANGUAGES.map((l) => (
+                  <Pressable
+                    key={l}
+                    style={[s.dropdownItem, preferredLanguage === l && s.dropdownItemActive]}
+                    onPress={() => { setPreferredLanguage(l); setShowLanguagePicker(false) }}
+                  >
+                    <Text style={[s.dropdownText, preferredLanguage === l && s.dropdownTextActive]}>{l}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+
+          <View style={s.fieldFull}>
+            <Text style={s.label}>School email (.edu)</Text>
             <TextInput
-              style={styles.input}
-              value={lastName}
-              onChangeText={setLastName}
-              placeholder="Last"
-              placeholderTextColor="#71717a"
+              style={s.input}
+              value={eduEmail}
+              onChangeText={setEduEmail}
+              placeholderTextColor={C.textMuted}
+              placeholder="you@university.edu"
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+          </View>
+
+          <View style={s.fieldFull}>
+            <Text style={s.label}>Bio</Text>
+            <TextInput
+              style={[s.input, s.textarea]}
+              value={bio}
+              onChangeText={setBio}
+              placeholderTextColor={C.textMuted}
+              placeholder="Tell us about yourself..."
+              multiline
+              numberOfLines={3}
+              maxLength={300}
             />
           </View>
         </View>
 
-        <Text style={styles.label}>Area</Text>
-        <TextInput
-          style={styles.input}
-          value={area}
-          onChangeText={setArea}
-          placeholder="e.g. Los Angeles, CA"
-          placeholderTextColor="#71717a"
-        />
+        {/* ── Card: Activities & Experience ── */}
+        <View style={s.card}>
+          <View style={s.cardHeaderRow}>
+            <Text style={s.cardTitle}>Activities & Experience</Text>
+            <Text style={s.cardSubtitle}>{sports.length} selected</Text>
+          </View>
 
-        <Text style={styles.label}>Bio</Text>
-        <TextInput
-          style={[styles.input, styles.textarea]}
-          value={bio}
-          onChangeText={setBio}
-          placeholder="Tell us about yourself..."
-          placeholderTextColor="#71717a"
-          multiline
-          numberOfLines={3}
-          maxLength={300}
-        />
+          <View style={s.sportGrid}>
+            {Object.entries(SPORT_LABELS).map(([key, label]) => {
+              const isSelected = sports.some((sp) => sp.sportType === key)
+              return (
+                <Pressable
+                  key={key}
+                  style={[s.sportButton, isSelected && s.sportButtonActive]}
+                  onPress={() => toggleSport(key)}
+                >
+                  <Text style={[s.sportButtonText, isSelected && s.sportButtonTextActive]}>
+                    {label}
+                  </Text>
+                </Pressable>
+              )
+            })}
+          </View>
 
-        <Pressable
-          style={[styles.saveButton, isSaving && { opacity: 0.6 }]}
-          onPress={handleSave}
-          disabled={isSaving}
-        >
-          <Text style={styles.saveText}>
-            {isSaving ? 'Saving...' : 'Save Changes'}
-          </Text>
-        </Pressable>
+          {sports.length > 0 && (
+            <View style={s.levelSection}>
+              <Text style={s.levelTitle}>Experience level:</Text>
+              {sports.map((sport) => (
+                <View key={sport.sportType} style={s.levelRow}>
+                  <Text style={s.levelSportName}>{SPORT_LABELS[sport.sportType]}</Text>
+                  <View style={s.levelButtons}>
+                    {Object.entries(SKILL_LABELS).map(([level, label]) => (
+                      <Pressable
+                        key={level}
+                        style={[s.levelButton, sport.selfReportedLevel === level && s.levelButtonActive]}
+                        onPress={() => updateSportLevel(sport.sportType, level)}
+                      >
+                        <Text style={[s.levelButtonText, sport.selfReportedLevel === level && s.levelButtonTextActive]}>
+                          {label}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   )
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
-  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' },
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: C.bg },
+  loadingContainer: { flex: 1, backgroundColor: C.bg, justifyContent: 'center', alignItems: 'center' },
   scroll: { padding: 20, paddingBottom: 60 },
-  avatarSection: { alignSelf: 'center', marginBottom: 4 },
-  avatar: { width: 96, height: 96, borderRadius: 48 },
-  avatarFallback: { width: 96, height: 96, borderRadius: 48, backgroundColor: '#27272a', alignItems: 'center', justifyContent: 'center' },
-  avatarInitial: { fontSize: 36, fontWeight: '700', color: '#fff' },
-  avatarOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 48, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
-  avatarBadge: { position: 'absolute', bottom: 0, right: 0, backgroundColor: '#3b82f6', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
-  avatarBadgeText: { fontSize: 11, fontWeight: '700', color: '#fff' },
-  avatarHint: { textAlign: 'center', fontSize: 12, color: '#71717a', marginBottom: 20 },
-  label: { fontSize: 13, fontWeight: '600', color: '#a1a1aa', marginTop: 16, marginBottom: 6 },
-  input: {
-    backgroundColor: '#18181b',
-    borderRadius: 10,
-    padding: 14,
-    fontSize: 15,
-    color: '#fff',
+
+  // Avatar
+  avatarWrapper: { alignSelf: 'center', marginBottom: 4 },
+  avatar: { width: 88, height: 88, borderRadius: 44, borderWidth: 2, borderColor: C.cardBorder },
+  avatarFallback: { width: 88, height: 88, borderRadius: 44, backgroundColor: C.primaryMuted, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: C.cardBorder },
+  avatarInitial: { fontSize: 32, fontWeight: '700', color: C.primaryText },
+  avatarOverlay: { ...StyleSheet.absoluteFillObject, borderRadius: 44, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
+  avatarEditBadge: { position: 'absolute', bottom: 0, right: -4, backgroundColor: C.primary, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3 },
+  avatarEditText: { fontSize: 11, fontWeight: '700', color: '#000' },
+  avatarHint: { textAlign: 'center', fontSize: 12, color: C.textMuted, marginBottom: 20 },
+
+  // Card
+  card: {
+    backgroundColor: C.card,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#27272a',
+    borderColor: C.cardBorder,
+    padding: 16,
+    marginBottom: 16,
+  },
+  cardHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  cardTitle: { fontSize: 16, fontWeight: '600', color: C.text, marginBottom: 16 },
+  cardSubtitle: { fontSize: 12, color: C.textSecondary },
+
+  // Form fields
+  row: { flexDirection: 'row', gap: 12, marginBottom: 14 },
+  field: { flex: 1 },
+  fieldFull: { marginBottom: 14 },
+  label: { fontSize: 13, fontWeight: '500', color: C.textSecondary, marginBottom: 6 },
+  input: {
+    backgroundColor: C.inputBg,
+    borderWidth: 1,
+    borderColor: C.inputBorder,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    fontSize: 15,
+    color: C.text,
   },
   textarea: { minHeight: 80, textAlignVertical: 'top' },
-  row: { flexDirection: 'row', gap: 12 },
-  halfField: { flex: 1 },
-  saveButton: { backgroundColor: '#fff', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 28 },
-  saveText: { fontSize: 16, fontWeight: '600', color: '#000' },
+
+  // Select / Dropdown
+  select: {
+    backgroundColor: C.inputBg,
+    borderWidth: 1,
+    borderColor: C.inputBorder,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  selectText: { fontSize: 15, color: C.text },
+  selectPlaceholder: { fontSize: 15, color: C.textMuted },
+  selectChevron: { fontSize: 10, color: C.textMuted },
+  dropdown: {
+    maxHeight: 200,
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.cardBorder,
+    borderRadius: 12,
+    marginTop: 6,
+    overflow: 'hidden',
+  },
+  dropdownSmall: {
+    maxHeight: 160,
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.cardBorder,
+    borderRadius: 12,
+    marginTop: 6,
+    overflow: 'hidden',
+  },
+  dropdownItem: { paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
+  dropdownItemActive: { backgroundColor: C.primaryMuted },
+  dropdownText: { fontSize: 14, color: C.text },
+  dropdownTextActive: { color: C.primaryText, fontWeight: '600' },
+
+  // Sports
+  sportGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  sportButton: {
+    borderWidth: 1,
+    borderColor: C.inputBorder,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  sportButtonActive: {
+    borderColor: C.primary,
+    backgroundColor: C.primaryMuted,
+  },
+  sportButtonText: { fontSize: 14, color: C.textSecondary },
+  sportButtonTextActive: { color: C.primaryText, fontWeight: '600' },
+
+  // Skill levels
+  levelSection: { marginTop: 20 },
+  levelTitle: { fontSize: 14, fontWeight: '500', color: C.textSecondary, marginBottom: 12 },
+  levelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  levelSportName: { fontSize: 14, fontWeight: '500', color: C.text },
+  levelButtons: { flexDirection: 'row', gap: 4 },
+  levelButton: {
+    backgroundColor: C.inputBg,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  levelButtonActive: { backgroundColor: C.primary },
+  levelButtonText: { fontSize: 12, color: C.textSecondary },
+  levelButtonTextActive: { color: '#000', fontWeight: '600' },
 })

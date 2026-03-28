@@ -2,14 +2,7 @@ import { z } from "zod";
 
 export const sportTypeSchema = z.enum([
   "hiking",
-  "climbing",
   "trail_running",
-  "surfing",
-  "cycling",
-  "mountain_biking",
-  "skiing",
-  "kayaking",
-  "yoga",
 ]);
 
 export const skillLevelSchema = z.enum([

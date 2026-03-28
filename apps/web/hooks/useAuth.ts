@@ -27,7 +27,7 @@ export function useAuth() {
       return
     }
 
-    router.push('/discover')
+    router.push('/rightnow')
     router.refresh()
   }
 
@@ -49,7 +49,7 @@ export function useAuth() {
       return
     }
 
-    router.push('/discover')
+    router.push('/rightnow')
     router.refresh()
   }
 

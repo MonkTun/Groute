@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Compass, MessageCircle, Backpack } from 'lucide-react'
+import { Flame, Map, Backpack } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
@@ -11,9 +11,9 @@ interface NavBarProps {
 }
 
 const NAV_ITEMS = [
-  { href: '/discover', label: 'Discover', icon: Compass },
+  { href: '/rightnow', label: 'Right Now', icon: Flame },
+  { href: '/explore', label: 'Explore', icon: Map },
   { href: '/trips', label: 'My Trips', icon: Backpack },
-  { href: '/social', label: 'Social', icon: MessageCircle },
 ] as const
 
 export function NavBar({ avatarUrl }: NavBarProps) {
@@ -23,7 +23,7 @@ export function NavBar({ avatarUrl }: NavBarProps) {
   return (
     <header className="fixed inset-x-0 top-0 z-50 border-b border-border/40 bg-background/70 backdrop-blur-xl backdrop-saturate-150">
       <div className="mx-auto flex h-14 w-full items-center justify-between px-4 sm:px-6 lg:max-w-6xl">
-        <Link href="/discover" className="text-lg font-bold tracking-tight">
+        <Link href="/rightnow" className="text-lg font-bold tracking-tight">
           Groute
         </Link>
         <nav className="flex items-center gap-0.5">

@@ -1,13 +1,6 @@
 export type SportType =
   | "hiking"
-  | "climbing"
-  | "trail_running"
-  | "surfing"
-  | "cycling"
-  | "mountain_biking"
-  | "skiing"
-  | "kayaking"
-  | "yoga";
+  | "trail_running";
 
 export type SkillLevel = "beginner" | "intermediate" | "advanced";
 

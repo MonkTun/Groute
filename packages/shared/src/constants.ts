@@ -1,13 +1,6 @@
 export const SPORT_LABELS: Record<string, string> = {
   hiking: "Hiking",
-  climbing: "Climbing",
   trail_running: "Trail Running",
-  surfing: "Surfing",
-  cycling: "Cycling",
-  mountain_biking: "Mountain Biking",
-  skiing: "Skiing",
-  kayaking: "Kayaking",
-  yoga: "Yoga",
 };
 
 export const COUNTRIES = [

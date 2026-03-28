@@ -48,7 +48,7 @@ export default async function ActivityDetailPage({
   ])
 
   const activity = activityResult.data
-  if (!activity) redirect('/discover')
+  if (!activity) redirect('/rightnow')
 
   const creator = Array.isArray(activity.creator) ? activity.creator[0] : activity.creator
   const isCreator = activity.creator_id === user.id

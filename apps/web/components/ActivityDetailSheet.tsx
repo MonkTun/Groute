@@ -241,7 +241,7 @@ export function ActivityDetailSheet({
               </Button>
             ) : joinState === 'accepted' ? (
               <div className="flex gap-2">
-                <Button className="flex-1 rounded-xl h-10" variant="outline" onClick={() => { onClose(); router.push(`/social/chat/${activity.id}`) }}>
+                <Button className="flex-1 rounded-xl h-10" variant="outline" onClick={() => { onClose(); router.push(`/trips`) }}>
                   Open Chat
                 </Button>
                 <Button className="flex-1 rounded-xl h-10" variant="outline" onClick={() => { onClose(); router.push(`/activity/${activity.id}`) }}>

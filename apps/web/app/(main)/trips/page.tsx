@@ -3,9 +3,10 @@ import Link from 'next/link'
 
 import { createServerClient } from '@/lib/supabase/server'
 import { SPORT_LABELS } from '@groute/shared'
-import { MapPin, Clock, Crown, CheckCircle, Clock3, MessageCircle } from 'lucide-react'
+import { MapPin, Clock, Crown, CheckCircle, Clock3 } from 'lucide-react'
 
 import { ParticipantManager } from '@/components/ParticipantManager'
+import { TripChat } from '@/components/TripChat'
 
 export default async function TripsPage() {
   const supabase = await createServerClient()
@@ -116,6 +117,7 @@ export default async function TripsPage() {
                 activity={a}
                 role="host"
                 pendingRequests={pendingByActivity.get(a.id)}
+                currentUserId={user.id}
               />
             ))}
             {upcomingParticipating.map((a) => (
@@ -125,6 +127,7 @@ export default async function TripsPage() {
                 role="participant"
                 participantStatus={a.participantStatus}
                 creatorName={a.creatorName}
+                currentUserId={user.id}
               />
             ))}
           </div>
@@ -166,13 +169,14 @@ interface TripCardProps {
   participantStatus?: string
   creatorName?: string
   isPast?: boolean
+  currentUserId?: string
   pendingRequests?: Array<{
     id: string; status: string; activity_id: string
     user: { id: string; display_name: string; first_name: string | null; last_name: string | null; avatar_url: string | null; area: string | null } | Array<{ id: string; display_name: string; first_name: string | null; last_name: string | null; avatar_url: string | null; area: string | null }>
   }> | null
 }
 
-function TripCard({ activity, role, participantStatus, creatorName, isPast, pendingRequests }: TripCardProps) {
+function TripCard({ activity, role, participantStatus, creatorName, isPast, currentUserId, pendingRequests }: TripCardProps) {
   const scheduledDate = new Date(activity.scheduled_at)
   const dateStr = scheduledDate.toLocaleDateString('en-US', {
     weekday: 'short', month: 'short', day: 'numeric',
@@ -226,14 +230,6 @@ function TripCard({ activity, role, participantStatus, creatorName, isPast, pend
           <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
             {SPORT_LABELS[activity.sport_type] ?? activity.sport_type}
           </span>
-          {!isPast && (
-            <Link
-              href={`/social/chat/${activity.id}`}
-              className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            >
-              <MessageCircle className="size-3" /> Chat
-            </Link>
-          )}
         </div>
       </div>
 
@@ -248,6 +244,11 @@ function TripCard({ activity, role, participantStatus, creatorName, isPast, pend
             requests={normalizedRequests}
           />
         </div>
+      )}
+
+      {/* Inline chat */}
+      {!isPast && currentUserId && (
+        <TripChat activityId={activity.id} currentUserId={currentUserId} />
       )}
     </div>
   )
