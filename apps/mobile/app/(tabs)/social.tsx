@@ -224,7 +224,7 @@ export default function SocialScreen() {
   if (isLoading) {
     return (
       <View style={styles.loading}>
-        <ActivityIndicator size="large" color="#fff" />
+        <ActivityIndicator size="large" color="#0f8a6e" />
       </View>
     )
   }
@@ -253,7 +253,7 @@ export default function SocialScreen() {
         <FlatList
           data={friends}
           keyExtractor={(item) => item.id}
-          refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor="#fff" />}
+          refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor="#0f8a6e" />}
           renderItem={({ item }) => {
             const name = item.first_name && item.last_name
               ? `${item.first_name} ${item.last_name}`
@@ -292,7 +292,7 @@ export default function SocialScreen() {
         <FlatList
           data={conversations}
           keyExtractor={(item) => item.id}
-          refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor="#fff" />}
+          refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor="#0f8a6e" />}
           renderItem={({ item }) => (
             <Pressable
               style={styles.convoRow}
@@ -340,7 +340,7 @@ export default function SocialScreen() {
         <FlatList
           data={notifications}
           keyExtractor={(item) => item.id}
-          refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor="#fff" />}
+          refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor="#0f8a6e" />}
           renderItem={({ item }) => (
             <Pressable
               style={styles.notifRow}
@@ -375,53 +375,53 @@ export default function SocialScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
-  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' },
+  container: { flex: 1, backgroundColor: '#fafafa' },
+  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fafafa' },
 
   // Tab bar
-  tabBar: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#27272a' },
+  tabBar: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#e5e5e5' },
   tabButton: { flex: 1, paddingVertical: 11, alignItems: 'center' },
-  tabActive: { borderBottomWidth: 2, borderBottomColor: '#fff' },
-  tabText: { fontSize: 13, fontWeight: '600', color: '#71717a' },
-  tabTextActive: { color: '#fff' },
+  tabActive: { borderBottomWidth: 2, borderBottomColor: '#1a1a2e' },
+  tabText: { fontSize: 13, fontWeight: '600', color: '#9ca3af' },
+  tabTextActive: { color: '#1a1a2e' },
 
   // Friends
-  friendRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#18181b' },
+  friendRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#e5e5e5' },
   friendAvatar: { width: 44, height: 44, borderRadius: 22 },
-  friendAvatarFallback: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#27272a', alignItems: 'center', justifyContent: 'center' },
-  friendInitial: { fontSize: 18, fontWeight: '700', color: '#fff' },
+  friendAvatarFallback: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#e5e5e5', alignItems: 'center', justifyContent: 'center' },
+  friendInitial: { fontSize: 18, fontWeight: '700', color: '#1a1a2e' },
   friendInfo: { flex: 1 },
-  friendName: { fontSize: 15, fontWeight: '600', color: '#fff' },
-  friendArea: { fontSize: 13, color: '#71717a', marginTop: 1 },
-  dmButton: { backgroundColor: '#27272a', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7 },
+  friendName: { fontSize: 15, fontWeight: '600', color: '#1a1a2e' },
+  friendArea: { fontSize: 13, color: '#9ca3af', marginTop: 1 },
+  dmButton: { backgroundColor: '#0f8a6e', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7 },
   dmText: { fontSize: 13, fontWeight: '600', color: '#fff' },
 
   // Conversations
-  convoRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#18181b' },
+  convoRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#e5e5e5' },
   convoAvatar: { width: 48, height: 48, borderRadius: 24 },
-  convoAvatarFallback: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#27272a', alignItems: 'center', justifyContent: 'center' },
-  groupFallback: { backgroundColor: '#1e3a5f' },
-  convoInitial: { fontSize: 18, fontWeight: '700', color: '#fff' },
+  convoAvatarFallback: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#e5e5e5', alignItems: 'center', justifyContent: 'center' },
+  groupFallback: { backgroundColor: '#dbeafe' },
+  convoInitial: { fontSize: 18, fontWeight: '700', color: '#1a1a2e' },
   convoContent: { flex: 1 },
   convoNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  convoName: { fontSize: 15, fontWeight: '600', color: '#fff', flex: 1 },
-  groupTag: { backgroundColor: '#27272a', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 1 },
-  groupTagText: { fontSize: 10, fontWeight: '600', color: '#71717a' },
-  convoLastMsg: { fontSize: 13, color: '#71717a', marginTop: 2 },
-  convoTime: { fontSize: 12, color: '#52525b' },
+  convoName: { fontSize: 15, fontWeight: '600', color: '#1a1a2e', flex: 1 },
+  groupTag: { backgroundColor: '#f0f0f0', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 1 },
+  groupTagText: { fontSize: 10, fontWeight: '600', color: '#6b7280' },
+  convoLastMsg: { fontSize: 13, color: '#9ca3af', marginTop: 2 },
+  convoTime: { fontSize: 12, color: '#9ca3af' },
 
   // Notifications
-  notifRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#18181b' },
+  notifRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#e5e5e5' },
   notifAvatar: { width: 40, height: 40, borderRadius: 20 },
-  notifAvatarFallback: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#27272a', alignItems: 'center', justifyContent: 'center' },
-  notifInitial: { fontSize: 16, fontWeight: '700', color: '#fff' },
+  notifAvatarFallback: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#e5e5e5', alignItems: 'center', justifyContent: 'center' },
+  notifInitial: { fontSize: 16, fontWeight: '700', color: '#1a1a2e' },
   notifContent: { flex: 1 },
-  notifMessage: { fontSize: 14, color: '#fff', lineHeight: 18 },
-  notifTime: { fontSize: 12, color: '#71717a', marginTop: 2 },
+  notifMessage: { fontSize: 14, color: '#1a1a2e', lineHeight: 18 },
+  notifTime: { fontSize: 12, color: '#9ca3af', marginTop: 2 },
 
   // Empty states
   empty: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 32 },
   emptyEmoji: { fontSize: 40 },
-  emptyTitle: { fontSize: 16, fontWeight: '600', color: '#fff', marginTop: 12 },
-  emptyText: { fontSize: 14, color: '#71717a', textAlign: 'center', marginTop: 4 },
+  emptyTitle: { fontSize: 16, fontWeight: '600', color: '#1a1a2e', marginTop: 12 },
+  emptyText: { fontSize: 14, color: '#9ca3af', textAlign: 'center', marginTop: 4 },
 })

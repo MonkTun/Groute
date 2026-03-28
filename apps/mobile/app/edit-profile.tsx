@@ -29,20 +29,20 @@ import { supabase } from '../lib/supabase'
 
 // ── Design tokens matching web ──
 const C = {
-  bg: '#0a0a0f',
-  card: '#12121a',
-  cardBorder: 'rgba(255,255,255,0.08)',
-  inputBg: 'rgba(255,255,255,0.06)',
-  inputBorder: 'rgba(255,255,255,0.1)',
-  primary: '#2dd4a8',
-  primaryMuted: 'rgba(45,212,168,0.12)',
-  primaryText: '#2dd4a8',
-  text: '#f0f0f5',
-  textSecondary: '#8b8b9e',
-  textMuted: '#5b5b72',
-  destructive: '#ef4444',
-  border: 'rgba(255,255,255,0.06)',
-  ring: 'rgba(45,212,168,0.3)',
+  bg: '#fafafa',
+  card: '#ffffff',
+  cardBorder: '#e5e5e5',
+  inputBg: '#ffffff',
+  inputBorder: '#e0e0e0',
+  primary: '#0f8a6e',
+  primaryMuted: 'rgba(15,138,110,0.1)',
+  primaryText: '#0f8a6e',
+  text: '#1a1a2e',
+  textSecondary: '#6b7280',
+  textMuted: '#9ca3af',
+  destructive: '#dc2626',
+  border: '#e5e5e5',
+  ring: 'rgba(15,138,110,0.3)',
 }
 
 interface UserSportEntry {
@@ -483,7 +483,7 @@ const s = StyleSheet.create({
   avatarInitial: { fontSize: 32, fontWeight: '700', color: C.primaryText },
   avatarOverlay: { ...StyleSheet.absoluteFillObject, borderRadius: 44, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
   avatarEditBadge: { position: 'absolute', bottom: 0, right: -4, backgroundColor: C.primary, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3 },
-  avatarEditText: { fontSize: 11, fontWeight: '700', color: '#000' },
+  avatarEditText: { fontSize: 11, fontWeight: '700', color: '#fff' },
   avatarHint: { textAlign: 'center', fontSize: 12, color: C.textMuted, marginBottom: 20 },
 
   // Card
@@ -584,5 +584,5 @@ const s = StyleSheet.create({
   },
   levelButtonActive: { backgroundColor: C.primary },
   levelButtonText: { fontSize: 12, color: C.textSecondary },
-  levelButtonTextActive: { color: '#000', fontWeight: '600' },
+  levelButtonTextActive: { color: '#fff', fontWeight: '600' },
 })

@@ -6,12 +6,12 @@ import { AuthProvider } from '../lib/AuthProvider'
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <Stack
         screenOptions={{
-          headerStyle: { backgroundColor: '#000' },
-          headerTintColor: '#fff',
-          contentStyle: { backgroundColor: '#000' },
+          headerStyle: { backgroundColor: '#fafafa' },
+          headerTintColor: '#1a1a2e',
+          contentStyle: { backgroundColor: '#fafafa' },
         }}
       >
         <Stack.Screen name="index" options={{ headerShown: false }} />

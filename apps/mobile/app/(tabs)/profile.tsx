@@ -16,19 +16,19 @@ import { supabase } from '../../lib/supabase'
 
 // ── Shared design tokens ──
 const C = {
-  bg: '#0a0a0f',
-  card: '#12121a',
-  cardBorder: 'rgba(255,255,255,0.08)',
-  primary: '#2dd4a8',
-  primaryMuted: 'rgba(45,212,168,0.12)',
-  primaryText: '#2dd4a8',
-  text: '#f0f0f5',
-  textSecondary: '#8b8b9e',
-  textMuted: '#5b5b72',
-  border: 'rgba(255,255,255,0.06)',
-  green: '#10b981',
-  greenBg: 'rgba(16,185,129,0.12)',
-  mutedBg: 'rgba(255,255,255,0.06)',
+  bg: '#fafafa',
+  card: '#ffffff',
+  cardBorder: '#e5e5e5',
+  primary: '#0f8a6e',
+  primaryMuted: 'rgba(15,138,110,0.1)',
+  primaryText: '#0f8a6e',
+  text: '#1a1a2e',
+  textSecondary: '#6b7280',
+  textMuted: '#9ca3af',
+  border: '#e5e5e5',
+  green: '#047857',
+  greenBg: '#d1fae5',
+  mutedBg: '#f0f0f0',
 }
 
 interface Profile {
@@ -58,6 +58,7 @@ export default function ProfileScreen() {
   const router = useRouter()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [sports, setSports] = useState<UserSport[]>([])
+  const [friends, setFriends] = useState<Array<{ id: string; display_name: string; first_name: string | null; last_name: string | null; avatar_url: string | null; area: string | null }>>([])
   const [followerCount, setFollowerCount] = useState(0)
   const [followingCount, setFollowingCount] = useState(0)
   const [activityCount, setActivityCount] = useState(0)
@@ -86,6 +87,24 @@ export default function ProfileScreen() {
     setFollowerCount(followersResult.count ?? 0)
     setFollowingCount(followingResult.count ?? 0)
     setActivityCount(activitiesResult.count ?? 0)
+
+    // Fetch friends (mutual follows)
+    const [fwingRes, fwersRes] = await Promise.all([
+      supabase.from('follows').select('following_id').eq('follower_id', user.id),
+      supabase.from('follows').select('follower_id').eq('following_id', user.id),
+    ])
+    const followingSet = new Set((fwingRes.data ?? []).map((f) => f.following_id))
+    const followerSet = new Set((fwersRes.data ?? []).map((f) => f.follower_id))
+    const mutualIds = [...followingSet].filter((id) => followerSet.has(id))
+    if (mutualIds.length > 0) {
+      const { data } = await supabase
+        .from('users')
+        .select('id, display_name, first_name, last_name, avatar_url, area')
+        .in('id', mutualIds)
+      setFriends(data ?? [])
+    } else {
+      setFriends([])
+    }
   }, [user])
 
   useEffect(() => {
@@ -236,6 +255,37 @@ export default function ProfileScreen() {
         )}
       </View>
 
+      {/* Card: Friends */}
+      <View style={s.card}>
+        <Text style={s.cardTitle}>Friends ({friends.length})</Text>
+        {friends.length > 0 ? (
+          <View style={s.friendsList}>
+            {friends.map((f) => {
+              const fname = f.first_name && f.last_name
+                ? `${f.first_name} ${f.last_name}`
+                : f.display_name
+              return (
+                <Pressable key={f.id} style={s.friendRow} onPress={() => router.push(`/dm/${f.id}`)}>
+                  {f.avatar_url ? (
+                    <Image source={{ uri: f.avatar_url }} style={s.friendAvatar} />
+                  ) : (
+                    <View style={s.friendAvatarFallback}>
+                      <Text style={s.friendInitial}>{(f.first_name?.[0] ?? f.display_name[0]).toUpperCase()}</Text>
+                    </View>
+                  )}
+                  <View style={s.friendInfo}>
+                    <Text style={s.friendName}>{fname}</Text>
+                    {f.area && <Text style={s.friendArea}>{f.area}</Text>}
+                  </View>
+                </Pressable>
+              )
+            })}
+          </View>
+        ) : (
+          <Text style={s.emptyText}>No friends yet. Follow someone and have them follow back!</Text>
+        )}
+      </View>
+
       {/* Sign out */}
       <Pressable style={s.signOutButton} onPress={handleSignOut}>
         <Text style={s.signOutText}>Sign out</Text>
@@ -321,6 +371,25 @@ const s = StyleSheet.create({
   stravaBadge: { backgroundColor: C.greenBg, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
   stravaBadgeText: { fontSize: 12, color: C.green },
   emptyText: { fontSize: 14, color: C.textSecondary },
+
+  // Friends
+  friendsList: { gap: 8 },
+  friendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: C.cardBorder,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  friendAvatar: { width: 36, height: 36, borderRadius: 18 },
+  friendAvatarFallback: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.primaryMuted, alignItems: 'center', justifyContent: 'center' },
+  friendInitial: { fontSize: 14, fontWeight: '700', color: C.primary },
+  friendInfo: { flex: 1 },
+  friendName: { fontSize: 14, fontWeight: '500', color: C.text },
+  friendArea: { fontSize: 12, color: C.textSecondary, marginTop: 1 },
 
   // Sign out
   signOutButton: {

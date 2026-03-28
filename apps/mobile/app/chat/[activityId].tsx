@@ -114,7 +114,7 @@ export default function GroupChatScreen() {
         <TextInput
           style={styles.input}
           placeholder="Type a message..."
-          placeholderTextColor="#71717a"
+          placeholderTextColor="#9ca3af"
           value={newMessage}
           onChangeText={setNewMessage}
           onSubmitEditing={handleSend}
@@ -129,16 +129,16 @@ export default function GroupChatScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
+  container: { flex: 1, backgroundColor: '#fafafa' },
   messageList: { paddingHorizontal: 16, paddingVertical: 12 },
   bubble: { maxWidth: '80%', borderRadius: 16, padding: 10, marginBottom: 8 },
-  bubbleMe: { alignSelf: 'flex-end', backgroundColor: '#3b82f6' },
-  bubbleOther: { alignSelf: 'flex-start', backgroundColor: '#27272a' },
-  senderName: { fontSize: 11, fontWeight: '600', color: '#a1a1aa', marginBottom: 2 },
-  messageText: { fontSize: 15, color: '#fff', lineHeight: 20 },
+  bubbleMe: { alignSelf: 'flex-end', backgroundColor: '#0f8a6e' },
+  bubbleOther: { alignSelf: 'flex-start', backgroundColor: '#f0f0f0' },
+  senderName: { fontSize: 11, fontWeight: '600', color: '#6b7280', marginBottom: 2 },
+  messageText: { fontSize: 15, color: '#1a1a2e', lineHeight: 20 },
   messageTextMe: { color: '#fff' },
-  inputBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#27272a', backgroundColor: '#000' },
-  input: { flex: 1, backgroundColor: '#18181b', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, fontSize: 15, color: '#fff', borderWidth: 1, borderColor: '#27272a' },
-  sendButton: { backgroundColor: '#3b82f6', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10 },
+  inputBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#e5e5e5', backgroundColor: '#fafafa' },
+  input: { flex: 1, backgroundColor: '#ffffff', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, fontSize: 15, color: '#1a1a2e', borderWidth: 1, borderColor: '#e0e0e0' },
+  sendButton: { backgroundColor: '#0f8a6e', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10 },
   sendText: { fontSize: 15, fontWeight: '600', color: '#fff' },
 })

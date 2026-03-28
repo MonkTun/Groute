@@ -297,7 +297,7 @@ export default function TripsScreen() {
   if (isLoading) {
     return (
       <View style={styles.loading}>
-        <ActivityIndicator size="large" color="#fff" />
+        <ActivityIndicator size="large" color="#0f8a6e" />
       </View>
     )
   }
@@ -328,7 +328,7 @@ export default function TripsScreen() {
       )}
       contentContainerStyle={styles.list}
       refreshControl={
-        <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor="#fff" />
+        <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor="#0f8a6e" />
       }
       stickySectionHeadersEnabled={false}
     />
@@ -336,13 +336,13 @@ export default function TripsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
-  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' },
+  container: { flex: 1, backgroundColor: '#fafafa' },
+  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fafafa' },
   list: { paddingHorizontal: 16, paddingBottom: 32 },
   sectionHeader: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#71717a',
+    color: '#9ca3af',
     textTransform: 'uppercase',
     letterSpacing: 1,
     marginTop: 20,
@@ -351,10 +351,10 @@ const styles = StyleSheet.create({
 
   // Card
   card: {
-    backgroundColor: '#18181b',
+    backgroundColor: '#ffffff',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#27272a',
+    borderColor: '#e5e5e5',
     marginBottom: 10,
     overflow: 'hidden',
   },
@@ -362,41 +362,41 @@ const styles = StyleSheet.create({
   cardMain: { padding: 14 },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 },
   cardTitleRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  cardTitle: { fontSize: 15, fontWeight: '700', color: '#fff', flex: 1 },
-  hostBadge: { backgroundColor: '#422006', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
-  hostBadgeText: { fontSize: 9, fontWeight: '700', color: '#f59e0b' },
-  goingBadge: { backgroundColor: '#052e16', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
-  goingBadgeText: { fontSize: 9, fontWeight: '700', color: '#10b981' },
-  requestedBadge: { backgroundColor: '#27272a', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
-  requestedBadgeText: { fontSize: 9, fontWeight: '700', color: '#71717a' },
-  sportTag: { backgroundColor: '#27272a', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
-  sportTagText: { fontSize: 11, fontWeight: '700', color: '#a1a1aa' },
-  meta: { fontSize: 13, color: '#71717a', marginTop: 4 },
-  hostedBy: { fontSize: 11, color: '#52525b', marginTop: 6 },
+  cardTitle: { fontSize: 15, fontWeight: '700', color: '#1a1a2e', flex: 1 },
+  hostBadge: { backgroundColor: '#fef3c7', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
+  hostBadgeText: { fontSize: 9, fontWeight: '700', color: '#b45309' },
+  goingBadge: { backgroundColor: '#d1fae5', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
+  goingBadgeText: { fontSize: 9, fontWeight: '700', color: '#047857' },
+  requestedBadge: { backgroundColor: '#f0f0f0', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
+  requestedBadgeText: { fontSize: 9, fontWeight: '700', color: '#6b7280' },
+  sportTag: { backgroundColor: '#f0f0f0', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  sportTagText: { fontSize: 11, fontWeight: '700', color: '#6b7280' },
+  meta: { fontSize: 13, color: '#9ca3af', marginTop: 4 },
+  hostedBy: { fontSize: 11, color: '#6b7280', marginTop: 6 },
 
   // Actions
-  cardActions: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#27272a' },
+  cardActions: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#e5e5e5' },
   chatAction: { flex: 1, paddingVertical: 10, alignItems: 'center' },
   chatActionText: { fontSize: 13, fontWeight: '600', color: '#3b82f6' },
 
   // Pending requests
-  pendingSection: { borderTopWidth: 1, borderTopColor: '#27272a' },
+  pendingSection: { borderTopWidth: 1, borderTopColor: '#e5e5e5' },
   pendingHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10 },
-  pendingHeaderText: { fontSize: 12, fontWeight: '600', color: '#f59e0b' },
-  chevron: { fontSize: 10, color: '#71717a' },
-  requestRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#1e1e1e' },
+  pendingHeaderText: { fontSize: 12, fontWeight: '600', color: '#b45309' },
+  chevron: { fontSize: 10, color: '#9ca3af' },
+  requestRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#e5e5e5' },
   requestInfo: { flex: 1 },
-  requestName: { fontSize: 14, fontWeight: '600', color: '#fff' },
-  requestArea: { fontSize: 12, color: '#71717a', marginTop: 1 },
+  requestName: { fontSize: 14, fontWeight: '600', color: '#1a1a2e' },
+  requestArea: { fontSize: 12, color: '#9ca3af', marginTop: 1 },
   requestActions: { flexDirection: 'row', gap: 8 },
-  acceptButton: { backgroundColor: '#052e16', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
-  acceptText: { fontSize: 12, fontWeight: '600', color: '#10b981' },
-  declineButton: { backgroundColor: '#1c0a0a', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
-  declineText: { fontSize: 12, fontWeight: '600', color: '#ef4444' },
+  acceptButton: { backgroundColor: '#d1fae5', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
+  acceptText: { fontSize: 12, fontWeight: '600', color: '#047857' },
+  declineButton: { backgroundColor: '#fecaca', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
+  declineText: { fontSize: 12, fontWeight: '600', color: '#dc2626' },
 
   // Empty
-  empty: { flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
+  empty: { flex: 1, backgroundColor: '#fafafa', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
   emptyEmoji: { fontSize: 40 },
-  emptyTitle: { fontSize: 16, fontWeight: '600', color: '#fff', marginTop: 12 },
-  emptySubtitle: { fontSize: 14, color: '#71717a', marginTop: 4, textAlign: 'center' },
+  emptyTitle: { fontSize: 16, fontWeight: '600', color: '#1a1a2e', marginTop: 12 },
+  emptySubtitle: { fontSize: 14, color: '#9ca3af', marginTop: 4, textAlign: 'center' },
 })

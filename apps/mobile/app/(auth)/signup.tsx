@@ -54,7 +54,7 @@ export default function SignupScreen() {
         <TextInput
           style={styles.input}
           placeholder="Display name"
-          placeholderTextColor="#71717a"
+          placeholderTextColor="#9ca3af"
           value={displayName}
           onChangeText={setDisplayName}
           autoComplete="name"
@@ -62,7 +62,7 @@ export default function SignupScreen() {
         <TextInput
           style={styles.input}
           placeholder="Email"
-          placeholderTextColor="#71717a"
+          placeholderTextColor="#9ca3af"
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
@@ -72,7 +72,7 @@ export default function SignupScreen() {
         <TextInput
           style={styles.input}
           placeholder="Password"
-          placeholderTextColor="#71717a"
+          placeholderTextColor="#9ca3af"
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -111,27 +111,27 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#1a1a2e',
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
-    color: '#a1a1aa',
+    color: '#6b7280',
     textAlign: 'center',
     marginBottom: 8,
   },
   input: {
-    backgroundColor: '#27272a',
-    borderRadius: 10,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
     padding: 16,
     fontSize: 16,
-    color: '#fff',
+    color: '#1a1a2e',
     borderWidth: 1,
-    borderColor: '#3f3f46',
+    borderColor: '#e0e0e0',
   },
   button: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
+    backgroundColor: '#0f8a6e',
+    borderRadius: 12,
     padding: 16,
     alignItems: 'center',
     marginTop: 8,
@@ -142,7 +142,7 @@ const styles = StyleSheet.create({
   buttonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#000',
+    color: '#ffffff',
   },
   link: {
     alignSelf: 'center',
@@ -150,10 +150,10 @@ const styles = StyleSheet.create({
   },
   linkText: {
     fontSize: 14,
-    color: '#a1a1aa',
+    color: '#6b7280',
   },
   linkBold: {
-    color: '#fff',
+    color: '#0f8a6e',
     fontWeight: '600',
   },
 })

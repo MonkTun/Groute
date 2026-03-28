@@ -9,14 +9,25 @@ import {
   Text,
   TextInput,
   View,
-  ScrollView,
 } from 'react-native'
-import { BlurView } from 'expo-blur'
 import { useRouter } from 'expo-router'
 
 import { SPORT_LABELS, SKILL_LABELS } from '@groute/shared'
 import { useSession } from '../../lib/AuthProvider'
 import { supabase } from '../../lib/supabase'
+
+const C = {
+  bg: '#fafafa',
+  card: '#ffffff',
+  cardBorder: '#e5e5e5',
+  primary: '#0f8a6e',
+  primaryMuted: 'rgba(15,138,110,0.1)',
+  text: '#1a1a2e',
+  textSecondary: '#6b7280',
+  textMuted: '#9ca3af',
+  amber: '#b45309',
+  green: '#047857',
+}
 
 interface Activity {
   id: string
@@ -24,322 +35,355 @@ interface Activity {
   description: string | null
   sport_type: string
   skill_level: string
-  visibility: string
-  creator_id: string
   banner_url: string | null
+  creator_id: string
   location_name: string
   scheduled_at: string
   max_participants: number
-  status: string
   creator: {
-    id: string
     display_name: string
     first_name: string | null
     last_name: string | null
     avatar_url: string | null
   } | null
+  participantCount: number
 }
 
-interface Participant {
-  activity_id: string
-  status: string
+const SPORT_EMOJIS: Record<string, string> = {
+  hiking: '\u{1F97E}',
+  trail_running: '\u{1F3C3}',
 }
 
-const SPORT_COLORS: Record<string, { bg: string; text: string }> = {
-  hiking: { bg: '#d1fae5', text: '#047857' },
-  climbing: { bg: '#ffedd5', text: '#c2410c' },
-  trail_running: { bg: '#e0f2fe', text: '#0369a1' },
-  surfing: { bg: '#cffafe', text: '#0e7490' },
-  cycling: { bg: '#ede9fe', text: '#6d28d9' },
-  mountain_biking: { bg: '#fef3c7', text: '#b45309' },
-  skiing: { bg: '#dbeafe', text: '#1d4ed8' },
-  kayaking: { bg: '#ccfbf1', text: '#0f766e' },
-  yoga: { bg: '#fce7f3', text: '#be185d' },
-}
-
-export default function DiscoverScreen() {
+export default function RightNowScreen() {
   const { user } = useSession()
   const router = useRouter()
   const [activities, setActivities] = useState<Activity[]>([])
-  const [participationMap, setParticipationMap] = useState<Map<string, string>>(new Map())
-  const [selectedSport, setSelectedSport] = useState<string | null>(null)
+  const [userSports, setUserSports] = useState<Set<string>>(new Set())
   const [searchQuery, setSearchQuery] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
-  const fetchActivities = useCallback(async () => {
-    const [activitiesResult, participantsResult] = await Promise.all([
+  const fetchData = useCallback(async () => {
+    if (!user) return
+
+    const now = new Date()
+    const in48h = new Date(now.getTime() + 48 * 60 * 60 * 1000)
+
+    const [activitiesResult, sportsResult, participantsResult] = await Promise.all([
       supabase
         .from('activities')
         .select(`
-          id, title, description, sport_type, skill_level, visibility, creator_id, banner_url,
-          location_name, scheduled_at, max_participants, status,
-          creator:users!creator_id ( id, display_name, first_name, last_name, avatar_url )
+          id, title, description, sport_type, skill_level, banner_url,
+          creator_id, location_name, scheduled_at, max_participants, status,
+          creator:users!creator_id ( display_name, first_name, last_name, avatar_url )
         `)
         .eq('status', 'open')
         .neq('visibility', 'private')
-        .gte('scheduled_at', new Date().toISOString())
+        .gte('scheduled_at', now.toISOString())
+        .lte('scheduled_at', in48h.toISOString())
         .order('scheduled_at', { ascending: true })
-        .limit(50),
+        .limit(20),
 
-      user
-        ? supabase
-            .from('activity_participants')
-            .select('activity_id, status')
-            .eq('user_id', user.id)
-        : Promise.resolve({ data: [] }),
+      supabase
+        .from('user_sports')
+        .select('sport_type')
+        .eq('user_id', user.id),
+
+      supabase
+        .from('activity_participants')
+        .select('activity_id')
+        .eq('status', 'accepted'),
     ])
+
+    setUserSports(new Set((sportsResult.data ?? []).map((s) => s.sport_type)))
+
+    // Count participants per activity
+    const countMap = new Map<string, number>()
+    for (const p of participantsResult.data ?? []) {
+      countMap.set(p.activity_id, (countMap.get(p.activity_id) ?? 0) + 1)
+    }
 
     setActivities(
       (activitiesResult.data ?? []).map((a) => ({
         ...a,
         creator: Array.isArray(a.creator) ? a.creator[0] ?? null : a.creator,
+        participantCount: (countMap.get(a.id) ?? 0) + 1, // +1 for creator
       }))
-    )
-    setParticipationMap(
-      new Map((participantsResult.data ?? []).map((p: Participant) => [p.activity_id, p.status]))
     )
   }, [user])
 
   useEffect(() => {
-    fetchActivities().finally(() => setIsLoading(false))
-  }, [fetchActivities])
+    fetchData().finally(() => setIsLoading(false))
+  }, [fetchData])
 
   async function handleRefresh() {
     setIsRefreshing(true)
-    await fetchActivities()
+    await fetchData()
     setIsRefreshing(false)
-  }
-
-  const filtered = activities.filter((a) => {
-    if (selectedSport && a.sport_type !== selectedSport) return false
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase()
-      if (!a.title.toLowerCase().includes(q) && !a.location_name.toLowerCase().includes(q)) {
-        return false
-      }
-    }
-    return true
-  })
-
-  function renderActivity({ item }: { item: Activity }) {
-    const scheduled = new Date(item.scheduled_at)
-    const dateStr = scheduled.toLocaleDateString('en-US', {
-      weekday: 'short', month: 'short', day: 'numeric',
-    })
-    const timeStr = scheduled.toLocaleTimeString('en-US', {
-      hour: 'numeric', minute: '2-digit',
-    })
-    const creatorName = item.creator
-      ? item.creator.first_name && item.creator.last_name
-        ? `${item.creator.first_name} ${item.creator.last_name[0]}.`
-        : item.creator.display_name
-      : 'Unknown'
-    const sportColor = SPORT_COLORS[item.sport_type] ?? { bg: '#27272a', text: '#a1a1aa' }
-    const isOwner = item.creator_id === user?.id
-    const participantStatus = participationMap.get(item.id)
-    const isMine = isOwner || participantStatus === 'accepted'
-
-    return (
-      <Pressable
-        style={[styles.card, isMine && styles.cardHighlight]}
-        onPress={() => router.push(`/activity/${item.id}`)}
-      >
-        {item.banner_url && (
-          <Image source={{ uri: item.banner_url }} style={styles.cardImage} />
-        )}
-        <View style={styles.cardBody}>
-          <View style={styles.cardHeader}>
-            <View style={styles.cardTitleRow}>
-              <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
-              {isOwner && <Text style={styles.ownerBadge}>HOST</Text>}
-              {participantStatus === 'accepted' && !isOwner && (
-                <Text style={styles.joinedBadge}>JOINED</Text>
-              )}
-              {participantStatus === 'requested' && (
-                <Text style={styles.pendingBadge}>PENDING</Text>
-              )}
-            </View>
-            <View style={[styles.sportBadge, { backgroundColor: sportColor.bg }]}>
-              <Text style={[styles.sportBadgeText, { color: sportColor.text }]}>
-                {SPORT_LABELS[item.sport_type] ?? item.sport_type}
-              </Text>
-            </View>
-          </View>
-
-          <Text style={styles.cardMeta}>{dateStr}, {timeStr}</Text>
-          <Text style={styles.cardMeta} numberOfLines={1}>{item.location_name}</Text>
-
-          <View style={styles.cardFooter}>
-            <Text style={styles.cardCreator}>by {creatorName}</Text>
-            <View style={styles.skillBadge}>
-              <Text style={styles.skillText}>
-                {SKILL_LABELS[item.skill_level] ?? item.skill_level}
-              </Text>
-            </View>
-          </View>
-        </View>
-      </Pressable>
-    )
   }
 
   if (isLoading) {
     return (
-      <View style={styles.loading}>
-        <ActivityIndicator size="large" color="#fff" />
+      <View style={s.loading}>
+        <ActivityIndicator size="large" color={C.primary} />
       </View>
     )
   }
 
+  const now = new Date()
+  const in6h = new Date(now.getTime() + 6 * 60 * 60 * 1000)
+
+  // Filter by search
+  const filtered = searchQuery.trim()
+    ? activities.filter((a) => {
+        const q = searchQuery.toLowerCase()
+        return (
+          a.title.toLowerCase().includes(q) ||
+          a.location_name.toLowerCase().includes(q) ||
+          (SPORT_LABELS[a.sport_type] ?? a.sport_type).toLowerCase().includes(q)
+        )
+      })
+    : activities
+
+  const happeningSoon = filtered.filter((a) => new Date(a.scheduled_at) <= in6h)
+  const upcoming = filtered.filter((a) => new Date(a.scheduled_at) > in6h)
+  const forYou = searchQuery ? [] : filtered.filter((a) => userSports.has(a.sport_type)).slice(0, 6)
+
+  const hour = now.getHours()
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+
+  type Section = { type: 'header' } | { type: 'search' } | { type: 'section-title'; title: string; dot?: boolean; icon?: string } | { type: 'activity'; activity: Activity; featured?: boolean } | { type: 'cta' } | { type: 'empty' }
+
+  const sections: Section[] = [{ type: 'header' }, { type: 'search' }]
+
+  if (happeningSoon.length > 0) {
+    sections.push({ type: 'section-title', title: 'Happening Soon', dot: true })
+    happeningSoon.forEach((a) => sections.push({ type: 'activity', activity: a, featured: true }))
+  }
+
+  if (forYou.length > 0) {
+    sections.push({ type: 'section-title', title: 'For You', icon: '\u2728' })
+    forYou.forEach((a) => sections.push({ type: 'activity', activity: a }))
+  }
+
+  if (upcoming.length > 0) {
+    sections.push({ type: 'section-title', title: 'Coming Up' })
+    upcoming.forEach((a) => sections.push({ type: 'activity', activity: a }))
+  }
+
+  if (filtered.length === 0) {
+    sections.push({ type: 'empty' })
+  }
+
+  sections.push({ type: 'cta' })
+
   return (
-    <View style={styles.container}>
-      {/* Activity list */}
-      <FlatList
-        data={filtered}
-        keyExtractor={(item) => item.id}
-        renderItem={renderActivity}
-        contentContainerStyle={styles.list}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={handleRefresh}
-            tintColor="#fff"
-          />
+    <FlatList
+      style={s.container}
+      data={sections}
+      keyExtractor={(_, i) => String(i)}
+      refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor={C.primary} />}
+      renderItem={({ item }) => {
+        if (item.type === 'header') {
+          return (
+            <View style={s.header}>
+              <Text style={s.greeting}>{greeting}</Text>
+              <Text style={s.subtitle}>Here&apos;s what&apos;s happening around you</Text>
+            </View>
+          )
         }
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyEmoji}>{'\u{1F3D4}'}</Text>
-            <Text style={styles.emptyTitle}>No activities found</Text>
-            <Text style={styles.emptySubtitle}>Try a different filter or create one!</Text>
-          </View>
+
+        if (item.type === 'search') {
+          return (
+            <View style={s.searchContainer}>
+              <TextInput
+                style={s.searchInput}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder="Search activities, locations..."
+                placeholderTextColor={C.textMuted}
+              />
+              {searchQuery ? (
+                <Pressable style={s.searchClear} onPress={() => setSearchQuery('')}>
+                  <Text style={s.searchClearText}>{'\u2715'}</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          )
         }
-      />
 
-      {/* FAB to create activity */}
-      <Pressable
-        style={styles.fab}
-        onPress={() => router.push('/create-activity')}
-      >
-        <Text style={styles.fabText}>+</Text>
-      </Pressable>
+        if (item.type === 'section-title') {
+          return (
+            <View style={s.sectionHeader}>
+              {item.dot && <View style={s.liveDot} />}
+              {item.icon && <Text style={s.sectionIcon}>{item.icon}</Text>}
+              <Text style={s.sectionTitle}>{item.title}</Text>
+            </View>
+          )
+        }
 
-      {/* Bottom bar: filters + search */}
-      <BlurView intensity={80} tint="dark" style={styles.bottomBar}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filtersContent}
-        >
-          <Pressable
-            style={[styles.filterPill, !selectedSport && styles.filterPillActive]}
-            onPress={() => setSelectedSport(null)}
-          >
-            <Text style={[styles.filterText, !selectedSport && styles.filterTextActive]}>All</Text>
-          </Pressable>
-          {Object.entries(SPORT_LABELS).map(([key, label]) => (
-            <Pressable
-              key={key}
-              style={[styles.filterPill, selectedSport === key && styles.filterPillActive]}
-              onPress={() => setSelectedSport(selectedSport === key ? null : key)}
-            >
-              <Text style={[styles.filterText, selectedSport === key && styles.filterTextActive]}>
-                {label}
-              </Text>
+        if (item.type === 'activity') {
+          return renderCard(item.activity, item.featured)
+        }
+
+        if (item.type === 'cta') {
+          return (
+            <Pressable style={s.ctaButton} onPress={() => router.push('/(tabs)/explore')}>
+              <Text style={s.ctaText}>Explore the map</Text>
             </Pressable>
-          ))}
-        </ScrollView>
+          )
+        }
 
-        <View style={styles.searchContainer}>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search activities..."
-            placeholderTextColor="#71717a"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </View>
-      </BlurView>
-    </View>
+        if (item.type === 'empty') {
+          return (
+            <View style={s.empty}>
+              <Text style={s.emptyEmoji}>{'\u{1F3D4}'}</Text>
+              <Text style={s.emptyTitle}>Nothing happening right now</Text>
+              <Text style={s.emptySubtitle}>Check back later or explore the map to find activities.</Text>
+            </View>
+          )
+        }
+
+        return null
+      }}
+    />
   )
+
+  function renderCard(activity: Activity, featured?: boolean) {
+    const scheduled = new Date(activity.scheduled_at)
+    const dateStr = scheduled.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+    const timeStr = scheduled.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+    const creatorName = activity.creator
+      ? activity.creator.first_name && activity.creator.last_name
+        ? `${activity.creator.first_name} ${activity.creator.last_name[0]}.`
+        : activity.creator.display_name
+      : 'Unknown'
+    const spotsLeft = activity.max_participants - activity.participantCount
+
+    return (
+      <Pressable
+        style={s.card}
+        onPress={() => router.push(`/activity/${activity.id}`)}
+      >
+        {activity.banner_url ? (
+          <Image source={{ uri: activity.banner_url }} style={featured ? s.cardImageFeatured : s.cardImage} />
+        ) : (
+          <View style={[s.cardImageFallback, featured && s.cardImageFeatured]}>
+            <Text style={s.cardEmoji}>{SPORT_EMOJIS[activity.sport_type] ?? '\u{1F3DE}'}</Text>
+          </View>
+        )}
+        <View style={s.cardBody}>
+          <View style={s.cardTitleRow}>
+            <Text style={s.cardTitle} numberOfLines={1}>{activity.title}</Text>
+            <View style={s.sportBadge}>
+              <Text style={s.sportBadgeText}>{SPORT_LABELS[activity.sport_type] ?? activity.sport_type}</Text>
+            </View>
+          </View>
+
+          {featured && activity.description && (
+            <Text style={s.cardDesc} numberOfLines={2}>{activity.description}</Text>
+          )}
+
+          <Text style={s.cardMeta}>{dateStr}, {timeStr}</Text>
+          <Text style={s.cardMeta} numberOfLines={1}>{activity.location_name}</Text>
+
+          <View style={s.cardFooter}>
+            <View style={s.cardFooterLeft}>
+              {activity.creator?.avatar_url ? (
+                <Image source={{ uri: activity.creator.avatar_url }} style={s.miniAvatar} />
+              ) : (
+                <View style={s.miniAvatarFallback}>
+                  <Text style={s.miniAvatarText}>{creatorName[0].toUpperCase()}</Text>
+                </View>
+              )}
+              <Text style={s.goingText}>{activity.participantCount}/{activity.max_participants}</Text>
+              {spotsLeft > 0 && spotsLeft <= 3 && (
+                <View style={s.spotsLeftBadge}>
+                  <Text style={s.spotsLeftText}>{spotsLeft} left</Text>
+                </View>
+              )}
+            </View>
+            <View style={s.skillBadge}>
+              <Text style={s.skillText}>{SKILL_LABELS[activity.skill_level] ?? activity.skill_level}</Text>
+            </View>
+          </View>
+        </View>
+      </Pressable>
+    )
+  }
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
-  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' },
-  bottomBar: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(255,255,255,0.1)',
-    overflow: 'hidden',
-    paddingBottom: 4,
-  },
-  filtersContent: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 8, gap: 8, flexDirection: 'row' },
-  filterPill: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
-  filterPillActive: { backgroundColor: 'rgba(255,255,255,0.9)' },
-  filterText: { color: 'rgba(255,255,255,0.6)', fontSize: 14, fontWeight: '600' },
-  filterTextActive: { color: '#000' },
-  searchContainer: { paddingHorizontal: 16, paddingBottom: 8 },
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: C.bg },
+  loading: { flex: 1, backgroundColor: C.bg, justifyContent: 'center', alignItems: 'center' },
+
+  searchContainer: { paddingHorizontal: 20, paddingBottom: 8, position: 'relative' },
   searchInput: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 12,
-    padding: 12,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     fontSize: 15,
-    color: '#fff',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    color: C.text,
   },
-  list: { paddingHorizontal: 16, paddingBottom: 140 },
+  searchClear: { position: 'absolute', right: 32, top: 12 },
+  searchClearText: { fontSize: 14, color: C.textMuted },
+
+  header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },
+  greeting: { fontSize: 26, fontWeight: '700', color: C.text },
+  subtitle: { fontSize: 14, color: C.textSecondary, marginTop: 4 },
+
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, paddingTop: 24, paddingBottom: 12 },
+  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.green },
+  sectionIcon: { fontSize: 16 },
+  sectionTitle: { fontSize: 18, fontWeight: '600', color: C.text },
+
   card: {
-    backgroundColor: '#18181b',
+    marginHorizontal: 20,
+    marginBottom: 12,
+    backgroundColor: C.card,
     borderRadius: 16,
-    marginTop: 12,
-    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#27272a',
+    borderColor: C.cardBorder,
+    overflow: 'hidden',
   },
-  cardHighlight: { borderColor: '#3b82f6', backgroundColor: '#0c1425' },
-  cardImage: { width: '100%', height: 140 },
+  cardImage: { width: '100%', height: 110 },
+  cardImageFeatured: { width: '100%', height: 150 },
+  cardImageFallback: { width: '100%', height: 110, backgroundColor: '#f0f0f0', alignItems: 'center', justifyContent: 'center' },
+  cardEmoji: { fontSize: 32 },
   cardBody: { padding: 14 },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 },
-  cardTitleRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  cardTitle: { fontSize: 15, fontWeight: '700', color: '#fff', flex: 1 },
-  ownerBadge: { fontSize: 9, fontWeight: '700', color: '#f59e0b', backgroundColor: '#422006', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' },
-  joinedBadge: { fontSize: 9, fontWeight: '700', color: '#10b981', backgroundColor: '#052e16', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' },
-  pendingBadge: { fontSize: 9, fontWeight: '700', color: '#71717a', backgroundColor: '#27272a', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' },
-  sportBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
-  sportBadgeText: { fontSize: 11, fontWeight: '700' },
-  cardMeta: { fontSize: 13, color: '#71717a', marginTop: 4 },
+  cardTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 },
+  cardTitle: { fontSize: 15, fontWeight: '700', color: C.text, flex: 1 },
+  sportBadge: { backgroundColor: C.primaryMuted, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  sportBadgeText: { fontSize: 10, fontWeight: '700', color: C.primary },
+  cardDesc: { fontSize: 12, color: C.textSecondary, marginTop: 6, lineHeight: 17 },
+  cardMeta: { fontSize: 12, color: C.textMuted, marginTop: 4 },
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
-  cardCreator: { fontSize: 12, color: '#a1a1aa' },
-  skillBadge: { backgroundColor: '#27272a', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
-  skillText: { fontSize: 10, color: '#a1a1aa', fontWeight: '600' },
-  empty: { alignItems: 'center', paddingTop: 60 },
-  emptyEmoji: { fontSize: 40 },
-  emptyTitle: { fontSize: 16, fontWeight: '600', color: '#fff', marginTop: 12 },
-  emptySubtitle: { fontSize: 14, color: '#71717a', marginTop: 4 },
-  fab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 120,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+  cardFooterLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  miniAvatar: { width: 20, height: 20, borderRadius: 10 },
+  miniAvatarFallback: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#e5e5e5', alignItems: 'center', justifyContent: 'center' },
+  miniAvatarText: { fontSize: 9, fontWeight: '700', color: '#1a1a2e' },
+  goingText: { fontSize: 11, color: C.textSecondary },
+  spotsLeftBadge: { backgroundColor: '#fef3c7', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
+  spotsLeftText: { fontSize: 9, fontWeight: '700', color: C.amber },
+  skillBadge: { backgroundColor: '#f0f0f0', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  skillText: { fontSize: 10, color: C.textSecondary, fontWeight: '600' },
+
+  ctaButton: {
+    alignSelf: 'center',
+    backgroundColor: C.primaryMuted,
+    borderRadius: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    marginTop: 12,
+    marginBottom: 32,
   },
-  fabText: { fontSize: 28, fontWeight: '300', color: '#000', marginTop: -2 },
+  ctaText: { fontSize: 14, fontWeight: '600', color: C.primary },
+
+  empty: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 32 },
+  emptyEmoji: { fontSize: 40 },
+  emptyTitle: { fontSize: 16, fontWeight: '600', color: C.text, marginTop: 12 },
+  emptySubtitle: { fontSize: 14, color: C.textMuted, marginTop: 4, textAlign: 'center' },
 })

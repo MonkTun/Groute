@@ -206,7 +206,7 @@ export default function ActivityDetailScreen() {
     return (
       <View style={styles.loading}>
         <Stack.Screen options={{ title: '' }} />
-        <ActivityIndicator size="large" color="#fff" />
+        <ActivityIndicator size="large" color="#0f8a6e" />
       </View>
     )
   }
@@ -249,7 +249,7 @@ export default function ActivityDetailScreen() {
             disabled={isUploadingBanner}
           >
             {isUploadingBanner ? (
-              <ActivityIndicator size="small" color="#fff" />
+              <ActivityIndicator size="small" color="#0f8a6e" />
             ) : (
               <Text style={styles.bannerEditText}>
                 {bannerUrl ? 'Change photo' : 'Add photo'}
@@ -382,46 +382,46 @@ export default function ActivityDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
-  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' },
+  container: { flex: 1, backgroundColor: '#fafafa' },
+  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fafafa' },
   banner: { width: '100%', height: 200 },
-  bannerFallback: { width: '100%', height: 160, backgroundColor: '#18181b', alignItems: 'center', justifyContent: 'center' },
+  bannerFallback: { width: '100%', height: 160, backgroundColor: '#f0f0f0', alignItems: 'center', justifyContent: 'center' },
   bannerEmoji: { fontSize: 48 },
   body: { padding: 20 },
   titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 },
-  title: { fontSize: 22, fontWeight: 'bold', color: '#fff', flex: 1 },
-  sportTag: { backgroundColor: '#27272a', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
-  sportTagText: { fontSize: 12, fontWeight: '700', color: '#a1a1aa' },
-  description: { fontSize: 14, color: '#a1a1aa', marginTop: 12, lineHeight: 20 },
+  title: { fontSize: 22, fontWeight: 'bold', color: '#1a1a2e', flex: 1 },
+  sportTag: { backgroundColor: '#f0f0f0', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
+  sportTagText: { fontSize: 12, fontWeight: '700', color: '#6b7280' },
+  description: { fontSize: 14, color: '#6b7280', marginTop: 12, lineHeight: 20 },
   detailsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 20 },
-  detailItem: { backgroundColor: '#18181b', borderRadius: 12, padding: 12, width: '47%' },
-  detailLabel: { fontSize: 11, color: '#71717a', marginBottom: 2 },
-  detailValue: { fontSize: 13, color: '#fff', fontWeight: '600' },
-  hostCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#18181b', borderRadius: 14, padding: 14, marginTop: 20 },
+  detailItem: { backgroundColor: '#ffffff', borderRadius: 12, padding: 12, width: '47%', borderWidth: 1, borderColor: '#e5e5e5' },
+  detailLabel: { fontSize: 11, color: '#9ca3af', marginBottom: 2 },
+  detailValue: { fontSize: 13, color: '#1a1a2e', fontWeight: '600' },
+  hostCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#ffffff', borderRadius: 14, padding: 14, marginTop: 20, borderWidth: 1, borderColor: '#e5e5e5' },
   avatar: { width: 40, height: 40, borderRadius: 20 },
-  avatarFallback: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#27272a', alignItems: 'center', justifyContent: 'center' },
-  avatarInitial: { fontSize: 16, fontWeight: '700', color: '#fff' },
-  hostName: { fontSize: 15, fontWeight: '600', color: '#fff' },
-  hostLabel: { fontSize: 12, color: '#71717a' },
-  sectionTitle: { fontSize: 12, fontWeight: '700', color: '#71717a', textTransform: 'uppercase', letterSpacing: 1, marginTop: 24, marginBottom: 12 },
+  avatarFallback: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#e5e5e5', alignItems: 'center', justifyContent: 'center' },
+  avatarInitial: { fontSize: 16, fontWeight: '700', color: '#1a1a2e' },
+  hostName: { fontSize: 15, fontWeight: '600', color: '#1a1a2e' },
+  hostLabel: { fontSize: 12, color: '#9ca3af' },
+  sectionTitle: { fontSize: 12, fontWeight: '700', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 1, marginTop: 24, marginBottom: 12 },
   memberRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
   memberAvatar: { width: 32, height: 32, borderRadius: 16 },
-  memberAvatarFallback: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#27272a', alignItems: 'center', justifyContent: 'center' },
-  memberInitial: { fontSize: 13, fontWeight: '700', color: '#fff' },
-  memberName: { fontSize: 14, color: '#fff' },
+  memberAvatarFallback: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#e5e5e5', alignItems: 'center', justifyContent: 'center' },
+  memberInitial: { fontSize: 13, fontWeight: '700', color: '#1a1a2e' },
+  memberName: { fontSize: 14, color: '#1a1a2e' },
   actionSection: { marginTop: 32, marginBottom: 40 },
-  joinButton: { backgroundColor: '#fff', borderRadius: 12, padding: 16, alignItems: 'center' },
-  joinText: { fontSize: 16, fontWeight: '600', color: '#000' },
-  chatButton: { backgroundColor: '#27272a', borderRadius: 12, padding: 16, alignItems: 'center' },
+  joinButton: { backgroundColor: '#0f8a6e', borderRadius: 12, padding: 16, alignItems: 'center' },
+  joinText: { fontSize: 16, fontWeight: '600', color: '#fff' },
+  chatButton: { backgroundColor: '#0f8a6e', borderRadius: 12, padding: 16, alignItems: 'center' },
   chatButtonText: { fontSize: 16, fontWeight: '600', color: '#fff' },
-  pendingButton: { backgroundColor: '#27272a', borderRadius: 12, padding: 16, alignItems: 'center' },
-  pendingText: { fontSize: 16, fontWeight: '600', color: '#71717a' },
+  pendingButton: { backgroundColor: '#f0f0f0', borderRadius: 12, padding: 16, alignItems: 'center' },
+  pendingText: { fontSize: 16, fontWeight: '600', color: '#6b7280' },
   bannerEditButton: { position: 'absolute', bottom: 12, right: 12, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
   bannerEditText: { fontSize: 12, fontWeight: '600', color: '#fff' },
   manageSection: { gap: 12 },
-  manageSectionTitle: { fontSize: 12, fontWeight: '700', color: '#71717a', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 },
-  manageButton: { backgroundColor: '#27272a', borderRadius: 12, padding: 16, alignItems: 'center' },
+  manageSectionTitle: { fontSize: 12, fontWeight: '700', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 },
+  manageButton: { backgroundColor: '#0f8a6e', borderRadius: 12, padding: 16, alignItems: 'center' },
   manageButtonText: { fontSize: 16, fontWeight: '600', color: '#fff' },
-  deleteButton: { borderWidth: 1, borderColor: '#7f1d1d', borderRadius: 12, padding: 16, alignItems: 'center' },
-  deleteText: { fontSize: 16, fontWeight: '600', color: '#ef4444' },
+  deleteButton: { borderWidth: 1, borderColor: '#fecaca', borderRadius: 12, padding: 16, alignItems: 'center' },
+  deleteText: { fontSize: 16, fontWeight: '600', color: '#dc2626' },
 })

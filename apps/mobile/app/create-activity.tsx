@@ -89,7 +89,7 @@ export default function CreateActivityScreen() {
         <TextInput
           style={styles.input}
           placeholder="Morning hike at Griffith Park"
-          placeholderTextColor="#71717a"
+          placeholderTextColor="#9ca3af"
           value={title}
           onChangeText={setTitle}
           maxLength={200}
@@ -99,7 +99,7 @@ export default function CreateActivityScreen() {
         <TextInput
           style={[styles.input, styles.textarea]}
           placeholder="What should people know?"
-          placeholderTextColor="#71717a"
+          placeholderTextColor="#9ca3af"
           value={description}
           onChangeText={setDescription}
           maxLength={2000}
@@ -141,7 +141,7 @@ export default function CreateActivityScreen() {
         <TextInput
           style={styles.input}
           placeholder="Griffith Observatory"
-          placeholderTextColor="#71717a"
+          placeholderTextColor="#9ca3af"
           value={locationName}
           onChangeText={setLocationName}
         />
@@ -152,7 +152,7 @@ export default function CreateActivityScreen() {
             <TextInput
               style={styles.input}
               placeholder="2026-04-01"
-              placeholderTextColor="#71717a"
+              placeholderTextColor="#9ca3af"
               value={date}
               onChangeText={setDate}
               keyboardType="numbers-and-punctuation"
@@ -163,7 +163,7 @@ export default function CreateActivityScreen() {
             <TextInput
               style={styles.input}
               placeholder="08:00"
-              placeholderTextColor="#71717a"
+              placeholderTextColor="#9ca3af"
               value={time}
               onChangeText={setTime}
               keyboardType="numbers-and-punctuation"
@@ -194,37 +194,37 @@ export default function CreateActivityScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
+  container: { flex: 1, backgroundColor: '#fafafa' },
   scroll: { padding: 20, paddingBottom: 60 },
-  label: { fontSize: 13, fontWeight: '600', color: '#a1a1aa', marginTop: 16, marginBottom: 6 },
+  label: { fontSize: 13, fontWeight: '600', color: '#6b7280', marginTop: 16, marginBottom: 6 },
   input: {
-    backgroundColor: '#18181b',
+    backgroundColor: '#ffffff',
     borderRadius: 10,
     padding: 14,
     fontSize: 15,
-    color: '#fff',
+    color: '#1a1a2e',
     borderWidth: 1,
-    borderColor: '#27272a',
+    borderColor: '#e0e0e0',
   },
   textarea: { minHeight: 80, textAlignVertical: 'top' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
-    backgroundColor: '#27272a',
+    backgroundColor: '#f0f0f0',
     borderRadius: 20,
     paddingHorizontal: 14,
     paddingVertical: 7,
   },
-  chipActive: { backgroundColor: '#fff' },
-  chipText: { color: '#a1a1aa', fontSize: 13, fontWeight: '600' },
-  chipTextActive: { color: '#000' },
+  chipActive: { backgroundColor: '#0f8a6e' },
+  chipText: { color: '#6b7280', fontSize: 13, fontWeight: '600' },
+  chipTextActive: { color: '#fff' },
   row: { flexDirection: 'row', gap: 12 },
   halfField: { flex: 1 },
   createButton: {
-    backgroundColor: '#fff',
+    backgroundColor: '#0f8a6e',
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
     marginTop: 28,
   },
-  createText: { fontSize: 16, fontWeight: '600', color: '#000' },
+  createText: { fontSize: 16, fontWeight: '600', color: '#fff' },
 })
