@@ -18,6 +18,7 @@ export default function RootLayout() {
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="activity/[id]" options={{ title: 'Activity' }} />
+        <Stack.Screen name="edit-activity" options={{ title: 'Edit Activity', presentation: 'modal' }} />
         <Stack.Screen name="edit-profile" options={{ title: 'Edit Profile', presentation: 'modal' }} />
         <Stack.Screen name="create-activity" options={{ title: 'New Activity', presentation: 'modal' }} />
         <Stack.Screen name="chat/[activityId]" options={{ title: 'Group Chat' }} />

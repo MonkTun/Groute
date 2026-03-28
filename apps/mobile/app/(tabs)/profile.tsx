@@ -1,128 +1,185 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   ActivityIndicator,
+  Alert,
+  FlatList,
   Image,
+  Modal,
   Pressable,
-  ScrollView,
+  RefreshControl,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useRouter, usePathname } from 'expo-router'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { SPORT_LABELS, SKILL_LABELS } from '@groute/shared'
 import { useSession } from '../../lib/AuthProvider'
 import { supabase } from '../../lib/supabase'
 
-// ── Shared design tokens ──
 const C = {
   bg: '#fafafa',
   card: '#ffffff',
   cardBorder: '#e5e5e5',
   primary: '#0f8a6e',
   primaryMuted: 'rgba(15,138,110,0.1)',
-  primaryText: '#0f8a6e',
   text: '#1a1a2e',
   textSecondary: '#6b7280',
   textMuted: '#9ca3af',
   border: '#e5e5e5',
-  green: '#047857',
-  greenBg: '#d1fae5',
-  mutedBg: '#f0f0f0',
 }
 
-interface Profile {
+interface Friend {
   id: string
   display_name: string
   first_name: string | null
   last_name: string | null
-  email: string
   avatar_url: string | null
-  bio: string | null
   area: string | null
-  date_of_birth: string | null
-  preferred_language: string | null
-  edu_email: string | null
-  edu_verified: boolean
-  strava_connected: boolean
+  lastMessage?: string
+  lastMessageAt?: string
 }
 
-interface UserSport {
-  sport_type: string
-  self_reported_level: string
-  strava_verified_level: string | null
+interface SearchUser {
+  id: string
+  display_name: string
+  first_name: string | null
+  last_name: string | null
+  avatar_url: string | null
+  area: string | null
+  isFollowing: boolean
 }
 
-export default function ProfileScreen() {
+export default function SocialScreen() {
   const { user } = useSession()
   const router = useRouter()
-  const [profile, setProfile] = useState<Profile | null>(null)
-  const [sports, setSports] = useState<UserSport[]>([])
-  const [friends, setFriends] = useState<Array<{ id: string; display_name: string; first_name: string | null; last_name: string | null; avatar_url: string | null; area: string | null }>>([])
-  const [followerCount, setFollowerCount] = useState(0)
-  const [followingCount, setFollowingCount] = useState(0)
-  const [activityCount, setActivityCount] = useState(0)
-  const [isLoading, setIsLoading] = useState(true)
+  const pathname = usePathname()
+  const insets = useSafeAreaInsets()
 
-  const fetchProfile = useCallback(async () => {
+  const [profile, setProfile] = useState<{ display_name: string; first_name: string | null; last_name: string | null; avatar_url: string | null } | null>(null)
+  const [friends, setFriends] = useState<Friend[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+
+  // Add friend modal
+  const [showAddFriend, setShowAddFriend] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<SearchUser[]>([])
+  const [followingSet, setFollowingSet] = useState<Set<string>>(new Set())
+
+  const fetchData = useCallback(async () => {
     if (!user) return
 
-    const [profileResult, sportsResult, followersResult, followingResult, activitiesResult] = await Promise.all([
+    const [profileResult, fwingRes, fwersRes, dmResult] = await Promise.all([
+      supabase.from('users').select('display_name, first_name, last_name, avatar_url').eq('id', user.id).single(),
+      supabase.from('follows').select('following_id').eq('follower_id', user.id),
+      supabase.from('follows').select('follower_id').eq('following_id', user.id),
       supabase
-        .from('users')
-        .select('id, display_name, first_name, last_name, email, avatar_url, bio, area, date_of_birth, preferred_language, edu_email, edu_verified, strava_connected')
-        .eq('id', user.id)
-        .single(),
-      supabase
-        .from('user_sports')
-        .select('sport_type, self_reported_level, strava_verified_level')
-        .eq('user_id', user.id),
-      supabase.from('follows').select('id', { count: 'exact', head: true }).eq('following_id', user.id),
-      supabase.from('follows').select('id', { count: 'exact', head: true }).eq('follower_id', user.id),
-      supabase.from('activities').select('id', { count: 'exact', head: true }).eq('creator_id', user.id),
+        .from('messages')
+        .select('sender_id, receiver_id, content, created_at')
+        .is('activity_id', null)
+        .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
+        .not('receiver_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(200),
     ])
 
     setProfile(profileResult.data)
-    setSports(sportsResult.data ?? [])
-    setFollowerCount(followersResult.count ?? 0)
-    setFollowingCount(followingResult.count ?? 0)
-    setActivityCount(activitiesResult.count ?? 0)
 
-    // Fetch friends (mutual follows)
-    const [fwingRes, fwersRes] = await Promise.all([
-      supabase.from('follows').select('following_id').eq('follower_id', user.id),
-      supabase.from('follows').select('follower_id').eq('following_id', user.id),
-    ])
-    const followingSet = new Set((fwingRes.data ?? []).map((f) => f.following_id))
-    const followerSet = new Set((fwersRes.data ?? []).map((f) => f.follower_id))
-    const mutualIds = [...followingSet].filter((id) => followerSet.has(id))
+    const followingIds = new Set((fwingRes.data ?? []).map((f) => f.following_id))
+    setFollowingSet(followingIds)
+    const followerIds = new Set((fwersRes.data ?? []).map((f) => f.follower_id))
+    const mutualIds = [...followingIds].filter((id) => followerIds.has(id))
+
+    // Build last message map per friend
+    const lastMsgMap = new Map<string, { content: string; at: string }>()
+    for (const m of dmResult.data ?? []) {
+      const otherId = m.sender_id === user.id ? m.receiver_id : m.sender_id
+      if (!otherId || lastMsgMap.has(otherId)) continue
+      lastMsgMap.set(otherId, {
+        content: m.sender_id === user.id ? `You: ${m.content}` : m.content,
+        at: m.created_at,
+      })
+    }
+
     if (mutualIds.length > 0) {
       const { data } = await supabase
         .from('users')
         .select('id, display_name, first_name, last_name, avatar_url, area')
         .in('id', mutualIds)
-      setFriends(data ?? [])
+
+      const friendsWithMessages = (data ?? []).map((f) => ({
+        ...f,
+        lastMessage: lastMsgMap.get(f.id)?.content,
+        lastMessageAt: lastMsgMap.get(f.id)?.at,
+      }))
+
+      // Sort: friends with recent messages first
+      friendsWithMessages.sort((a, b) => {
+        if (a.lastMessageAt && b.lastMessageAt) return new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()
+        return a.lastMessageAt ? -1 : 1
+      })
+
+      setFriends(friendsWithMessages)
     } else {
       setFriends([])
     }
   }, [user])
 
   useEffect(() => {
-    fetchProfile().finally(() => setIsLoading(false))
-  }, [fetchProfile])
+    fetchData().finally(() => setIsLoading(false))
+  }, [fetchData])
 
-  // Refetch when screen gains focus (e.g. returning from edit)
-  // Using navigation event from expo-router's useFocusEffect equivalent
+  // Refetch on tab focus
   useEffect(() => {
-    fetchProfile()
-  }, [fetchProfile])
+    if (pathname === '/profile' && !isLoading) fetchData()
+  }, [pathname]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function handleSignOut() {
-    await supabase.auth.signOut()
-    router.replace('/')
+  async function handleRefresh() {
+    setIsRefreshing(true)
+    await fetchData()
+    setIsRefreshing(false)
   }
 
-  if (isLoading || !profile) {
+  // Search users to add as friends
+  async function handleSearch(query: string) {
+    setSearchQuery(query)
+    if (query.length < 2) { setSearchResults([]); return }
+
+    const { data } = await supabase
+      .from('users')
+      .select('id, display_name, first_name, last_name, avatar_url, area')
+      .or(`display_name.ilike.%${query}%,first_name.ilike.%${query}%,last_name.ilike.%${query}%`)
+      .neq('id', user!.id)
+      .limit(10)
+
+    setSearchResults(
+      (data ?? []).map((u) => ({ ...u, isFollowing: followingSet.has(u.id) }))
+    )
+  }
+
+  async function handleFollow(userId: string) {
+    await supabase.from('follows').insert({ follower_id: user!.id, following_id: userId })
+    // Send notification
+    await supabase.from('notifications').insert({ user_id: userId, from_user_id: user!.id, type: 'follow' })
+    setFollowingSet((prev) => new Set([...prev, userId]))
+    setSearchResults((prev) => prev.map((u) => u.id === userId ? { ...u, isFollowing: true } : u))
+  }
+
+  async function handleUnfollow(userId: string) {
+    await supabase.from('follows').delete().eq('follower_id', user!.id).eq('following_id', userId)
+    setFollowingSet((prev) => { const next = new Set(prev); next.delete(userId); return next })
+    setSearchResults((prev) => prev.map((u) => u.id === userId ? { ...u, isFollowing: false } : u))
+  }
+
+  const displayName = profile
+    ? profile.first_name && profile.last_name
+      ? `${profile.first_name} ${profile.last_name}`
+      : profile.display_name
+    : ''
+
+  if (isLoading) {
     return (
       <View style={s.loading}>
         <ActivityIndicator size="large" color={C.primary} />
@@ -130,274 +187,193 @@ export default function ProfileScreen() {
     )
   }
 
-  const displayName = profile.first_name && profile.last_name
-    ? `${profile.first_name} ${profile.last_name}`
-    : profile.display_name
-
-  const dob = profile.date_of_birth ? new Date(profile.date_of_birth) : null
-  const age = dob
-    ? Math.floor((Date.now() - dob.getTime()) / (365.25 * 24 * 60 * 60 * 1000))
-    : null
-
   return (
-    <ScrollView style={s.container} contentContainerStyle={s.content}>
-      {/* Header: avatar + name + edit */}
-      <View style={s.header}>
-        <View style={s.headerLeft}>
-          {profile.avatar_url ? (
-            <Image source={{ uri: profile.avatar_url }} style={s.avatar} />
-          ) : (
-            <View style={s.avatarFallback}>
-              <Text style={s.avatarInitial}>
-                {(profile.first_name?.[0] ?? profile.display_name[0]).toUpperCase()}
-              </Text>
-            </View>
-          )}
-          <View style={s.headerInfo}>
-            <Text style={s.name}>{displayName}</Text>
-            <Text style={s.subtitle}>{profile.area ?? profile.email}</Text>
-          </View>
-        </View>
-        <View style={s.headerActions}>
-          {profile.edu_verified && (
-            <View style={s.verifiedBadge}>
-              <Text style={s.verifiedText}>.edu Verified</Text>
-            </View>
-          )}
-          <Pressable style={s.editButton} onPress={() => router.push('/edit-profile')}>
-            <Text style={s.editButtonText}>Edit</Text>
+    <View style={s.container}>
+      {/* Header bar */}
+      <View style={[s.headerBar, { paddingTop: insets.top + 12 }]}>
+        <Text style={s.headerTitle}>Social</Text>
+        <View style={s.headerRight}>
+          {/* Add friend button */}
+          <Pressable style={s.addBtn} onPress={() => setShowAddFriend(true)}>
+            <Text style={s.addBtnText}>+</Text>
+          </Pressable>
+
+          {/* Profile avatar → edit */}
+          <Pressable style={s.profileBtn} onPress={() => router.push('/edit-profile')}>
+            {profile?.avatar_url ? (
+              <Image source={{ uri: profile.avatar_url }} style={s.headerAvatar} />
+            ) : (
+              <View style={s.headerAvatarFallback}>
+                <Text style={s.headerAvatarInitial}>
+                  {(profile?.first_name?.[0] ?? profile?.display_name[0] ?? '?').toUpperCase()}
+                </Text>
+              </View>
+            )}
           </Pressable>
         </View>
       </View>
 
-      {/* Stats */}
-      <View style={s.statsCard}>
-        <View style={s.stat}>
-          <Text style={s.statValue}>{followerCount}</Text>
-          <Text style={s.statLabel}>Followers</Text>
-        </View>
-        <View style={s.statDivider} />
-        <View style={s.stat}>
-          <Text style={s.statValue}>{followingCount}</Text>
-          <Text style={s.statLabel}>Following</Text>
-        </View>
-        <View style={s.statDivider} />
-        <View style={s.stat}>
-          <Text style={s.statValue}>{activityCount}</Text>
-          <Text style={s.statLabel}>Activities</Text>
-        </View>
-      </View>
-
-      {/* Card: Personal Info */}
-      <View style={s.card}>
-        <Text style={s.cardTitle}>Personal Info</Text>
-        <View style={s.infoGrid}>
-          <View style={s.infoItem}>
-            <Text style={s.infoLabel}>Name</Text>
-            <Text style={s.infoValue}>{displayName}</Text>
-          </View>
-          <View style={s.infoItem}>
-            <Text style={s.infoLabel}>Age</Text>
-            <Text style={s.infoValue}>{age ?? '\u2014'}</Text>
-          </View>
-          <View style={s.infoItem}>
-            <Text style={s.infoLabel}>Location</Text>
-            <Text style={s.infoValue}>{profile.area ?? '\u2014'}</Text>
-          </View>
-          <View style={s.infoItem}>
-            <Text style={s.infoLabel}>Email</Text>
-            <Text style={s.infoValue} numberOfLines={1}>{profile.email}</Text>
-          </View>
-          {profile.preferred_language ? (
-            <View style={s.infoItem}>
-              <Text style={s.infoLabel}>Language</Text>
-              <Text style={s.infoValue}>{profile.preferred_language}</Text>
-            </View>
-          ) : null}
-          {profile.strava_connected ? (
-            <View style={s.infoItem}>
-              <Text style={s.infoLabel}>Strava</Text>
-              <Text style={[s.infoValue, { color: C.green }]}>Connected</Text>
-            </View>
-          ) : null}
-        </View>
-      </View>
-
-      {/* Card: Activities & Experience */}
-      <View style={s.card}>
-        <Text style={s.cardTitle}>Activities & Experience</Text>
-        {sports.length > 0 ? (
-          <View style={s.sportsList}>
-            {sports.map((sport) => (
-              <View key={sport.sport_type} style={s.sportRow}>
-                <Text style={s.sportName}>
-                  {SPORT_LABELS[sport.sport_type] ?? sport.sport_type}
+      {/* Friend / DM list */}
+      <FlatList
+        data={friends}
+        keyExtractor={(item) => item.id}
+        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor={C.primary} />}
+        contentContainerStyle={friends.length === 0 ? s.emptyContainer : undefined}
+        renderItem={({ item }) => {
+          const name = item.first_name && item.last_name
+            ? `${item.first_name} ${item.last_name}`
+            : item.display_name
+          return (
+            <Pressable style={s.friendRow} onPress={() => router.push(`/dm/${item.id}`)}>
+              {item.avatar_url ? (
+                <Image source={{ uri: item.avatar_url }} style={s.friendAvatar} />
+              ) : (
+                <View style={s.friendAvatarFallback}>
+                  <Text style={s.friendInitial}>{(item.first_name?.[0] ?? item.display_name[0]).toUpperCase()}</Text>
+                </View>
+              )}
+              <View style={s.friendInfo}>
+                <Text style={s.friendName}>{name}</Text>
+                {item.lastMessage ? (
+                  <Text style={s.friendLastMsg} numberOfLines={1}>{item.lastMessage}</Text>
+                ) : (
+                  <Text style={s.friendArea}>{item.area ?? 'Tap to message'}</Text>
+                )}
+              </View>
+              {item.lastMessageAt && (
+                <Text style={s.friendTime}>
+                  {new Date(item.lastMessageAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                 </Text>
-                <View style={s.sportBadges}>
-                  <View style={s.skillBadge}>
-                    <Text style={s.skillBadgeText}>
-                      {SKILL_LABELS[sport.self_reported_level] ?? sport.self_reported_level}
-                    </Text>
-                  </View>
-                  {sport.strava_verified_level && (
-                    <View style={s.stravaBadge}>
-                      <Text style={s.stravaBadgeText}>
-                        Strava: {SKILL_LABELS[sport.strava_verified_level]}
-                      </Text>
+              )}
+            </Pressable>
+          )
+        }}
+        ListEmptyComponent={
+          <View style={s.empty}>
+            <Text style={s.emptyEmoji}>{'\u{1F465}'}</Text>
+            <Text style={s.emptyTitle}>No friends yet</Text>
+            <Text style={s.emptySubtitle}>Tap + to find and follow people</Text>
+          </View>
+        }
+        ListFooterComponent={null}
+      />
+
+      {/* Add friend modal */}
+      <Modal visible={showAddFriend} animationType="slide" presentationStyle="pageSheet">
+        <View style={s.modalContainer}>
+          <View style={s.modalHeader}>
+            <Text style={s.modalTitle}>Find People</Text>
+            <Pressable onPress={() => { setShowAddFriend(false); setSearchQuery(''); setSearchResults([]); fetchData() }}>
+              <Text style={s.modalDone}>Done</Text>
+            </Pressable>
+          </View>
+
+          <TextInput
+            style={s.searchInput}
+            placeholder="Search by name..."
+            placeholderTextColor={C.textMuted}
+            value={searchQuery}
+            onChangeText={handleSearch}
+            autoFocus
+          />
+
+          <FlatList
+            data={searchResults}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={s.searchList}
+            renderItem={({ item }) => {
+              const name = item.first_name && item.last_name
+                ? `${item.first_name} ${item.last_name}`
+                : item.display_name
+              return (
+                <View style={s.searchRow}>
+                  {item.avatar_url ? (
+                    <Image source={{ uri: item.avatar_url }} style={s.searchAvatar} />
+                  ) : (
+                    <View style={s.searchAvatarFallback}>
+                      <Text style={s.searchInitial}>{(item.first_name?.[0] ?? item.display_name[0]).toUpperCase()}</Text>
                     </View>
+                  )}
+                  <View style={s.searchInfo}>
+                    <Text style={s.searchName}>{name}</Text>
+                    {item.area && <Text style={s.searchArea}>{item.area}</Text>}
+                  </View>
+                  {item.isFollowing ? (
+                    <Pressable style={s.followingBtn} onPress={() => handleUnfollow(item.id)}>
+                      <Text style={s.followingBtnText}>Following</Text>
+                    </Pressable>
+                  ) : (
+                    <Pressable style={s.followBtn} onPress={() => handleFollow(item.id)}>
+                      <Text style={s.followBtnText}>Follow</Text>
+                    </Pressable>
                   )}
                 </View>
-              </View>
-            ))}
-          </View>
-        ) : (
-          <Text style={s.emptyText}>No activities added yet.</Text>
-        )}
-      </View>
-
-      {/* Card: Friends */}
-      <View style={s.card}>
-        <Text style={s.cardTitle}>Friends ({friends.length})</Text>
-        {friends.length > 0 ? (
-          <View style={s.friendsList}>
-            {friends.map((f) => {
-              const fname = f.first_name && f.last_name
-                ? `${f.first_name} ${f.last_name}`
-                : f.display_name
-              return (
-                <Pressable key={f.id} style={s.friendRow} onPress={() => router.push(`/dm/${f.id}`)}>
-                  {f.avatar_url ? (
-                    <Image source={{ uri: f.avatar_url }} style={s.friendAvatar} />
-                  ) : (
-                    <View style={s.friendAvatarFallback}>
-                      <Text style={s.friendInitial}>{(f.first_name?.[0] ?? f.display_name[0]).toUpperCase()}</Text>
-                    </View>
-                  )}
-                  <View style={s.friendInfo}>
-                    <Text style={s.friendName}>{fname}</Text>
-                    {f.area && <Text style={s.friendArea}>{f.area}</Text>}
-                  </View>
-                </Pressable>
               )
-            })}
-          </View>
-        ) : (
-          <Text style={s.emptyText}>No friends yet. Follow someone and have them follow back!</Text>
-        )}
-      </View>
-
-      {/* Sign out */}
-      <Pressable style={s.signOutButton} onPress={handleSignOut}>
-        <Text style={s.signOutText}>Sign out</Text>
-      </Pressable>
-    </ScrollView>
+            }}
+            ListEmptyComponent={
+              searchQuery.length >= 2 ? (
+                <Text style={s.noResults}>No users found</Text>
+              ) : (
+                <Text style={s.noResults}>Search for people to follow</Text>
+              )
+            }
+          />
+        </View>
+      </Modal>
+    </View>
   )
 }
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
-  content: { padding: 20, paddingBottom: 40 },
   loading: { flex: 1, backgroundColor: C.bg, justifyContent: 'center', alignItems: 'center' },
 
   // Header
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 },
-  avatar: { width: 64, height: 64, borderRadius: 32, borderWidth: 2, borderColor: C.cardBorder },
-  avatarFallback: { width: 64, height: 64, borderRadius: 32, backgroundColor: C.primaryMuted, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: C.cardBorder },
-  avatarInitial: { fontSize: 24, fontWeight: '700', color: C.primaryText },
-  headerInfo: { flex: 1 },
-  name: { fontSize: 20, fontWeight: '700', color: C.text },
-  subtitle: { fontSize: 13, color: C.textSecondary, marginTop: 2 },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  verifiedBadge: { backgroundColor: C.greenBg, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
-  verifiedText: { fontSize: 11, fontWeight: '600', color: C.green },
-  editButton: {
-    borderWidth: 1,
-    borderColor: C.cardBorder,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-  },
-  editButtonText: { fontSize: 13, fontWeight: '600', color: C.text },
+  headerBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
+  headerTitle: { fontSize: 22, fontWeight: '700', color: C.text },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  addBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: C.primaryMuted, alignItems: 'center', justifyContent: 'center' },
+  addBtnText: { fontSize: 20, fontWeight: '500', color: C.primary, marginTop: -1 },
+  profileBtn: {},
+  headerAvatar: { width: 32, height: 32, borderRadius: 16, borderWidth: 1.5, borderColor: C.border },
+  headerAvatarFallback: { width: 32, height: 32, borderRadius: 16, backgroundColor: C.primaryMuted, alignItems: 'center', justifyContent: 'center' },
+  headerAvatarInitial: { fontSize: 13, fontWeight: '700', color: C.primary },
 
-  // Stats
-  statsCard: {
-    flexDirection: 'row',
-    backgroundColor: C.card,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: C.cardBorder,
-    padding: 16,
-    marginBottom: 16,
-  },
-  stat: { flex: 1, alignItems: 'center' },
-  statValue: { fontSize: 20, fontWeight: '700', color: C.text },
-  statLabel: { fontSize: 12, color: C.textSecondary, marginTop: 2 },
-  statDivider: { width: 1, backgroundColor: C.border, marginVertical: 4 },
-
-  // Card
-  card: {
-    backgroundColor: C.card,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: C.cardBorder,
-    padding: 16,
-    marginBottom: 16,
-  },
-  cardTitle: { fontSize: 16, fontWeight: '600', color: C.text, marginBottom: 14 },
-
-  // Info grid
-  infoGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  infoItem: { width: '50%', marginBottom: 14 },
-  infoLabel: { fontSize: 13, color: C.textSecondary, marginBottom: 2 },
-  infoValue: { fontSize: 14, fontWeight: '500', color: C.text },
-
-  // Sports
-  sportsList: { gap: 8 },
-  sportRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: C.cardBorder,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  sportName: { fontSize: 14, fontWeight: '500', color: C.text },
-  sportBadges: { flexDirection: 'row', gap: 6 },
-  skillBadge: { backgroundColor: C.mutedBg, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
-  skillBadgeText: { fontSize: 12, color: C.textSecondary },
-  stravaBadge: { backgroundColor: C.greenBg, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
-  stravaBadgeText: { fontSize: 12, color: C.green },
-  emptyText: { fontSize: 14, color: C.textSecondary },
-
-  // Friends
-  friendsList: { gap: 8 },
-  friendRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    borderWidth: 1,
-    borderColor: C.cardBorder,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  friendAvatar: { width: 36, height: 36, borderRadius: 18 },
-  friendAvatarFallback: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.primaryMuted, alignItems: 'center', justifyContent: 'center' },
-  friendInitial: { fontSize: 14, fontWeight: '700', color: C.primary },
+  // Friend list
+  friendRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f5f5f5' },
+  friendAvatar: { width: 52, height: 52, borderRadius: 26 },
+  friendAvatarFallback: { width: 52, height: 52, borderRadius: 26, backgroundColor: C.primaryMuted, alignItems: 'center', justifyContent: 'center' },
+  friendInitial: { fontSize: 20, fontWeight: '700', color: C.primary },
   friendInfo: { flex: 1 },
-  friendName: { fontSize: 14, fontWeight: '500', color: C.text },
-  friendArea: { fontSize: 12, color: C.textSecondary, marginTop: 1 },
+  friendName: { fontSize: 15, fontWeight: '600', color: C.text },
+  friendLastMsg: { fontSize: 13, color: C.textMuted, marginTop: 2 },
+  friendArea: { fontSize: 13, color: C.textMuted, marginTop: 2 },
+  friendTime: { fontSize: 11, color: C.textMuted },
 
-  // Sign out
-  signOutButton: {
-    borderWidth: 1,
-    borderColor: C.cardBorder,
-    borderRadius: 12,
-    padding: 14,
-    alignItems: 'center',
-  },
-  signOutText: { color: C.textSecondary, fontSize: 15, fontWeight: '500' },
+  // Empty
+  emptyContainer: { flex: 1, justifyContent: 'center' },
+  empty: { alignItems: 'center', paddingHorizontal: 32 },
+  emptyEmoji: { fontSize: 40 },
+  emptyTitle: { fontSize: 16, fontWeight: '600', color: C.text, marginTop: 12 },
+  emptySubtitle: { fontSize: 14, color: C.textMuted, marginTop: 4, textAlign: 'center' },
+
+  // Add friend modal
+  modalContainer: { flex: 1, backgroundColor: C.bg },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.border },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: C.text },
+  modalDone: { fontSize: 16, fontWeight: '600', color: C.primary },
+  searchInput: { margin: 16, backgroundColor: C.card, borderRadius: 12, padding: 14, fontSize: 15, color: C.text, borderWidth: 1, borderColor: C.border },
+  searchList: { paddingHorizontal: 16 },
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f5f5f5' },
+  searchAvatar: { width: 44, height: 44, borderRadius: 22 },
+  searchAvatarFallback: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#f0f0f0', alignItems: 'center', justifyContent: 'center' },
+  searchInitial: { fontSize: 16, fontWeight: '700', color: C.text },
+  searchInfo: { flex: 1 },
+  searchName: { fontSize: 15, fontWeight: '500', color: C.text },
+  searchArea: { fontSize: 12, color: C.textMuted, marginTop: 1 },
+  followBtn: { backgroundColor: C.primary, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 7 },
+  followBtnText: { fontSize: 13, fontWeight: '600', color: '#fff' },
+  followingBtn: { backgroundColor: '#f0f0f0', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 },
+  followingBtnText: { fontSize: 13, fontWeight: '600', color: C.textSecondary },
+  noResults: { textAlign: 'center', fontSize: 14, color: C.textMuted, paddingTop: 40 },
 })

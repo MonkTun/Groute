@@ -13,6 +13,7 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import * as FileSystem from 'expo-file-system'
 import { decode } from 'base64-arraybuffer'
+import ConfettiCannon from 'react-native-confetti-cannon'
 
 import { SPORT_LABELS, SKILL_LABELS, VISIBILITY_LABELS } from '@groute/shared'
 import { useSession } from '../../lib/AuthProvider'
@@ -62,6 +63,7 @@ export default function ActivityDetailScreen() {
   const [myStatus, setMyStatus] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isJoining, setIsJoining] = useState(false)
+  const [showConfetti, setShowConfetti] = useState(false)
   const [isUploadingBanner, setIsUploadingBanner] = useState(false)
   const [bannerUrl, setBannerUrl] = useState<string | null>(null)
 
@@ -128,6 +130,7 @@ export default function ActivityDetailScreen() {
     } else {
       setMyStatus(data.status)
       if (data.status === 'accepted') {
+        setShowConfetti(true)
         Alert.alert('Joined!', 'You have joined this activity.')
       } else {
         Alert.alert('Requested', 'Your request has been sent to the host.')
@@ -230,6 +233,7 @@ export default function ActivityDetailScreen() {
   const goingCount = participants.length + 1
 
   return (
+    <>
     <ScrollView style={styles.container}>
       <Stack.Screen options={{ title: activity.title, headerBackTitle: 'Back' }} />
 
@@ -378,6 +382,8 @@ export default function ActivityDetailScreen() {
         </View>
       </View>
     </ScrollView>
+    {showConfetti && <ConfettiCannon count={80} origin={{ x: -10, y: 0 }} fadeOut autoStart />}
+    </>
   )
 }
 

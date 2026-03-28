@@ -9,10 +9,22 @@ import {
   TextInput,
   View,
 } from 'react-native'
-import { useLocalSearchParams, Stack } from 'expo-router'
+import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 
 import { useSession } from '../../lib/AuthProvider'
 import { supabase } from '../../lib/supabase'
+
+const C = {
+  bg: '#fafafa',
+  primary: '#0f8a6e',
+  primaryMuted: 'rgba(15,138,110,0.1)',
+  text: '#1a1a2e',
+  textSecondary: '#6b7280',
+  textMuted: '#9ca3af',
+}
+
+// Invite messages contain "[invite:activityId]" tag
+const INVITE_REGEX = /\[invite:([a-f0-9-]+)\]\s*(.*)/
 
 interface Message {
   id: string
@@ -24,6 +36,7 @@ interface Message {
 export default function DMScreen() {
   const { userId } = useLocalSearchParams<{ userId: string }>()
   const { user } = useSession()
+  const router = useRouter()
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState('')
   const [partnerName, setPartnerName] = useState('Chat')
@@ -92,9 +105,37 @@ export default function DMScreen() {
     })
   }
 
+  function renderMessage({ item }: { item: Message }) {
+    const isMe = item.sender_id === user?.id
+    const inviteMatch = item.content.match(INVITE_REGEX)
+
+    // Invite card
+    if (inviteMatch) {
+      const activityId = inviteMatch[1]
+      const activityTitle = inviteMatch[2]
+      return (
+        <View style={[s.inviteCard, isMe ? s.inviteCardMe : s.inviteCardOther]}>
+          <Text style={s.inviteEmoji}>{'\u{1F3D5}'}</Text>
+          <Text style={s.inviteLabel}>{isMe ? 'You sent an invite' : `${partnerName} invited you`}</Text>
+          <Text style={s.inviteTitle} numberOfLines={2}>{activityTitle}</Text>
+          <Pressable style={s.inviteBtn} onPress={() => router.push(`/activity/${activityId}`)}>
+            <Text style={s.inviteBtnText}>View Activity</Text>
+          </Pressable>
+        </View>
+      )
+    }
+
+    // Regular message
+    return (
+      <View style={[s.bubble, isMe ? s.bubbleMe : s.bubbleOther]}>
+        <Text style={[s.messageText, isMe && s.messageTextMe]}>{item.content}</Text>
+      </View>
+    )
+  }
+
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={s.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={90}
     >
@@ -104,21 +145,14 @@ export default function DMScreen() {
         ref={flatListRef}
         data={messages}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.messageList}
+        contentContainerStyle={s.messageList}
         onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
-        renderItem={({ item }) => {
-          const isMe = item.sender_id === user?.id
-          return (
-            <View style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleOther]}>
-              <Text style={styles.messageText}>{item.content}</Text>
-            </View>
-          )
-        }}
+        renderItem={renderMessage}
       />
 
-      <View style={styles.inputBar}>
+      <View style={s.inputBar}>
         <TextInput
-          style={styles.input}
+          style={s.input}
           placeholder="Type a message..."
           placeholderTextColor="#9ca3af"
           value={newMessage}
@@ -126,21 +160,36 @@ export default function DMScreen() {
           onSubmitEditing={handleSend}
           returnKeyType="send"
         />
-        <Pressable style={styles.sendButton} onPress={handleSend}>
-          <Text style={styles.sendText}>Send</Text>
+        <Pressable style={s.sendButton} onPress={handleSend}>
+          <Text style={s.sendText}>Send</Text>
         </Pressable>
       </View>
     </KeyboardAvoidingView>
   )
 }
 
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fafafa' },
   messageList: { paddingHorizontal: 16, paddingVertical: 12 },
+
+  // Regular bubbles
   bubble: { maxWidth: '80%', borderRadius: 16, padding: 10, marginBottom: 8 },
   bubbleMe: { alignSelf: 'flex-end', backgroundColor: '#0f8a6e' },
   bubbleOther: { alignSelf: 'flex-start', backgroundColor: '#f0f0f0' },
   messageText: { fontSize: 15, color: '#1a1a2e', lineHeight: 20 },
+  messageTextMe: { color: '#fff' },
+
+  // Invite card
+  inviteCard: { maxWidth: '80%', borderRadius: 16, padding: 16, marginBottom: 8, alignItems: 'center', borderWidth: 1 },
+  inviteCardMe: { alignSelf: 'flex-end', backgroundColor: C.primaryMuted, borderColor: C.primary },
+  inviteCardOther: { alignSelf: 'flex-start', backgroundColor: '#fff', borderColor: '#e5e5e5' },
+  inviteEmoji: { fontSize: 28, marginBottom: 6 },
+  inviteLabel: { fontSize: 11, color: C.textMuted, fontWeight: '500', marginBottom: 4 },
+  inviteTitle: { fontSize: 14, fontWeight: '600', color: C.text, textAlign: 'center', marginBottom: 10 },
+  inviteBtn: { backgroundColor: C.primary, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 8 },
+  inviteBtnText: { fontSize: 13, fontWeight: '600', color: '#fff' },
+
+  // Input
   inputBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#e5e5e5', backgroundColor: '#fafafa' },
   input: { flex: 1, backgroundColor: '#ffffff', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, fontSize: 15, color: '#1a1a2e', borderWidth: 1, borderColor: '#e0e0e0' },
   sendButton: { backgroundColor: '#0f8a6e', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10 },

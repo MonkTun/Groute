@@ -14,7 +14,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   userInterfaceStyle: 'automatic',
   newArchEnabled: true,
   splash: {
-    backgroundColor: '#000000',
+    backgroundColor: '#fafafa',
   },
   ios: {
     supportsTablet: false,
@@ -30,8 +30,15 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     bundler: 'metro',
     output: 'static' as const,
   },
-  plugins: ['expo-router', 'expo-location'],
+  plugins: [
+    'expo-router',
+    ['expo-location', {
+      locationAlwaysAndWhenInUsePermission: 'Allow Groute to use your location to find nearby activities and show you on the map.',
+    }],
+    'expo-image-picker',
+  ],
   extra: {
+    eas: { projectId: '' }, // Fill after running `eas init`
     supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
     supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     apiUrl: process.env.NEXT_PUBLIC_APP_URL,

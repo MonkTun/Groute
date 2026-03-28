@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
         const inviteMessages = invitedUserIds.map((friendId) => ({
           sender_id: user.id,
           receiver_id: friendId,
-          content: `invited you to "${activity.title}"! Check your notifications to join.`,
+          content: `[invite:${activity.id}] ${activity.title}`,
         }));
         await supabase.from("messages").insert(inviteMessages);
       }

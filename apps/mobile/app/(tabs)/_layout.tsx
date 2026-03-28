@@ -41,8 +41,9 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
-          tabBarIcon: () => <TabIcon emoji={'\u{1F464}'} />,
+          title: 'Social',
+          headerShown: false,
+          tabBarIcon: () => <TabIcon emoji={'\u{1F4AC}'} />,
         }}
       />
       <Tabs.Screen

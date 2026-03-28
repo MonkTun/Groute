@@ -466,6 +466,11 @@ export default function EditProfileScreen() {
             </View>
           )}
         </View>
+
+        {/* Sign out */}
+        <Pressable style={s.signOutBtn} onPress={async () => { await supabase.auth.signOut(); router.replace('/') }}>
+          <Text style={s.signOutText}>Sign out</Text>
+        </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
   )
@@ -585,4 +590,8 @@ const s = StyleSheet.create({
   levelButtonActive: { backgroundColor: C.primary },
   levelButtonText: { fontSize: 12, color: C.textSecondary },
   levelButtonTextActive: { color: '#fff', fontWeight: '600' },
+
+  // Sign out
+  signOutBtn: { alignItems: 'center', paddingVertical: 16, marginTop: 32 },
+  signOutText: { fontSize: 15, fontWeight: '500', color: '#dc2626' },
 })

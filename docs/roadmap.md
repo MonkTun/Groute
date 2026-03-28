@@ -1,80 +1,115 @@
 # Groute Roadmap — Discovery MVP
 
 > Last updated: 2026-03-27
-> Platform focus: **Web first** (Next.js). All APIs are REST endpoints consumed by both web and future Expo mobile app.
-
-## Architecture Note — Mobile Migration
-
-All business logic lives in Next.js API routes (`/api/*`). The web frontend is a thin client that calls these endpoints. When we build the Expo mobile app, it will call the **same API endpoints** — no backend changes needed. The shared package (`@groute/shared`) provides types, validators, and constants to both platforms. Mobile-specific work is purely UI: React Native screens, Expo Router navigation, `@rnmapbox/maps` instead of `mapbox-gl`, `AsyncStorage` instead of cookies.
+> Platform: **Web (Next.js) + Mobile (Expo)**. Shared backend via Next.js API routes + direct Supabase queries.
 
 ---
 
 ## What's Built (Completed)
 
 ### Foundation & Auth
-- Turborepo + pnpm monorepo, Next.js web, Expo mobile scaffold, shared package
+- Turborepo + pnpm monorepo with Next.js web, Expo mobile, shared package
 - Supabase Auth (email/password), middleware route protection, session refresh
-- Profile completion gate with cookie caching (avoids DB hit per request)
+- Profile completion gate with cookie caching
+- Mobile auth: login/signup with AsyncStorage session persistence
 
 ### Database Schema (Drizzle ORM + Supabase)
-- `users` — profile fields, avatar_url, live location tracking (last_location_lat/lng/at)
-- `user_sports` — per-sport skill levels
-- `activities` — sport type, skill level, visibility (public/discoverable/private), banner_url, location, scheduling
-- `activity_participants` — join requests with status
-- `messages` — group chat (activity_id) + DMs (receiver_id), unified table
+- `users` — profile fields, avatar_url, live location tracking, date_of_birth, preferred_language, edu_email
+- `user_sports` — per-sport skill levels (self-reported + Strava verified)
+- `activities` — sport type, skill level, visibility, banner_url, location, scheduling
+- `activity_participants` — join requests with accept/decline status
+- `messages` — unified table for group chat (activity_id) + DMs (receiver_id)
 - `follows` — one-directional follow system, mutual = friends
 - `notifications` — follow, invite, join_accepted, join_request types
+- Supabase Storage buckets: `avatars`, `activity-photos`
 
-### User Profiles
-- Onboarding (3-step: basics → activities → extras), country + state/province selector
-- Profile view + inline edit mode, profile picture upload (Supabase Storage)
-- `UserAvatar` reusable component used everywhere (5 sizes, photo or initial fallback)
-- Sign out from profile page
+### User Profiles (Web + Mobile)
+- Onboarding wizard (3-step: basics -> activities -> extras)
+- Country + state/province dropdown with 20 countries and region data
+- Preferred language selection (10 languages)
+- Profile view with cards: Personal Info, Activities & Experience, Friends
+- Inline edit mode (web) / dedicated edit screen (mobile)
+- Avatar upload (both platforms, base64 approach on mobile)
+- Sports selection with per-sport skill level (beginner/intermediate/advanced)
+- `.edu` email verification badge
+- Sign out
 
-### Activity CRUD & Discovery
-- Create activity modal: title, description, sport type, skill level, visibility, location picker (Mapbox geocoding + draggable pin), date/time, max participants, friend invite selector
-- Activity feed sidebar with sport-colored badges, avatar stacks, distance from user
-- Delete activity (owner only, with confirmation + cascade)
-- Confetti on activity creation and join
+### Activity CRUD
+- Create activity: title, description, sport type, skill level, visibility, location, date/time, max participants, friend invite
+- Cover photo upload for activities (Supabase Storage `activity-photos` bucket)
+- Activity detail page with banner, description, details grid, host card, member list
+- Banner photo edit for activity creators (both web + mobile)
+- Delete activity (owner only, with confirmation)
+- Join / Request to join with auto-accept for public activities
+- Confetti on activity creation and join (web)
+- "Spots left" indicator on feed cards (1-3 spots remaining)
 
-### Map Experience (Phase A — Complete)
-- Mapbox GL native GeoJSON clustering (GPU-rendered, smooth)
-- Clusters: dark circles with orange ring, count label, sport emoji summary per cluster
-- Individual pins: color-coded by difficulty (amber=beginner, blue=intermediate, red=advanced) with sport emoji
-- Friend locations on map: profile photo pins with name labels, pulsing ring, 24h freshness filter
-- User location tracking: auto-geolocate, pushes to server, sorts feed by distance
-- Smart search bar: parses "easy hike this weekend" → sport + difficulty + timeframe filters
-- Timeframe filter pills (Today/3d/Week/2 weeks/Month) + custom date picker
-- Activity detail sheet: centered overlay with banner, 2x2 detail grid, host card, going list, join/request buttons
+### Navigation Structure
+- **Web:** Right Now | Explore | My Trips | Profile
+- **Mobile:** Right Now | Explore | My Trips | Profile (with emoji tab icons)
 
-### Social System
-- **Social tab** with 3 sub-tabs: Friends, Chats, Notifications
-- **Friends**: mutual follows, incoming follow requests with "Follow Back"
-- **Chats**: DM conversations + group chats (per-activity), profile photos on all messages
-- **Notifications**: follow events, activity invites with Join/Decline buttons + confetti
-- **Follow system**: follow/unfollow, auto-notification, invite friends when creating activities
-- **DM chat**: 1:1 with profile photos, back navigation
-- **Group chat**: message bubbles with sender avatars, system messages
+### Right Now Page (Web + Mobile)
+- Airbnb-style landing with time-based greeting
+- "Happening Soon" section (next 6 hours, featured cards with green pulse dot)
+- "For You" section (activities matching user's sports)
+- "Coming Up" section (next 48 hours)
+- Search bar filtering across title, location, sport type
+- CTA link to Explore map
+- Activity cards with banner photos, sport badges, participant avatars, "spots left"
+
+### Explore / Map Experience (Web + Mobile)
+- **Web:** Mapbox GL JS with native GeoJSON clustering (GPU-rendered)
+- **Mobile:** Mapbox GL JS via WebView with DOM-based markers and client-side clustering
+- Clusters: dark circles with orange ring, count label, sport emoji summary
+- Individual pins: color-coded by skill level (amber/blue/red) with sport emoji
+- Click cluster to zoom in, click pin to open activity detail
+- Friend locations: profile photo pins with name labels, 24h freshness filter
+- User location: blue dot with glow ring, auto-center on load, updates server
+- Sport filter pills + calendar time filter (Today/3d/Week/2 weeks/Month)
+- Smart search bar (web): parses "easy hike this weekend" -> filters
+- Activity feed sidebar (web) with search, sport badges, distance, thumbnails
+- FAB to create activity (mobile)
+
+### Personalized Recommendations
+- `GET /api/activities/recommended` endpoint with scoring algorithm
+- Scoring: sport match (40pts), skill proximity (20pts), distance (20pts), friend overlap (15pts), co-participant history (5pts)
+- "For You" panel on web explore map (top-right, dismissable)
+- "For You" section on Right Now page (both platforms)
+
+### Social & Messaging
+- Friends list (mutual follows) on Profile page
+- Incoming follow requests with "Follow Back" button
+- Notifications: follow, invite, join_request, join_accepted
+- DM chat: 1:1 messaging with realtime (Supabase Realtime on mobile, polling on web)
+- Group chat: per-activity messages with sender avatars
+- Follow/unfollow system with auto-notification
+- Friend invite when creating activities
 
 ### My Trips
-- Upcoming/past sections, host/going/requested badges
+- Upcoming/past sections with SectionList (mobile) / server-rendered (web)
+- HOST/GOING/REQUESTED badges
 - Pending join request management (accept/decline) inline
-- Chat link + click-through to activity detail page
+- Inline expandable group chat per trip (web)
+- Chat button per trip (mobile)
 
-### Design System
-- Teal/emerald primary + warm orange accent (OKLch with saturation)
-- Brand logo, backdrop-blur nav with avatar in profile tab
-- Sport-specific color coding across feed, detail sheet, map
-- Cards with shadows, polished segmented tabs, loading skeletons on all routes
-- `UserAvatar` component with photo/initial fallback used across entire app
+### Mobile-Specific
+- Full Expo Router navigation: tabs + stack for detail screens
+- Edit profile modal with country/region/language dropdowns
+- Activity photo upload via expo-image-picker + base64-arraybuffer
+- expo-location for current position
+- expo-blur for filter overlays
+- Light theme matching web's design language
+- WebView-based Mapbox map (works in Expo Go without native build)
 
-### API Endpoints (27 routes)
+### API Endpoints (28 routes)
 | Method | Endpoint | Purpose |
 |--------|----------|---------|
 | GET/POST | `/api/activities` | List + create activities |
 | DELETE | `/api/activities/[id]` | Delete activity (owner) |
 | POST | `/api/activities/[id]/join` | Join or request to join |
 | PATCH | `/api/activities/[id]/participants/[id]` | Accept/decline participant |
+| POST | `/api/activities/[id]/photo` | Upload activity cover photo |
+| GET | `/api/activities/recommended` | Personalized recommendations |
 | GET/POST | `/api/profile` | Get + update user profile |
 | POST | `/api/avatar` | Upload profile picture |
 | POST | `/api/location` | Update user's live location |
@@ -85,52 +120,32 @@ All business logic lives in Next.js API routes (`/api/*`). The web frontend is a
 | GET | `/api/friends` | Mutual follows list |
 | GET/PATCH | `/api/notifications` | Fetch + mark read |
 | POST | `/api/invites/[notificationId]` | Accept/decline invite |
+| GET | `/api/auth/callback` | OAuth callback handler |
 
 ---
 
 ## What's Next — Prioritized
 
-### Phase B: Trip Cards & Cover Photos (NEXT UP)
-> AllTrails-style cards — photo-forward, easy to scan
+### Phase D: Experience Level Gauge (NEXT UP)
+> Internal 1-100 score per sport, used for smarter matching
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| B.1 | Cover photo upload for activities (Supabase Storage) | NOT STARTED | Reuse avatar upload pattern, store in `activities.banner_url` |
-| B.2 | Photo display in feed cards (gradient fallback if no photo) | PARTIAL | Gradient + emoji fallback exists, need real photo support |
-| B.3 | "Spots left" indicator on cards | NOT STARTED | `max_participants - going_count` |
-| B.4 | Host profile pic on feed cards | DONE | Avatar stack shows creator + participants |
-
-### Phase C: "For You" Personalized Feed
-> Curated horizontal row of recommended trips
-
-| # | Task | Status | Notes |
-|---|------|--------|-------|
-| C.1 | Recommendation algorithm: match user sports + skill | NOT STARTED | Score by sport overlap, skill proximity, distance |
-| C.2 | Factor in past activity history | NOT STARTED | |
-| C.3 | Prioritize trips by friends / past co-participants | NOT STARTED | |
-| C.4 | Horizontal "Recommended for you" row above feed | NOT STARTED | |
-| C.5 | API: `GET /api/activities/recommended` | NOT STARTED | |
-
-### Phase D: Experience Level Gauge
-> Internal 1-100 score per sport, NOT shown to users
-
-| # | Task | Status | Notes |
-|---|------|--------|-------|
-| D.1 | Onboarding questionnaire: trip count, certifications, max distance | NOT STARTED | |
-| D.2 | Compute experience score (1-100) | NOT STARTED | |
-| D.3 | Strava data supplement | NOT STARTED | Depends on Phase F |
-| D.4 | Soft matching signals (prefers mornings, into photography) | NOT STARTED | |
-| D.5 | Use score in recommendation algorithm | NOT STARTED | |
+| D.1 | Onboarding questionnaire: trip frequency, max distance hiked/run, certifications | NOT STARTED | Add to onboarding step 2 |
+| D.2 | Compute experience score (1-100) from questionnaire + activity history | NOT STARTED | Weighted formula |
+| D.3 | Use score in recommendation algorithm (replace simple skill match) | NOT STARTED | Improve Phase C scoring |
+| D.4 | Soft matching signals (prefers mornings, into photography, group size preference) | NOT STARTED | New user_preferences table |
 
 ### Phase E: Trip Page Polish
 > Full detail page with everything needed to commit
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| E.1 | Swipeable cover photos (multiple images per trip) | NOT STARTED | |
-| E.2 | Map snippet on trip detail page | NOT STARTED | Small Mapbox embed |
-| E.3 | "What to bring" / "Where to meet" structured fields | NOT STARTED | New activity fields |
-| E.4 | Sticky "Request to join" button at bottom | NOT STARTED | Mobile-focused UX |
+| E.1 | Multiple cover photos per trip (swipeable gallery) | NOT STARTED | New `activity_photos` table |
+| E.2 | Map snippet on trip detail page | NOT STARTED | Small Mapbox embed showing pin |
+| E.3 | "What to bring" / "Where to meet" structured fields | NOT STARTED | New activity columns |
+| E.4 | Sticky "Request to join" button at bottom (mobile) | NOT STARTED | iOS-style fixed CTA |
+| E.5 | Activity edit screen for creators (title, description, time) | NOT STARTED | Currently can only edit banner |
 
 ### Phase F: Strava Integration
 | # | Task | Status | Notes |
@@ -139,32 +154,48 @@ All business logic lives in Next.js API routes (`/api/*`). The web frontend is a
 | F.2 | Token exchange + refresh | NOT STARTED | |
 | F.3 | Initial sync: 6 months of activities | NOT STARTED | |
 | F.4 | Webhook for new activities | NOT STARTED | |
-| F.5 | Skill verification logic + badge | NOT STARTED | |
-| F.6 | Redis caching (Upstash) | NOT STARTED | |
+| F.5 | Skill verification logic + badge | NOT STARTED | Compare self-reported vs Strava data |
+| F.6 | Redis caching (Upstash) | NOT STARTED | Cache Strava API responses |
 
-### Phase G: Testing & Deploy
+### Phase G: Realtime & Polish
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| G.1 | Vitest setup + workspace config | NOT STARTED | |
-| G.2 | Zod validator tests | NOT STARTED | |
-| G.3 | API route tests (mocked Supabase) | NOT STARTED | |
-| G.4 | Vercel deployment | NOT STARTED | |
-| G.5 | GitHub Actions CI | NOT STARTED | |
-| G.6 | Error boundaries | NOT STARTED | |
-| G.7 | Supabase Realtime for live chat | NOT STARTED | Currently requires refresh |
+| G.1 | Supabase Realtime for web chat (replace polling) | NOT STARTED | Mobile already uses Realtime |
+| G.2 | Push notifications (Expo + APNs/FCM) | NOT STARTED | New activity invites, messages, join requests |
+| G.3 | Unread message badges on tab bar | NOT STARTED | Both platforms |
+| G.4 | Pull-to-refresh on all list screens (mobile) | PARTIAL | Some screens have it |
+| G.5 | Loading skeletons on mobile screens | NOT STARTED | Web has them |
+| G.6 | Error boundaries + graceful error states | NOT STARTED | Both platforms |
+
+### Phase H: Testing & Deploy
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| H.1 | Vitest setup + workspace config | NOT STARTED | |
+| H.2 | Zod validator tests | NOT STARTED | |
+| H.3 | API route tests (mocked Supabase) | NOT STARTED | |
+| H.4 | Vercel deployment + preview branches | NOT STARTED | |
+| H.5 | EAS Build for iOS/Android | NOT STARTED | Requires dev client for native map |
+| H.6 | GitHub Actions CI (lint + typecheck + test) | NOT STARTED | |
 
 ---
 
-## Recommended Next Task for New Agent
+## Recommended Next Steps
 
-**Phase B: Trip Cover Photos** — This is the highest-impact visual improvement remaining. The activity cards and detail sheet already support `banner_url` display, but there's no way to upload a photo when creating an activity. The work is:
+### Immediate (high impact, low effort)
+1. **Phase D.1-D.2: Experience scoring** — The recommendation algorithm currently uses simple beginner/intermediate/advanced matching. A 1-100 score from a short questionnaire ("How often do you hike? What's your longest trail?") would dramatically improve match quality.
 
-1. Add a photo upload field to `CreateActivityModal` — use the same Supabase Storage pattern as avatar upload (`/api/avatar`), but target an `activity-photos` bucket with path `activities/{activityId}.{ext}`
-2. Create `POST /api/activities/[id]/photo` endpoint (or include in the create flow)
-3. Show the uploaded photo in the feed card (replace the gradient+emoji placeholder when a photo exists)
-4. Show "X spots left" on feed cards (`max_participants - participants.length - 1`)
+2. **Phase E.2: Map on activity detail** — A small map showing the activity pin on the detail page helps users understand the location without leaving the page. Quick win using the existing WebView map pattern.
 
-After that: **Phase C (For You feed)** is the biggest product differentiator — personalized recommendations make discovery feel effortless vs manual browsing. The recommendation API should score activities by: sport match (user's sports vs activity sport), skill proximity, distance from user, and friend overlap.
+3. **Phase G.1: Realtime chat on web** — Web chat currently polls every 5s. Supabase Realtime subscription (already working on mobile) would make it instant.
+
+### Medium-term (product differentiator)
+4. **Phase F: Strava integration** — Verifying skill levels with real data builds trust. Users with Strava-verified badges are more likely to get join requests accepted.
+
+5. **Phase G.2: Push notifications** — Critical for engagement. Users need to know when someone wants to join their trip or sends a message.
+
+### Later (polish)
+6. **Phase E.1: Photo gallery** — Multiple photos per activity make listings more compelling.
+7. **Phase H: Testing & deploy** — Automated testing and CI/CD before scaling.
 
 ---
 
@@ -173,9 +204,9 @@ After that: **Phase C (For You feed)** is the biggest product differentiator —
 - **Architecture & conventions:** `CLAUDE.md`
 - **Data model:** `docs/data-model.md`
 - **Strava integration spec:** `docs/strava.md`
-- **Shared types/validators:** `packages/shared/src/`
-- **All API routes:** `apps/web/app/api/`
-- **Components:** `apps/web/components/`
-- **Reusable avatar:** `apps/web/components/UserAvatar.tsx`
-- **Search parser:** `apps/web/lib/searchParser.ts`
-- **Confetti utility:** `apps/web/hooks/useConfetti.ts`
+- **Shared types/validators/constants:** `packages/shared/src/`
+- **Web API routes:** `apps/web/app/api/`
+- **Web components:** `apps/web/components/`
+- **Mobile screens:** `apps/mobile/app/`
+- **Mobile lib (auth, supabase, api, theme):** `apps/mobile/lib/`
+- **Design tokens (mobile):** `apps/mobile/lib/theme.ts`

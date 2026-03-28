@@ -12,6 +12,8 @@ import {
 } from 'react-native'
 import { useRouter } from 'expo-router'
 
+import ConfettiCannon from 'react-native-confetti-cannon'
+
 import { SPORT_LABELS } from '@groute/shared'
 import { useSession } from '../../lib/AuthProvider'
 import { supabase } from '../../lib/supabase'
@@ -48,6 +50,7 @@ export default function TripsScreen() {
   const [expandedActivity, setExpandedActivity] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [showConfetti, setShowConfetti] = useState(false)
 
   const fetchTrips = useCallback(async () => {
     if (!user) return
@@ -160,6 +163,8 @@ export default function TripsScreen() {
       return
     }
 
+    setShowConfetti(true)
+
     // Send welcome message
     const req = pendingByActivity.get(activityId)?.find((r) => r.id === participantId)
     if (req) {
@@ -184,6 +189,36 @@ export default function TripsScreen() {
       return
     }
     await fetchTrips()
+  }
+
+  function handleLeave(activityId: string) {
+    Alert.alert('Leave Activity', 'Are you sure you want to leave?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Leave', style: 'destructive',
+        onPress: async () => {
+          await supabase
+            .from('activity_participants')
+            .delete()
+            .eq('activity_id', activityId)
+            .eq('user_id', user!.id)
+          await fetchTrips()
+        },
+      },
+    ])
+  }
+
+  function handleDeleteActivity(activityId: string) {
+    Alert.alert('Delete Activity', 'This will remove the activity for everyone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive',
+        onPress: async () => {
+          await supabase.from('activities').delete().eq('id', activityId)
+          await fetchTrips()
+        },
+      },
+    ])
   }
 
   function renderTrip({ item, isPast }: { item: Trip; isPast?: boolean }) {
@@ -239,12 +274,28 @@ export default function TripsScreen() {
         {/* Actions */}
         {!isPast && (
           <View style={styles.cardActions}>
-            <Pressable
-              style={styles.chatAction}
-              onPress={() => router.push(`/chat/${item.id}`)}
-            >
-              <Text style={styles.chatActionText}>Chat</Text>
+            <Pressable style={styles.actionBtn} onPress={() => router.push(`/chat/${item.id}`)}>
+              <Text style={styles.actionBtnText}>Chat</Text>
             </Pressable>
+            {item.role === 'host' ? (
+              <>
+                <View style={styles.actionDivider} />
+                <Pressable style={styles.actionBtn} onPress={() => router.push(`/edit-activity?id=${item.id}`)}>
+                  <Text style={styles.actionBtnText}>Edit</Text>
+                </Pressable>
+                <View style={styles.actionDivider} />
+                <Pressable style={styles.actionBtn} onPress={() => handleDeleteActivity(item.id)}>
+                  <Text style={styles.actionBtnTextDanger}>Delete</Text>
+                </Pressable>
+              </>
+            ) : (
+              <>
+                <View style={styles.actionDivider} />
+                <Pressable style={styles.actionBtn} onPress={() => handleLeave(item.id)}>
+                  <Text style={styles.actionBtnTextDanger}>Leave</Text>
+                </Pressable>
+              </>
+            )}
           </View>
         )}
 
@@ -318,6 +369,7 @@ export default function TripsScreen() {
   }
 
   return (
+    <>
     <SectionList
       style={styles.container}
       sections={sections}
@@ -332,6 +384,8 @@ export default function TripsScreen() {
       }
       stickySectionHeadersEnabled={false}
     />
+    {showConfetti && <ConfettiCannon count={80} origin={{ x: -10, y: 0 }} fadeOut autoStart />}
+    </>
   )
 }
 
@@ -376,8 +430,10 @@ const styles = StyleSheet.create({
 
   // Actions
   cardActions: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#e5e5e5' },
-  chatAction: { flex: 1, paddingVertical: 10, alignItems: 'center' },
-  chatActionText: { fontSize: 13, fontWeight: '600', color: '#3b82f6' },
+  actionBtn: { flex: 1, paddingVertical: 10, alignItems: 'center' },
+  actionBtnText: { fontSize: 13, fontWeight: '600', color: '#3b82f6' },
+  actionBtnTextDanger: { fontSize: 13, fontWeight: '600', color: '#dc2626' },
+  actionDivider: { width: 1, backgroundColor: '#e5e5e5' },
 
   // Pending requests
   pendingSection: { borderTopWidth: 1, borderTopColor: '#e5e5e5' },

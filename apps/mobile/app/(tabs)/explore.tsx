@@ -9,7 +9,7 @@ import {
   ScrollView,
 } from 'react-native'
 import { BlurView } from 'expo-blur'
-import { useRouter } from 'expo-router'
+import { useRouter, usePathname } from 'expo-router'
 import { WebView } from 'react-native-webview'
 import Constants from 'expo-constants'
 
@@ -122,8 +122,8 @@ mapboxgl.accessToken='${token}';
 var map=new mapboxgl.Map({
   container:'map',
   style:'mapbox://styles/mapbox/outdoors-v12',
-  center:[-118.2437,34.0522],
-  zoom:11
+  center:[${userLocation ? userLocation.lng : -118.2437},${userLocation ? userLocation.lat : 34.0522}],
+  zoom:${userLocation ? 13 : 11}
 });
 
 map.addControl(new mapboxgl.NavigationControl({showCompass:false}),'top-right');
@@ -248,6 +248,7 @@ map.on('load',function(){
   ` : ''}
 });
 
+map.on('moveend',function(){var c=map.getCenter();window.ReactNativeWebView.postMessage(JSON.stringify({type:'center',lat:c.lat,lng:c.lng}))});
 window.flyTo=function(lng,lat){map.flyTo({center:[lng,lat],zoom:14,duration:800})};
 </` + `script>
 </body></html>`
@@ -263,29 +264,43 @@ export default function ExploreScreen() {
   const [timeframeDays, setTimeframeDays] = useState(7)
   const [showTimePicker, setShowTimePicker] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [locationReady, setLocationReady] = useState(false)
+  const mapCenterRef = useRef({ lat: 34.0522, lng: -118.2437 })
   const webViewRef = useRef<WebView>(null)
 
-  // Get user location
+  // Get user location — wait for it before showing map
   useEffect(() => {
-    (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync()
-      if (status !== 'granted') return
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
-      setUserLocation({ lat: loc.coords.latitude, lng: loc.coords.longitude })
+    let timeout: ReturnType<typeof setTimeout>
 
-      // Update server with location
-      if (user) {
-        supabase
-          .from('users')
-          .update({
-            last_location_lat: String(loc.coords.latitude),
-            last_location_lng: String(loc.coords.longitude),
-            last_location_at: new Date().toISOString(),
-          })
-          .eq('id', user.id)
-          .then(() => {})
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync()
+        if (status === 'granted') {
+          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High })
+          setUserLocation({ lat: loc.coords.latitude, lng: loc.coords.longitude })
+
+          // Update server
+          if (user) {
+            supabase
+              .from('users')
+              .update({
+                last_location_lat: String(loc.coords.latitude),
+                last_location_lng: String(loc.coords.longitude),
+                last_location_at: new Date().toISOString(),
+              })
+              .eq('id', user.id)
+              .then(() => {})
+          }
+        }
+      } catch {
+        // Location failed — proceed with default
       }
+      setLocationReady(true)
     })()
+
+    // Don't block forever if location is slow
+    timeout = setTimeout(() => setLocationReady(true), 5000)
+    return () => clearTimeout(timeout)
   }, [user])
 
   const fetchData = useCallback(async () => {
@@ -354,9 +369,18 @@ export default function ExploreScreen() {
     }
   }, [user])
 
+  const pathname = usePathname()
+
   useEffect(() => {
     fetchData().finally(() => setIsLoading(false))
   }, [fetchData])
+
+  // Refetch when navigating back to this tab
+  useEffect(() => {
+    if (pathname === '/explore' && !isLoading) {
+      fetchData()
+    }
+  }, [pathname]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const filtered = activities.filter((a) => {
     if (selectedSport && a.sport_type !== selectedSport) return false
@@ -375,6 +399,8 @@ export default function ExploreScreen() {
       const msg = JSON.parse(event.nativeEvent.data)
       if (msg.type === 'pin' && msg.id) {
         router.push(`/activity/${msg.id}`)
+      } else if (msg.type === 'center') {
+        mapCenterRef.current = { lat: msg.lat, lng: msg.lng }
       } else if (msg.type === 'error') {
         console.warn('Map error:', msg.msg)
       } else if (msg.type === 'loaded') {
@@ -385,7 +411,7 @@ export default function ExploreScreen() {
     }
   }
 
-  if (isLoading) {
+  if (isLoading || !locationReady) {
     return (
       <View style={s.loading}>
         <ActivityIndicator size="large" color={C.primary} />
@@ -442,7 +468,7 @@ export default function ExploreScreen() {
       </View>
 
       {/* FAB */}
-      <Pressable style={s.fab} onPress={() => router.push('/create-activity')}>
+      <Pressable style={s.fab} onPress={() => router.push(`/create-activity?lat=${mapCenterRef.current.lat}&lng=${mapCenterRef.current.lng}`)}>
         <Text style={s.fabText}>+</Text>
       </Pressable>
 
