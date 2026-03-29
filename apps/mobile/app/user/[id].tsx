@@ -28,22 +28,22 @@ const C = {
 
 interface UserProfile {
   id: string
-  displayName: string
-  firstName: string | null
-  lastName: string | null
-  avatarUrl: string | null
+  display_name: string
+  first_name: string | null
+  last_name: string | null
+  avatar_url: string | null
   area: string | null
-  preferredLanguage: string | null
-  eduEmail: string | null
-  createdAt: string
+  preferred_language: string | null
+  edu_email: string | null
+  created_at: string
   sports: UserSport[]
   isFollowing: boolean
   mutualFriendCount: number
 }
 
 interface UserSport {
-  sportType: string
-  selfReportedLevel: string
+  sport_type: string
+  self_reported_level: string
 }
 
 export default function UserProfileScreen() {
@@ -100,11 +100,11 @@ export default function UserProfileScreen() {
     )
   }
 
-  const fullName = profile.firstName && profile.lastName
-    ? `${profile.firstName} ${profile.lastName}`
-    : profile.displayName
+  const fullName = profile.first_name && profile.last_name
+    ? `${profile.first_name} ${profile.last_name}`
+    : profile.display_name
 
-  const joinedDate = new Date(profile.createdAt).toLocaleDateString('en-US', {
+  const joinedDate = new Date(profile.created_at).toLocaleDateString('en-US', {
     month: 'long',
     year: 'numeric',
   })
@@ -115,11 +115,11 @@ export default function UserProfileScreen() {
 
       {/* Header */}
       <View style={s.header}>
-        {profile.avatarUrl ? (
-          <Image source={{ uri: profile.avatarUrl }} style={s.avatar} />
+        {profile.avatar_url ? (
+          <Image source={{ uri: profile.avatar_url }} style={s.avatar} />
         ) : (
           <View style={s.avatarFallback}>
-            <Text style={s.avatarInitial}>{(profile.firstName?.[0] ?? profile.displayName[0]).toUpperCase()}</Text>
+            <Text style={s.avatarInitial}>{(profile.first_name?.[0] ?? profile.display_name[0]).toUpperCase()}</Text>
           </View>
         )}
         <Text style={s.name}>{fullName}</Text>
@@ -129,7 +129,7 @@ export default function UserProfileScreen() {
           {mutualFriendCount > 0 && (
             <Text style={s.stat}>{mutualFriendCount} mutual friend{mutualFriendCount !== 1 ? 's' : ''}</Text>
           )}
-          {profile.eduEmail && (
+          {profile.edu_email && (
             <View style={s.verifiedBadge}>
               <Text style={s.verifiedText}>.edu verified</Text>
             </View>
@@ -173,9 +173,9 @@ export default function UserProfileScreen() {
           <Text style={s.sectionTitle}>Activities</Text>
           <View style={s.sportsGrid}>
             {sports.map((sp) => (
-              <View key={sp.sportType} style={s.sportCard}>
-                <Text style={s.sportName}>{SPORT_LABELS[sp.sportType] ?? sp.sportType}</Text>
-                <Text style={s.sportLevel}>{SKILL_LABELS[sp.selfReportedLevel] ?? sp.selfReportedLevel}</Text>
+              <View key={sp.sport_type} style={s.sportCard}>
+                <Text style={s.sportName}>{SPORT_LABELS[sp.sport_type] ?? sp.sport_type}</Text>
+                <Text style={s.sportLevel}>{SKILL_LABELS[sp.self_reported_level] ?? sp.self_reported_level}</Text>
               </View>
             ))}
           </View>
@@ -192,10 +192,10 @@ export default function UserProfileScreen() {
               <Text style={s.infoValue}>{profile.area}</Text>
             </View>
           )}
-          {profile.preferredLanguage && (
+          {profile.preferred_language && (
             <View style={s.infoRow}>
               <Text style={s.infoLabel}>Language</Text>
-              <Text style={s.infoValue}>{profile.preferredLanguage}</Text>
+              <Text style={s.infoValue}>{profile.preferred_language}</Text>
             </View>
           )}
         </View>

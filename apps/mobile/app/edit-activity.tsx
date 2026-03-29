@@ -83,23 +83,23 @@ export default function EditActivityScreen() {
       const { data } = await apiFetch<{
         title: string
         description: string | null
-        locationName: string
-        locationLat: string | null
-        locationLng: string | null
-        scheduledAt: string
-        maxParticipants: number
+        location_name: string
+        location_lat: string | null
+        location_lng: string | null
+        scheduled_at: string
+        max_participants: number
       }>(`/api/activities/${id}`)
 
       if (data) {
         setTitle(data.title)
         setDescription(data.description ?? '')
-        setLocationName(data.locationName)
-        const lat = data.locationLat ? parseFloat(data.locationLat) : 34.0522
-        const lng = data.locationLng ? parseFloat(data.locationLng) : -118.2437
+        setLocationName(data.location_name)
+        const lat = data.location_lat ? parseFloat(data.location_lat) : 34.0522
+        const lng = data.location_lng ? parseFloat(data.location_lng) : -118.2437
         setLocationLat(lat)
         setLocationLng(lng)
-        setScheduledDate(new Date(data.scheduledAt))
-        setMaxParticipants(String(data.maxParticipants))
+        setScheduledDate(new Date(data.scheduled_at))
+        setMaxParticipants(String(data.max_participants))
         mapHtmlRef.current = buildPickerHtml(lat, lng, mapboxToken)
         setMapReady(true)
       }

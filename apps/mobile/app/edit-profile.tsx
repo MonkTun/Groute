@@ -77,25 +77,25 @@ export default function EditProfileScreen() {
     if (!user) return
 
     const { data } = await apiFetch<{
-      firstName: string | null
-      lastName: string | null
-      avatarUrl: string | null
+      first_name: string | null
+      last_name: string | null
+      avatar_url: string | null
       bio: string | null
       area: string | null
-      dateOfBirth: string | null
-      preferredLanguage: string | null
-      eduEmail: string | null
-      sports: { sportType: string; selfReportedLevel: string }[]
+      date_of_birth: string | null
+      preferred_language: string | null
+      edu_email: string | null
+      sports: { sport_type: string; self_reported_level: string }[]
     }>('/api/profile')
 
     if (data) {
-      setFirstName(data.firstName ?? '')
-      setLastName(data.lastName ?? '')
-      setDateOfBirth(data.dateOfBirth ?? '')
+      setFirstName(data.first_name ?? '')
+      setLastName(data.last_name ?? '')
+      setDateOfBirth(data.date_of_birth ?? '')
       setBio(data.bio ?? '')
-      setAvatarUrl(data.avatarUrl)
-      setPreferredLanguage(data.preferredLanguage ?? '')
-      setEduEmail(data.eduEmail ?? '')
+      setAvatarUrl(data.avatar_url)
+      setPreferredLanguage(data.preferred_language ?? '')
+      setEduEmail(data.edu_email ?? '')
       // Parse area: "Region, Country"
       if (data.area) {
         const parts = data.area.split(', ')
@@ -106,7 +106,10 @@ export default function EditProfileScreen() {
           setRegion(data.area)
         }
       }
-      setSports(data.sports ?? [])
+      setSports((data.sports ?? []).map((s) => ({
+        sportType: s.sport_type,
+        selfReportedLevel: s.self_reported_level,
+      })))
     }
   }, [user])
 
