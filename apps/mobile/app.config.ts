@@ -17,7 +17,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   name: "Groute",
   owner: "tundraswan",
   slug: "groute",
-  version: "0.3.0",
+  version: "0.3.2",
   orientation: "portrait",
   // icon: './assets/icon.png',
   scheme: "groute",

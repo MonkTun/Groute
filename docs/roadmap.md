@@ -1,6 +1,6 @@
 # Groute Roadmap — Discovery MVP
 
-> Last updated: 2026-03-28
+> Last updated: 2026-03-29
 > Platform: **Web (Next.js) + Mobile (Expo)**. Shared backend via Next.js API routes + direct Supabase queries.
 
 ---
@@ -109,6 +109,11 @@
 - Error boundary in root layout catches React render errors and displays them on-screen
 - `app.config.ts` env var resolution works for both local `.env` (NEXT_PUBLIC_ prefix) and EAS cloud env vars (no prefix)
 
+### AI-Powered Search
+- Natural language activity search via Gemini API
+- Parses queries like "easy hike this weekend near me" into structured filters
+- Integrated into Explore page search bar (web + mobile)
+
 ### API Endpoints (28 routes)
 | Method | Endpoint | Purpose |
 |--------|----------|---------|
@@ -134,15 +139,59 @@
 
 ## What's Next — Prioritized
 
-### Phase D: Experience Level Gauge (NEXT UP)
-> Internal 1-100 score per sport, used for smarter matching
+### Phase D: Enhanced Onboarding & Profile (NEXT UP)
+> Richer user data for smarter matching + activity history on profiles
+
+#### D1: Onboarding Questionnaire Expansion
+> Add questions after sport selection (step 2) to capture experience depth and logistics
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| D.1 | Onboarding questionnaire: trip frequency, max distance hiked/run, certifications | NOT STARTED | Add to onboarding step 2 |
-| D.2 | Compute experience score (1-100) from questionnaire + activity history | NOT STARTED | Weighted formula |
-| D.3 | Use score in recommendation algorithm (replace simple skill match) | NOT STARTED | Improve Phase C scoring |
-| D.4 | Soft matching signals (prefers mornings, into photography, group size preference) | NOT STARTED | New user_preferences table |
+| D1.1 | **Experience depth questions (per selected sport):** | NOT STARTED | Conditional on sports chosen |
+| | - Highest altitude reached (ft/m) | | Hiking/mountaineering |
+| | - Longest single-day distance (mi/km) | | Hiking, running, cycling |
+| | - Total trips in the last 12 months | | All sports |
+| | - Years of experience | | All sports |
+| | - Certifications (Wilderness First Aid, belay cert, dive cert, etc.) | | Multi-select, sport-specific |
+| | - Terrain comfort (trail, off-trail, scramble, technical, snow/ice) | | Multi-select for hiking |
+| | - Water comfort level (flatwater, Class I-V rapids, open ocean) | | Kayaking, surfing, SUP |
+| D1.2 | **Logistics & availability questions:** | NOT STARTED | Critical for LA car-dependent matching |
+| | - Do you have a car / can you drive to trailheads? (yes / no / sometimes) | | Key for carpool matching |
+| | - Willing to carpool / give rides? (yes / no / within X miles) | | Enables transport coordination |
+| | - How far are you willing to drive for an activity? (10/25/50/100+ mi) | | Filters discovery radius |
+| | - Preferred group size (solo+1, small 2-4, medium 5-8, large 8+) | | Matching signal |
+| | - Preferred time of day (early morning, morning, afternoon, evening) | | Scheduling alignment |
+| | - Weekday vs weekend availability | | Scheduling alignment |
+| D1.3 | **Gear & preparedness questions:** | NOT STARTED | Safety + compatibility signals |
+| | - Do you own hiking/camping gear? (none / basic / full kit) | | Helps hosts gauge readiness |
+| | - Comfort with overnight trips (day trips only / car camping / backcountry) | | Activity type matching |
+| | - Fitness self-assessment (casual / active / athletic / competitive) | | Cross-sport baseline |
+| | - Any physical limitations or accessibility needs? (optional, free text) | | Inclusive matching |
+| D1.4 | **Social & safety preferences:** | NOT STARTED | Trust + comfort signals |
+| | - Comfortable with strangers? (prefer friends-of-friends / open to anyone) | | Matching filter |
+| | - Emergency contact info (optional) | | Safety feature |
+| | - Languages spoken (select multiple) | | Already have preferred, add spoken |
+| D1.5 | DB schema: `user_experience` table (per-sport metrics) + `user_preferences` table (logistics/social) | NOT STARTED | New tables in shared schema |
+| D1.6 | Zod validators for all new questionnaire fields | NOT STARTED | `packages/shared/src/validators/` |
+| D1.7 | Onboarding UI: new step(s) between sport selection and extras | NOT STARTED | Web + mobile |
+
+#### D2: Experience Scoring
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| D2.1 | Compute experience score (1-100) per sport from questionnaire answers | NOT STARTED | Weighted formula |
+| D2.2 | Factor in completed Groute activities into score over time | NOT STARTED | Score improves as you use the app |
+| D2.3 | Use score in recommendation algorithm (replace simple skill match) | NOT STARTED | Improve existing scoring |
+
+#### D3: Profile — Activity History
+> Show completed activities on user profiles so others can gauge experience
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| D3.1 | "Past Activities" section on profile page (web + mobile) | NOT STARTED | Reverse-chron list of completed trips |
+| D3.2 | Activity history cards: sport icon, title, date, location, group size | NOT STARTED | Compact card design |
+| D3.3 | Stats summary on profile: total trips, unique sports, people met | NOT STARTED | Above activity history |
+| D3.4 | Privacy toggle: show/hide activity history on public profile | NOT STARTED | Settings page |
+| D3.5 | API endpoint: `GET /api/users/[id]/activities` (past completed) | NOT STARTED | Paginated, respects privacy |
 
 ### Phase E: Trip Page Polish
 > Full detail page with everything needed to commit
@@ -189,21 +238,23 @@
 
 ## Recommended Next Steps
 
-### Immediate (high impact, low effort)
-1. **Phase D.1-D.2: Experience scoring** — The recommendation algorithm currently uses simple beginner/intermediate/advanced matching. A 1-100 score from a short questionnaire ("How often do you hike? What's your longest trail?") would dramatically improve match quality.
+### Immediate (high impact — NEXT UP)
+1. **Phase D1: Onboarding questionnaire** — Capture experience depth (altitude, distance, frequency) and logistics (car access, drive radius, group size) during onboarding. This data is the foundation for smarter matching in LA's car-dependent geography.
 
-2. **Phase E.2: Map on activity detail** — A small map showing the activity pin on the detail page helps users understand the location without leaving the page. Quick win using the existing WebView map pattern.
+2. **Phase D3: Profile activity history** — Show past activities on profiles so users can assess each other's experience. Builds trust and encourages repeat usage.
 
-3. **Phase G.1: Realtime chat on web** — Web chat currently polls every 5s. Supabase Realtime subscription (already working on mobile) would make it instant.
+3. **Phase D2: Experience scoring** — Replace simple beginner/intermediate/advanced with a 1-100 score derived from questionnaire + activity history. Dramatically improves recommendation quality.
 
 ### Medium-term (product differentiator)
-4. **Phase F: Strava integration** — Verifying skill levels with real data builds trust. Users with Strava-verified badges are more likely to get join requests accepted.
+4. **Phase E.2: Map on activity detail** — Small map showing the activity pin. Quick win using existing WebView map pattern.
 
-5. **Phase G.2: Push notifications** — Critical for engagement. Users need to know when someone wants to join their trip or sends a message.
+5. **Phase F: Strava integration** — Verifying skill levels with real data builds trust. Users with Strava-verified badges are more likely to get join requests accepted.
+
+6. **Phase G.2: Push notifications** — Critical for engagement. Users need to know when someone wants to join their trip or sends a message.
 
 ### Later (polish)
-6. **Phase E.1: Photo gallery** — Multiple photos per activity make listings more compelling.
-7. **Phase H: Testing & deploy** — Automated testing and CI/CD before scaling.
+7. **Phase E.1: Photo gallery** — Multiple photos per activity make listings more compelling.
+8. **Phase H: Testing & deploy** — Automated testing and CI/CD before scaling.
 
 ---
 
