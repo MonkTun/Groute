@@ -1,10 +1,12 @@
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 
 interface SearchBarProps {
   value: string
   onChangeText: (text: string) => void
   onSubmit?: () => void
   placeholder?: string
+  /** Show loading spinner in place of clear button */
+  isLoading?: boolean
   /** Render with transparent background (for overlaying on maps) */
   overlay?: boolean
 }
@@ -14,20 +16,27 @@ export default function SearchBar({
   onChangeText,
   onSubmit,
   placeholder = 'Search activities, locations...',
+  isLoading,
   overlay,
 }: SearchBarProps) {
   return (
     <View style={[s.container, overlay && s.containerOverlay]}>
       <TextInput
-        style={[s.input, overlay && s.inputOverlay]}
+        style={[s.input, overlay && s.inputOverlay, isLoading && s.inputLoading]}
         value={value}
         onChangeText={onChangeText}
         onSubmitEditing={onSubmit}
         placeholder={placeholder}
         placeholderTextColor="#9ca3af"
-        returnKeyType="search"
+        returnKeyType={onSubmit ? 'search' : 'done'}
+        blurOnSubmit={!!onSubmit}
+        editable={!isLoading}
       />
-      {value ? (
+      {isLoading ? (
+        <View style={s.clear}>
+          <ActivityIndicator size="small" color="#0f8a6e" />
+        </View>
+      ) : value ? (
         <Pressable style={s.clear} onPress={() => onChangeText('')}>
           <Text style={s.clearText}>{'\u2715'}</Text>
         </Pressable>
@@ -63,6 +72,9 @@ const s = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
+  },
+  inputLoading: {
+    opacity: 0.6,
   },
   clear: { position: 'absolute', right: 32, top: 0, bottom: 8, justifyContent: 'center' },
   clearText: { fontSize: 14, color: '#9ca3af' },

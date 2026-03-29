@@ -112,21 +112,13 @@ export function RightNowView({ activities, userSports, userId, friendIds = [] }:
     setAiRankedIds(null)
   }
 
-  // When AI ranked, show only those results
+  // Only filter when AI search has returned results (Enter was pressed)
   const filtered = (() => {
     if (aiRankedIds && aiRankedIds.length > 0) {
       const activityMap = new Map(activities.map((a) => [a.id, a]))
       return aiRankedIds
         .map((id) => activityMap.get(id))
         .filter((a): a is ActivityData => a != null)
-    }
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase()
-      return activities.filter((a) =>
-        a.title.toLowerCase().includes(q) ||
-        a.location_name.toLowerCase().includes(q) ||
-        (SPORT_LABELS[a.sport_type] ?? a.sport_type).toLowerCase().includes(q)
-      )
     }
     return activities
   })()
@@ -149,11 +141,7 @@ export function RightNowView({ activities, userSports, userId, friendIds = [] }:
       {/* Search */}
       <div className="mb-8">
         <div className="relative">
-          {isSearching ? (
-            <div className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
-          ) : (
-            <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/50" />
-          )}
+          <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/50" />
           <input
             type="text"
             value={searchQuery}
@@ -174,8 +162,16 @@ export function RightNowView({ activities, userSports, userId, friendIds = [] }:
         </div>
       </div>
 
+      {/* Loading overlay */}
+      {isSearching && (
+        <div className="flex flex-col items-center justify-center py-20 gap-3">
+          <div className="size-8 animate-spin rounded-full border-3 border-primary/20 border-t-primary" />
+          <p className="text-sm text-muted-foreground">Searching...</p>
+        </div>
+      )}
+
       {/* Happening Soon */}
-      {happeningSoon.length > 0 && (
+      {!isSearching && happeningSoon.length > 0 && (
         <section className="mb-10">
           <div className="mb-4 flex items-center gap-2">
             <div className="size-2 animate-pulse rounded-full bg-green-500" />
@@ -190,7 +186,7 @@ export function RightNowView({ activities, userSports, userId, friendIds = [] }:
       )}
 
       {/* For You */}
-      {forYou.length > 0 && !searchQuery && (
+      {!isSearching && forYou.length > 0 && !searchQuery && (
         <section className="mb-10">
           <div className="mb-4 flex items-center gap-2">
             <Sparkles className="size-4 text-amber-500" />
@@ -205,7 +201,7 @@ export function RightNowView({ activities, userSports, userId, friendIds = [] }:
       )}
 
       {/* Coming Up */}
-      {upcoming.length > 0 && (
+      {!isSearching && upcoming.length > 0 && (
         <section className="mb-10">
           <h2 className="mb-4 text-lg font-semibold">
             {searchQuery ? `Results (${filtered.length})` : 'Coming Up'}

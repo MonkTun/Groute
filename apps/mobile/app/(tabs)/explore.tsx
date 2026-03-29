@@ -457,12 +457,8 @@ export default function ExploreScreen() {
                         key={a.id}
                         style={s.searchItem}
                         onPress={() => {
-                          if (a.location_lat && a.location_lng) {
-                            webViewRef.current?.injectJavaScript(
-                              `window.flyTo(${a.location_lng},${a.location_lat});true;`
-                            )
-                          }
                           setSearchQuery('')
+                          router.push(`/activity/${a.id}`)
                         }}
                       >
                         <Text style={s.searchEmoji}>{SPORT_EMOJI[a.sport_type] ?? '\u{1F3DE}'}</Text>

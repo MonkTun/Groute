@@ -170,19 +170,11 @@ export default function RightNowScreen() {
     setAiRankedIds(null)
   }
 
-  // Filter by search
+  // Only filter when AI search has returned results (Enter was pressed)
   const filtered = (() => {
     if (aiRankedIds && aiRankedIds.length > 0) {
       const activityMap = new Map(activities.map((a) => [a.id, a]))
       return aiRankedIds.map((id) => activityMap.get(id)).filter((a): a is Activity => a != null)
-    }
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase()
-      return activities.filter((a) =>
-        a.title.toLowerCase().includes(q) ||
-        a.location_name.toLowerCase().includes(q) ||
-        (SPORT_LABELS[a.sport_type] ?? a.sport_type).toLowerCase().includes(q)
-      )
     }
     return activities
   })()
@@ -195,30 +187,34 @@ export default function RightNowScreen() {
   const hour = now.getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
 
-  type Section = { type: 'header' } | { type: 'search' } | { type: 'section-title'; title: string; dot?: boolean; icon?: string } | { type: 'activity'; activity: Activity; featured?: boolean } | { type: 'cta' } | { type: 'empty' }
+  type Section = { type: 'header' } | { type: 'search' } | { type: 'loading' } | { type: 'section-title'; title: string; dot?: boolean; icon?: string } | { type: 'activity'; activity: Activity; featured?: boolean } | { type: 'cta' } | { type: 'empty' }
 
   const sections: Section[] = [{ type: 'header' }, { type: 'search' }]
 
-  if (happeningSoon.length > 0) {
-    sections.push({ type: 'section-title', title: 'Happening Soon', dot: true })
-    happeningSoon.forEach((a) => sections.push({ type: 'activity', activity: a, featured: true }))
-  }
+  if (isSearching) {
+    sections.push({ type: 'loading' })
+  } else {
+    if (happeningSoon.length > 0) {
+      sections.push({ type: 'section-title', title: 'Happening Soon', dot: true })
+      happeningSoon.forEach((a) => sections.push({ type: 'activity', activity: a, featured: true }))
+    }
 
-  if (forYou.length > 0) {
-    sections.push({ type: 'section-title', title: 'For You', icon: '\u2728' })
-    forYou.forEach((a) => sections.push({ type: 'activity', activity: a }))
-  }
+    if (forYou.length > 0) {
+      sections.push({ type: 'section-title', title: 'For You', icon: '\u2728' })
+      forYou.forEach((a) => sections.push({ type: 'activity', activity: a }))
+    }
 
-  if (upcoming.length > 0) {
-    sections.push({ type: 'section-title', title: 'Coming Up' })
-    upcoming.forEach((a) => sections.push({ type: 'activity', activity: a }))
-  }
+    if (upcoming.length > 0) {
+      sections.push({ type: 'section-title', title: isAiActive ? `Results (${filtered.length})` : 'Coming Up' })
+      upcoming.forEach((a) => sections.push({ type: 'activity', activity: a }))
+    }
 
-  if (filtered.length === 0) {
-    sections.push({ type: 'empty' })
-  }
+    if (filtered.length === 0) {
+      sections.push({ type: 'empty' })
+    }
 
-  sections.push({ type: 'cta' })
+    sections.push({ type: 'cta' })
+  }
 
   return (
     <View style={s.container}>
@@ -245,6 +241,15 @@ export default function RightNowScreen() {
               onSubmit={handleSearchSubmit}
               placeholder='Try "easy hike tomorrow"...'
             />
+          )
+        }
+
+        if (item.type === 'loading') {
+          return (
+            <View style={s.searchLoading}>
+              <ActivityIndicator size="large" color={C.primary} />
+              <Text style={s.searchLoadingText}>Searching...</Text>
+            </View>
           )
         }
 
@@ -355,6 +360,8 @@ const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
   list: { flex: 1 },
   loading: { flex: 1, backgroundColor: C.bg, justifyContent: 'center', alignItems: 'center' },
+  searchLoading: { alignItems: 'center', justifyContent: 'center', paddingVertical: 80, gap: 12 },
+  searchLoadingText: { fontSize: 14, color: C.textSecondary },
 
   header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },
   greeting: { fontSize: 26, fontWeight: '700', color: C.text },
