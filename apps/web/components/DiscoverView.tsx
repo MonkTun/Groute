@@ -141,36 +141,39 @@ export function DiscoverView({ initialActivities, currentUserId, friends = [] }:
     const now = new Date()
     const end = endOfDay(endDate)
 
+    // When AI has ranked results, show those first (they bypass date/sport filters)
+    if (aiRankedIds && aiRankedIds.length > 0) {
+      const rankMap = new Map(aiRankedIds.map((id, i) => [id, i]))
+      return initialActivities
+        .filter((a) => rankMap.has(a.id) || new Date(a.scheduled_at) >= now)
+        .map((a) => {
+          let distanceMiles: number | null = null
+          if (userLocation && a.location_lat && a.location_lng) {
+            distanceMiles = haversineDistance(userLocation.lat, userLocation.lng, parseFloat(a.location_lat), parseFloat(a.location_lng))
+          }
+          return { ...a, distanceMiles }
+        })
+        .sort((a, b) => (rankMap.get(a.id) ?? 9999) - (rankMap.get(b.id) ?? 9999))
+    }
+
+    // Standard filtering when no AI search is active
     const result = initialActivities
       .filter((a) => {
         const scheduled = new Date(a.scheduled_at)
         if (scheduled < now || scheduled > end) return false
         if (selectedSport && a.sport_type !== selectedSport) return false
-      if (selectedSkill && a.skill_level !== selectedSkill) return false
+        if (selectedSkill && a.skill_level !== selectedSkill) return false
         return true
       })
       .map((a) => {
         let distanceMiles: number | null = null
         if (userLocation && a.location_lat && a.location_lng) {
-          distanceMiles = haversineDistance(
-            userLocation.lat,
-            userLocation.lng,
-            parseFloat(a.location_lat),
-            parseFloat(a.location_lng)
-          )
+          distanceMiles = haversineDistance(userLocation.lat, userLocation.lng, parseFloat(a.location_lat), parseFloat(a.location_lng))
         }
         return { ...a, distanceMiles }
       })
 
-    // Sort: AI-ranked first, then by distance, then by date
-    if (aiRankedIds && aiRankedIds.length > 0) {
-      const rankMap = new Map(aiRankedIds.map((id, i) => [id, i]))
-      result.sort((a, b) => {
-        const ra = rankMap.get(a.id) ?? 9999
-        const rb = rankMap.get(b.id) ?? 9999
-        return ra - rb
-      })
-    } else if (userLocation) {
+    if (userLocation) {
       result.sort((a, b) => (a.distanceMiles ?? Infinity) - (b.distanceMiles ?? Infinity))
     }
 
@@ -224,10 +227,11 @@ export function DiscoverView({ initialActivities, currentUserId, friends = [] }:
   }
 
   async function handleSearch(query: string) {
-    setSearchQuery(query)
     if (!query.trim()) return
 
     setIsSearching(true)
+    setSelectedSport(null)
+    setSelectedSkill(null)
     setAiRankedIds(null)
 
     try {
@@ -255,14 +259,12 @@ export function DiscoverView({ initialActivities, currentUserId, friends = [] }:
         if (data.timeframeDays != null) setTimeframeDays(data.timeframeDays)
         if (data.rankedIds?.length) setAiRankedIds(data.rankedIds)
       } else {
-        // Fallback to keyword parser
         const parsed = parseSearchQuery(query)
         if (parsed.sport) setSelectedSport(parsed.sport)
         if (parsed.skill) setSelectedSkill(parsed.skill)
         if (parsed.timeframeDays !== null) setTimeframeDays(parsed.timeframeDays)
       }
     } catch {
-      // Fallback to keyword parser
       const parsed = parseSearchQuery(query)
       if (parsed.sport) setSelectedSport(parsed.sport)
       if (parsed.skill) setSelectedSkill(parsed.skill)

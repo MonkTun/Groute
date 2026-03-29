@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 interface SearchBarProps {
   value: string
   onChangeText: (text: string) => void
+  onSubmit?: () => void
   placeholder?: string
   /** Render with transparent background (for overlaying on maps) */
   overlay?: boolean
@@ -11,6 +12,7 @@ interface SearchBarProps {
 export default function SearchBar({
   value,
   onChangeText,
+  onSubmit,
   placeholder = 'Search activities, locations...',
   overlay,
 }: SearchBarProps) {
@@ -20,6 +22,7 @@ export default function SearchBar({
         style={[s.input, overlay && s.inputOverlay]}
         value={value}
         onChangeText={onChangeText}
+        onSubmitEditing={onSubmit}
         placeholder={placeholder}
         placeholderTextColor="#9ca3af"
         returnKeyType="search"

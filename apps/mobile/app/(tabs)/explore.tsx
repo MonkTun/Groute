@@ -266,7 +266,6 @@ export default function ExploreScreen() {
   const [searchQuery, setSearchQuery] = useState('')
   const [isSearching, setIsSearching] = useState(false)
   const [aiRankedIds, setAiRankedIds] = useState<string[] | null>(null)
-  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [selectedSport, setSelectedSport] = useState<string | null>(null)
   const [timeframeDays, setTimeframeDays] = useState(7)
   const [showTimePicker, setShowTimePicker] = useState(false)
@@ -405,12 +404,13 @@ export default function ExploreScreen() {
     return result
   })()
 
-  async function handleAiSearch(query: string) {
-    if (!query.trim() || query.trim().length < 3) {
-      setAiRankedIds(null)
-      return
-    }
+  async function handleSearchSubmit() {
+    if (!searchQuery.trim()) return
+
     setIsSearching(true)
+    setSelectedSport(null)
+    setAiRankedIds(null)
+
     try {
       const { data } = await apiPost<{
         sport: string | null
@@ -418,7 +418,7 @@ export default function ExploreScreen() {
         timeframeDays: number | null
         rankedIds: string[]
       }>('/api/search', {
-        query: query.trim(),
+        query: searchQuery.trim(),
         activities: activities.slice(0, 50).map((a) => ({
           id: a.id,
           title: a.title,
@@ -431,6 +431,7 @@ export default function ExploreScreen() {
       })
       if (data) {
         if (data.sport) setSelectedSport(data.sport)
+        if (data.timeframeDays != null) setTimeframeDays(data.timeframeDays)
         if (data.rankedIds?.length) setAiRankedIds(data.rankedIds)
       }
     } catch {
@@ -440,13 +441,10 @@ export default function ExploreScreen() {
     }
   }
 
-  function handleSearchInput(text: string) {
-    setSearchQuery(text)
+  function handleSearchClear() {
+    setSearchQuery('')
+    setSelectedSport(null)
     setAiRankedIds(null)
-    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
-    if (text.trim().length >= 3) {
-      searchTimerRef.current = setTimeout(() => handleAiSearch(text), 600)
-    }
   }
 
   const activeTimeLabel = TIMEFRAMES.find((t) => t.days === timeframeDays)?.label ?? 'Week'
@@ -493,7 +491,8 @@ export default function ExploreScreen() {
         <View style={s.searchOverlay}>
           <SearchBar
             value={searchQuery}
-            onChangeText={handleSearchInput}
+            onChangeText={(text) => { setSearchQuery(text); if (!text.trim()) handleSearchClear() }}
+            onSubmit={handleSearchSubmit}
             placeholder='Try "easy hike near Griffith"...'
             overlay
           />

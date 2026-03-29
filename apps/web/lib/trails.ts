@@ -276,7 +276,8 @@ export async function getTrailGeometry(
   }
 }
 
-const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
+const MAPBOX_TOKEN =
+  process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? process.env.MAPBOX_TOKEN ?? "";
 
 /**
  * Get a walking route from an origin point to a trailhead using Mapbox Directions API.
