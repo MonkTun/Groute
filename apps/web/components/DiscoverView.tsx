@@ -30,6 +30,17 @@ export interface ActivityData {
   status: string
   participantStatus: string | null
   isOwner: boolean
+  trail_osm_id: number | null
+  trail_name: string | null
+  trail_distance_meters: number | null
+  trail_surface: string | null
+  trail_sac_scale: string | null
+  trailhead_lat: string | null
+  trailhead_lng: string | null
+  trail_approach_distance_m: number | null
+  trail_approach_duration_s: number | null
+  trail_geometry: string | null
+  approach_geometry: string | null
   creator: {
     id: string
     display_name: string
@@ -315,7 +326,7 @@ export function DiscoverView({ initialActivities, currentUserId, friends = [] }:
             <span className="text-xs font-medium text-muted-foreground">
               {filtered.length} {filtered.length === 1 ? 'activity' : 'activities'}
             </span>
-            <CreateActivityModal />
+            <CreateActivityModal initialMapCenter={userLocation} />
           </div>
 
           <ActivityFeed

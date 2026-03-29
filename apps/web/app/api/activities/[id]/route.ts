@@ -26,6 +26,9 @@ export async function GET(
           `id, title, description, sport_type, skill_level, visibility, banner_url,
            location_lat, location_lng, location_name,
            max_participants, scheduled_at, status, created_at, creator_id,
+           trail_osm_id, trail_name, trail_distance_meters, trail_surface, trail_sac_scale,
+           trailhead_lat, trailhead_lng, trail_approach_distance_m, trail_approach_duration_s,
+           trail_geometry, approach_geometry,
            creator:users!creator_id (
              id, display_name, first_name, last_name, avatar_url, area
            )`

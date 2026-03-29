@@ -100,3 +100,28 @@ export const VISIBILITY_DESCRIPTIONS: Record<string, string> = {
 
 export const DEFAULT_SEARCH_RADIUS_METERS = 32_187; // ~20 miles
 export const STRAVA_SYNC_MONTHS = 6;
+
+export const SAC_SCALE_LABELS: Record<string, string> = {
+  hiking: "T1 — Easy hiking",
+  mountain_hiking: "T2 — Mountain hiking",
+  demanding_mountain_hiking: "T3 — Demanding",
+  alpine_hiking: "T4 — Alpine",
+  demanding_alpine_hiking: "T5 — Demanding alpine",
+  difficult_alpine_hiking: "T6 — Difficult alpine",
+};
+
+export const SURFACE_LABELS: Record<string, string> = {
+  ground: "Ground",
+  dirt: "Dirt",
+  grass: "Grass",
+  gravel: "Gravel",
+  sand: "Sand",
+  rock: "Rock",
+  paved: "Paved",
+  asphalt: "Asphalt",
+  concrete: "Concrete",
+  wood: "Wood",
+  unknown: "Unknown",
+};
+
+export const DEFAULT_TRAIL_SEARCH_RADIUS_METERS = 8_000; // ~5 miles

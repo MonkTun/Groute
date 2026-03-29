@@ -2,13 +2,14 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { X, MapPin, Clock, Users, Eye, Lock, Globe } from 'lucide-react'
+import { X, MapPin, Clock, Users, Eye, Lock, Globe, Mountain, Ruler, Footprints } from 'lucide-react'
 
-import { SPORT_LABELS, SKILL_LABELS, VISIBILITY_LABELS } from '@groute/shared'
+import { SPORT_LABELS, SKILL_LABELS, VISIBILITY_LABELS, SAC_SCALE_LABELS, SURFACE_LABELS } from '@groute/shared'
 import { fireConfetti } from '@/hooks/useConfetti'
 
 import { Button } from '@/components/ui/button'
 import { UserAvatar } from '@/components/UserAvatar'
+import { TrailMapView } from '@/components/TrailMapView'
 
 const SPORT_COLORS: Record<string, string> = {
   hiking: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
@@ -200,6 +201,58 @@ export function ActivityDetailSheet({
               </div>
             </div>
           </div>
+
+          {/* Trail info + map */}
+          {activity.trail_name && (
+            <div className="mt-3 space-y-2">
+              {/* Map — only when all coordinates are available */}
+              {activity.trail_osm_id != null && activity.location_lat && activity.location_lng && activity.trailhead_lat && activity.trailhead_lng && (
+                <TrailMapView
+                  locationLat={parseFloat(activity.location_lat)}
+                  locationLng={parseFloat(activity.location_lng)}
+                  locationName={activity.location_name}
+                  trailOsmId={activity.trail_osm_id}
+                  trailName={activity.trail_name}
+                  trailheadLat={parseFloat(activity.trailhead_lat)}
+                  trailheadLng={parseFloat(activity.trailhead_lng)}
+                  hasApproachRoute={activity.trail_approach_duration_s != null}
+                  trailGeometry={activity.trail_geometry}
+                  approachGeometry={activity.approach_geometry}
+                  height={200}
+                />
+              )}
+              {/* Trail text info — always shown when trail_name exists */}
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1 font-medium text-green-700 dark:text-green-400">
+                  <Mountain className="size-3" />
+                  {activity.trail_name}
+                </span>
+                {activity.trail_distance_meters != null && (
+                  <span className="flex items-center gap-1">
+                    <Ruler className="size-3" />
+                    {activity.trail_distance_meters < 1000
+                      ? `${activity.trail_distance_meters}m`
+                      : `${(activity.trail_distance_meters / 1609.344).toFixed(1)} mi`}
+                  </span>
+                )}
+                {activity.trail_sac_scale && (
+                  <span className="flex items-center gap-1">
+                    <Footprints className="size-3" />
+                    {SAC_SCALE_LABELS[activity.trail_sac_scale] ?? activity.trail_sac_scale}
+                  </span>
+                )}
+                {activity.trail_surface && (
+                  <span>{SURFACE_LABELS[activity.trail_surface] ?? activity.trail_surface}</span>
+                )}
+                {activity.trail_approach_duration_s != null && (
+                  <span className="flex items-center gap-1 text-orange-600 dark:text-orange-400">
+                    <Clock className="size-3" />
+                    {Math.ceil(activity.trail_approach_duration_s / 60)} min walk
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Host */}
           <div className="mt-4 flex items-center gap-3 rounded-xl bg-primary/5 px-3.5 py-3 ring-1 ring-primary/10">

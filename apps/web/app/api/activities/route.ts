@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createActivitySchema } from "@groute/shared";
 
 import { createApiClient } from "@/lib/supabase/api";
+import { getTrailGeometry, getApproachRoute } from "@/lib/trails";
 
 export async function GET(request: NextRequest) {
   const supabase = await createApiClient(request);
@@ -23,7 +24,10 @@ export async function GET(request: NextRequest) {
     .from("activities")
     .select(
       `
-      id, title, description, sport_type, skill_level, banner_url, location_lat, location_lng, location_name, max_participants, scheduled_at, status, created_at, creator_id,
+      id, title, description, sport_type, skill_level, banner_url, visibility, location_lat, location_lng, location_name, max_participants, scheduled_at, status, created_at, creator_id,
+      trail_osm_id, trail_name, trail_distance_meters, trail_surface, trail_sac_scale,
+      trailhead_lat, trailhead_lng, trail_approach_distance_m, trail_approach_duration_s,
+      trail_geometry, approach_geometry,
       creator:users!creator_id (
         id,
         display_name,
@@ -103,6 +107,8 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const trail = parsed.data.trail;
+
     const { data: activity, error } = await supabase
       .from("activities")
       .insert({
@@ -117,6 +123,17 @@ export async function POST(request: NextRequest) {
         location_name: parsed.data.locationName,
         max_participants: parsed.data.maxParticipants,
         scheduled_at: parsed.data.scheduledAt,
+        ...(trail && {
+          trail_osm_id: trail.osmId,
+          trail_name: trail.name,
+          trail_distance_meters: trail.distanceMeters,
+          trail_surface: trail.surface,
+          trail_sac_scale: trail.sacScale,
+          trailhead_lat: String(trail.trailheadLat),
+          trailhead_lng: String(trail.trailheadLng),
+          trail_approach_distance_m: trail.approachDistanceMeters ?? null,
+          trail_approach_duration_s: trail.approachDurationSeconds ?? null,
+        }),
       })
       .select()
       .single();
@@ -136,6 +153,40 @@ export async function POST(request: NextRequest) {
         sender_id: user.id,
         content: "created this activity. Welcome to the group!",
       });
+
+      // Fetch and store trail + approach geometries (non-blocking)
+      if (trail && activity) {
+        Promise.all([
+          getTrailGeometry(trail.osmId),
+          getApproachRoute(
+            parsed.data.location.latitude,
+            parsed.data.location.longitude,
+            trail.trailheadLat,
+            trail.trailheadLng
+          ),
+        ]).then(async ([trailGeo, approachRoute]) => {
+          const updates: Record<string, unknown> = {};
+          if (trailGeo) updates.trail_geometry = JSON.stringify(trailGeo);
+          if (approachRoute) {
+            updates.approach_geometry = JSON.stringify(approachRoute.coordinates);
+            // Also backfill approach distance/duration if not already set
+            if (!trail.approachDistanceMeters) {
+              updates.trail_approach_distance_m = approachRoute.distanceMeters;
+            }
+            if (!trail.approachDurationSeconds) {
+              updates.trail_approach_duration_s = approachRoute.durationSeconds;
+            }
+          }
+          if (Object.keys(updates).length > 0) {
+            await supabase
+              .from("activities")
+              .update(updates)
+              .eq("id", activity.id);
+          }
+        }).catch((err) => {
+          console.error("Failed to fetch trail geometries:", err);
+        });
+      }
 
       // Send invite notifications to selected friends
       if (invitedUserIds.length > 0) {

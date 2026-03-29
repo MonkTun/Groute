@@ -22,6 +22,47 @@ export const activityVisibilitySchema = z.enum([
   "private",
 ]);
 
+export const trailSacScaleSchema = z.enum([
+  "hiking",
+  "mountain_hiking",
+  "demanding_mountain_hiking",
+  "alpine_hiking",
+  "demanding_alpine_hiking",
+  "difficult_alpine_hiking",
+]);
+
+export const trailSurfaceSchema = z.enum([
+  "ground",
+  "dirt",
+  "grass",
+  "gravel",
+  "sand",
+  "rock",
+  "paved",
+  "asphalt",
+  "concrete",
+  "wood",
+  "unknown",
+]);
+
+export const trailSelectionSchema = z.object({
+  osmId: z.number().int(),
+  name: z.string().min(1).max(500),
+  surface: trailSurfaceSchema,
+  sacScale: trailSacScaleSchema.nullable(),
+  distanceMeters: z.number().min(0),
+  trailheadLat: z.number().min(-90).max(90),
+  trailheadLng: z.number().min(-180).max(180),
+  approachDistanceMeters: z.number().min(0).optional(),
+  approachDurationSeconds: z.number().min(0).optional(),
+});
+
+export const searchTrailsSchema = z.object({
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  radiusMeters: z.number().int().min(500).max(50_000).default(8_000),
+});
+
 export const createActivitySchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().max(2000).optional(),
@@ -32,6 +73,7 @@ export const createActivitySchema = z.object({
   locationName: z.string().min(1).max(200),
   maxParticipants: z.number().int().min(1).max(50),
   scheduledAt: z.string().datetime(),
+  trail: trailSelectionSchema.optional(),
 });
 
 export const userSportSchema = z.object({

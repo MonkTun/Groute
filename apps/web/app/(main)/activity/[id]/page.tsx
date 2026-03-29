@@ -1,13 +1,14 @@
 import { redirect } from 'next/navigation'
 
 import { createServerClient } from '@/lib/supabase/server'
-import { SPORT_LABELS, SKILL_LABELS, VISIBILITY_LABELS } from '@groute/shared'
-import { MapPin, Clock, Users, Crown } from 'lucide-react'
+import { SPORT_LABELS, SKILL_LABELS, VISIBILITY_LABELS, SAC_SCALE_LABELS, SURFACE_LABELS } from '@groute/shared'
+import { MapPin, Clock, Users, Crown, Mountain, Ruler, Footprints } from 'lucide-react'
 
 import { FollowButton } from '@/components/FollowButton'
 import { UserAvatar } from '@/components/UserAvatar'
 import { DeleteActivityButton } from '@/components/DeleteActivityButton'
 import { ActivityBanner } from '@/components/ActivityBanner'
+import { TrailMapView } from '@/components/TrailMapView'
 
 export default async function ActivityDetailPage({
   params,
@@ -131,6 +132,67 @@ export default async function ActivityDetailPage({
           </span>
         </div>
       </div>
+
+      {/* Trail info + map */}
+      {activity.trail_name && (
+        <section className="mb-6 space-y-3">
+          <div className="flex items-center gap-2.5">
+            <Mountain className="size-5 text-green-600" />
+            <h2 className="text-base font-bold">{activity.trail_name}</h2>
+          </div>
+
+          {/* Map — only when all coordinates are available */}
+          {activity.trail_osm_id != null && activity.location_lat && activity.location_lng && activity.trailhead_lat && activity.trailhead_lng && (
+            <TrailMapView
+              locationLat={parseFloat(activity.location_lat)}
+              locationLng={parseFloat(activity.location_lng)}
+              locationName={activity.location_name}
+              trailOsmId={activity.trail_osm_id}
+              trailName={activity.trail_name}
+              trailheadLat={parseFloat(activity.trailhead_lat)}
+              trailheadLng={parseFloat(activity.trailhead_lng)}
+              hasApproachRoute={activity.trail_approach_duration_s != null}
+              trailGeometry={activity.trail_geometry}
+              approachGeometry={activity.approach_geometry}
+              height={320}
+            />
+          )}
+
+          {/* Trail text info — always shown */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
+            {activity.trail_distance_meters != null && (
+              <span className="inline-flex items-center gap-1.5">
+                <Ruler className="size-4" />
+                {activity.trail_distance_meters < 1000
+                  ? `${activity.trail_distance_meters}m`
+                  : `${(activity.trail_distance_meters / 1609.344).toFixed(1)} mi`} trail
+              </span>
+            )}
+            {activity.trail_sac_scale && (
+              <span className="inline-flex items-center gap-1.5">
+                <Footprints className="size-4" />
+                {SAC_SCALE_LABELS[activity.trail_sac_scale] ?? activity.trail_sac_scale}
+              </span>
+            )}
+            {activity.trail_surface && (
+              <span className="rounded-md bg-muted px-2 py-0.5 text-xs">
+                {SURFACE_LABELS[activity.trail_surface] ?? activity.trail_surface} surface
+              </span>
+            )}
+            {activity.trail_approach_duration_s != null && (
+              <span className="inline-flex items-center gap-1.5 text-orange-600 dark:text-orange-400">
+                <Clock className="size-4" />
+                {Math.ceil(activity.trail_approach_duration_s / 60)} min walk to trailhead
+                {activity.trail_approach_distance_m != null && (
+                  <> ({activity.trail_approach_distance_m < 1000
+                    ? `${activity.trail_approach_distance_m}m`
+                    : `${(activity.trail_approach_distance_m / 1609.344).toFixed(1)} mi`})</>
+                )}
+              </span>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Members */}
       <section>

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import {
+  ActivityIndicator,
   Alert,
   Image,
   KeyboardAvoidingView,
@@ -21,11 +22,10 @@ import Constants from 'expo-constants'
 import DateTimePicker from '@react-native-community/datetimepicker'
 
 import * as ImagePicker from 'expo-image-picker'
-import * as FileSystem from 'expo-file-system'
-import { decode } from 'base64-arraybuffer'
 import ConfettiCannon from 'react-native-confetti-cannon'
 
-import { SPORT_LABELS, SKILL_LABELS } from '@groute/shared'
+import { SPORT_LABELS, SKILL_LABELS, SAC_SCALE_LABELS, SURFACE_LABELS } from '@groute/shared'
+import type { Trail } from '@groute/shared'
 import { useSession } from '../lib/AuthProvider'
 import { apiFetch, apiPost, apiUpload } from '../lib/api'
 
@@ -41,6 +41,16 @@ const C = {
   textMuted: '#9ca3af',
   border: '#e5e5e5',
   inputBorder: '#e0e0e0',
+  trail: '#16a34a',
+  approach: '#f97316',
+}
+
+const TOTAL_STEPS = 4
+
+function formatDistance(meters: number): string {
+  if (meters < 1000) return `${meters}m`
+  const miles = meters / 1609.344
+  return `${miles.toFixed(1)} mi`
 }
 
 function buildLocationPickerHtml(lat: number, lng: number, token: string): string {
@@ -74,7 +84,6 @@ export default function CreateActivityScreen() {
   const params = useLocalSearchParams<{ lat?: string; lng?: string }>()
   const webViewRef = useRef<WebView>(null)
 
-  // Initial center from explore map or fallback
   const initLat = params.lat ? parseFloat(params.lat) : 34.0522
   const initLng = params.lng ? parseFloat(params.lng) : -118.2437
 
@@ -91,14 +100,21 @@ export default function CreateActivityScreen() {
   const [locationReady, setLocationReady] = useState(false)
   const mapHtmlRef = useRef<string | null>(null)
 
-  // Step 2: Date & Time
+  // Step 2: Trail (for trail sports)
+  const [trails, setTrails] = useState<Trail[]>([])
+  const [isLoadingTrails, setIsLoadingTrails] = useState(false)
+  const [selectedTrail, setSelectedTrail] = useState<Trail | null>(null)
+  const [approachDuration, setApproachDuration] = useState<number | null>(null)
+  const [approachDistance, setApproachDistance] = useState<number | null>(null)
+
+  // Step 3: Date & Time
   const [scheduledDate, setScheduledDate] = useState(() => {
     const d = new Date()
-    d.setHours(d.getHours() + 2, 0, 0, 0) // Default: 2 hours from now, rounded
+    d.setHours(d.getHours() + 2, 0, 0, 0)
     return d
   })
 
-  // Step 3: Details
+  // Step 4: Details
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [sportType, setSportType] = useState('')
@@ -113,6 +129,8 @@ export default function CreateActivityScreen() {
   const [friends, setFriends] = useState<Array<{ id: string; display_name: string; first_name: string | null; last_name: string | null; avatar_url: string | null }>>([])
   const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set())
 
+  const isTrailSport = sportType === 'hiking' || sportType === 'trail_running'
+
   // Fetch friends for invite modal
   useEffect(() => {
     if (!user) return
@@ -122,13 +140,12 @@ export default function CreateActivityScreen() {
     })()
   }, [user])
 
-  // Build map HTML once — use passed coords from explore map, or GPS fallback
+  // Build map HTML
   useEffect(() => {
     (async () => {
       let lat = initLat
       let lng = initLng
 
-      // Only use GPS if no coords were passed from explore map
       if (!params.lat) {
         try {
           const { status } = await Location.requestForegroundPermissionsAsync()
@@ -146,16 +163,52 @@ export default function CreateActivityScreen() {
       setUserLng(lng)
       mapHtmlRef.current = buildLocationPickerHtml(lat, lng, mapboxToken)
       setLocationReady(true)
-      // Reverse geocode initial position
       reverseGeocode(lat, lng)
     })()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Geocode search — proximity-biased to user location
+  // Fetch trails when entering step 2
+  useEffect(() => {
+    if (step !== 2 || !isTrailSport) return
+    let cancelled = false
+    setIsLoadingTrails(true)
+    setTrails([])
+
+    ;(async () => {
+      const { data } = await apiFetch<Trail[]>(`/api/trails?lat=${locationLat}&lng=${locationLng}&radius=5000`)
+      if (!cancelled) {
+        setTrails(data ?? [])
+        setIsLoadingTrails(false)
+      }
+    })()
+
+    return () => { cancelled = true }
+  }, [step, locationLat, locationLng, isTrailSport])
+
+  // Fetch approach route when trail is selected
+  useEffect(() => {
+    if (!selectedTrail) {
+      setApproachDuration(null)
+      setApproachDistance(null)
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      const { data } = await apiFetch<{ distanceMeters: number; durationSeconds: number }>(
+        `/api/trails/approach?fromLat=${locationLat}&fromLng=${locationLng}&toLat=${selectedTrail.trailheadLat}&toLng=${selectedTrail.trailheadLng}`
+      )
+      if (!cancelled && data) {
+        setApproachDuration(data.durationSeconds)
+        setApproachDistance(data.distanceMeters)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [selectedTrail?.osmId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Geocoding
   async function handleSearch(query: string) {
     setSearchQuery(query)
     if (query.length < 2) { setSearchResults([]); return }
-
     try {
       const res = await fetch(
         `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${mapboxToken}&limit=5&types=poi,address,place,locality&proximity=${userLng},${userLat}&country=us`
@@ -179,6 +232,7 @@ export default function CreateActivityScreen() {
     setLocationLng(r.lng)
     setSearchQuery(r.name.split(',')[0])
     setSearchResults([])
+    setSelectedTrail(null)
     webViewRef.current?.injectJavaScript(
       `map.flyTo({center:[${r.lng},${r.lat}],zoom:15,duration:800});true;`
     )
@@ -207,7 +261,6 @@ export default function CreateActivityScreen() {
       if (msg.type === 'move') {
         setLocationLat(msg.lat)
         setLocationLng(msg.lng)
-        // Debounced reverse geocode
         if (reverseGeoTimeout.current) clearTimeout(reverseGeoTimeout.current)
         reverseGeoTimeout.current = setTimeout(() => reverseGeocode(msg.lat, msg.lng), 500)
       }
@@ -232,7 +285,6 @@ export default function CreateActivityScreen() {
     if (!sportType) return Alert.alert('Error', 'Select an activity type')
 
     setIsSubmitting(true)
-    const scheduledAt = scheduledDate.toISOString()
 
     const { data, error } = await apiPost<{ id: string }>('/api/activities', {
       title: title.trim(),
@@ -243,7 +295,20 @@ export default function CreateActivityScreen() {
       location: { latitude: locationLat, longitude: locationLng },
       locationName: locationName.trim() || 'Dropped Pin',
       maxParticipants: parseInt(maxParticipants, 10) || 4,
-      scheduledAt,
+      scheduledAt: scheduledDate.toISOString(),
+      trail: selectedTrail
+        ? {
+            osmId: selectedTrail.osmId,
+            name: selectedTrail.name,
+            surface: selectedTrail.surface,
+            sacScale: selectedTrail.sacScale,
+            distanceMeters: selectedTrail.distanceMeters,
+            trailheadLat: selectedTrail.trailheadLat,
+            trailheadLng: selectedTrail.trailheadLng,
+            approachDistanceMeters: approachDistance ?? undefined,
+            approachDurationSeconds: approachDuration ?? undefined,
+          }
+        : undefined,
     })
 
     if (error || !data) {
@@ -252,7 +317,6 @@ export default function CreateActivityScreen() {
       return
     }
 
-    // Upload banner if selected
     if (bannerAsset) {
       try {
         const ext = bannerAsset.uri.split('.').pop() ?? 'jpg'
@@ -268,11 +332,9 @@ export default function CreateActivityScreen() {
     }
 
     setCreatedActivityId(data.id)
-
     setIsSubmitting(false)
     setShowConfetti(true)
 
-    // Show invite modal if user has friends, otherwise go back after delay
     if (friends.length > 0) {
       setShowInvite(true)
     } else {
@@ -281,22 +343,12 @@ export default function CreateActivityScreen() {
   }
 
   async function handleSendInvites() {
-    if (!createdActivityId || invitedIds.size === 0) {
-      router.back()
-      return
-    }
-
-    const inviteArray = Array.from(invitedIds)
-
-    // Send invite DMs to each selected friend via API
+    if (!createdActivityId || invitedIds.size === 0) { router.back(); return }
     await Promise.all(
-      inviteArray.map((friendId) =>
-        apiPost(`/api/dm/${friendId}`, {
-          content: `[invite:${createdActivityId}] ${title}`,
-        })
+      Array.from(invitedIds).map((friendId) =>
+        apiPost(`/api/dm/${friendId}`, { content: `[invite:${createdActivityId}] ${title}` })
       )
     )
-
     router.back()
   }
 
@@ -309,7 +361,27 @@ export default function CreateActivityScreen() {
     })
   }
 
+  const stepLabel = step === 1 ? 'What & Where?' : step === 2 ? 'Trail' : step === 3 ? 'When?' : 'Details'
   const canGoStep3 = scheduledDate > new Date()
+
+  function handleNextFromStep1() {
+    if (!locationName) setLocationName('Dropped Pin')
+    // Skip trail step if not a trail sport
+    if (isTrailSport) {
+      setStep(2)
+    } else {
+      setSelectedTrail(null)
+      setStep(3)
+    }
+  }
+
+  function handleBackFromStep(current: number) {
+    if (current === 3 && !isTrailSport) {
+      setStep(1)
+    } else {
+      setStep(current - 1)
+    }
+  }
 
   return (
     <View style={s.container}>
@@ -317,11 +389,9 @@ export default function CreateActivityScreen() {
         headerBackTitle: 'Cancel',
         headerTitle: () => (
           <View style={s.headerTitleWrap}>
-            <Text style={s.headerTitleText}>
-              {step === 1 ? 'Where?' : step === 2 ? 'When?' : 'Details'}
-            </Text>
+            <Text style={s.headerTitleText}>{stepLabel}</Text>
             <View style={s.progressTrack}>
-              <View style={[s.progressFill, { width: `${(step / 3) * 100}%` }]} />
+              <View style={[s.progressFill, { width: `${(step / TOTAL_STEPS) * 100}%` }]} />
             </View>
           </View>
         ),
@@ -330,7 +400,25 @@ export default function CreateActivityScreen() {
       {/* ── Step 1: Location ── */}
       {step === 1 && (
         <View style={s.flex}>
-          {/* Search */}
+          {/* Activity type — must be selected first so we know whether to show trail step */}
+          <View style={s.sportPickerWrap}>
+            <Text style={s.sportPickerLabel}>Activity type</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.sportPickerChips}>
+              {Object.entries(SPORT_LABELS).map(([key, label]) => (
+                <Pressable
+                  key={key}
+                  style={[s.sportPickerChip, sportType === key && s.sportPickerChipActive]}
+                  onPress={() => {
+                    setSportType(key)
+                    if (key !== 'hiking' && key !== 'trail_running') setSelectedTrail(null)
+                  }}
+                >
+                  <Text style={[s.sportPickerChipText, sportType === key && s.sportPickerChipTextActive]}>{label}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+
           <View style={s.searchWrap}>
             <TextInput
               style={s.searchInput}
@@ -351,7 +439,6 @@ export default function CreateActivityScreen() {
             )}
           </View>
 
-          {/* Map with center pin */}
           <View style={s.flex}>
             {locationReady && (
               <WebView
@@ -365,20 +452,90 @@ export default function CreateActivityScreen() {
             )}
           </View>
 
-          {/* Confirm */}
           <View style={[s.bottomBar, { paddingBottom: Math.max(insets.bottom, 14) }]}>
-            <Pressable style={[s.nextBtn, s.btnFlex]} onPress={() => {
-              if (!locationName) setLocationName('Dropped Pin')
-              setStep(2)
-            }}>
+            <Pressable
+              style={[s.nextBtn, s.btnFlex, !sportType && { opacity: 0.4 }]}
+              onPress={handleNextFromStep1}
+              disabled={!sportType}
+            >
               <Text style={s.nextBtnText}>Next</Text>
             </Pressable>
           </View>
         </View>
       )}
 
-      {/* ── Step 2: Date & Time ── */}
+      {/* ── Step 2: Trail Selection ── */}
       {step === 2 && (
+        <View style={s.flex}>
+          <ScrollView contentContainerStyle={s.trailScroll}>
+            <Text style={s.sectionTitle}>Select a trail (optional)</Text>
+            <Text style={s.trailSubtitle}>
+              {locationName ? `Near ${locationName}` : 'Nearby trails'}
+            </Text>
+
+            {isLoadingTrails ? (
+              <View style={s.trailLoading}>
+                <ActivityIndicator color={C.primary} />
+                <Text style={s.trailLoadingText}>Searching for trails...</Text>
+              </View>
+            ) : trails.length === 0 ? (
+              <View style={s.trailEmpty}>
+                <Text style={s.trailEmptyText}>No named trails found nearby. You can skip this step.</Text>
+              </View>
+            ) : (
+              trails.map((trail) => {
+                const isSelected = selectedTrail?.osmId === trail.osmId
+                return (
+                  <Pressable
+                    key={trail.osmId}
+                    style={[s.trailCard, isSelected && s.trailCardSelected]}
+                    onPress={() => setSelectedTrail(isSelected ? null : trail)}
+                  >
+                    <View style={s.trailCardHeader}>
+                      {isSelected && <Text style={s.trailCheckMark}>{'\u2713'}</Text>}
+                      <Text style={[s.trailName, isSelected && s.trailNameSelected]} numberOfLines={1}>
+                        {trail.name}
+                      </Text>
+                    </View>
+                    <View style={s.trailMeta}>
+                      <Text style={s.trailMetaText}>{formatDistance(trail.distanceMeters)}</Text>
+                      {trail.sacScale && (
+                        <Text style={s.trailMetaText}>
+                          {SAC_SCALE_LABELS[trail.sacScale]?.split(' — ')[0] ?? trail.sacScale}
+                        </Text>
+                      )}
+                      <Text style={s.trailMetaText}>
+                        {SURFACE_LABELS[trail.surface] ?? trail.surface}
+                      </Text>
+                      <Text style={s.trailMetaText}>
+                        {formatDistance(trail.distanceFromLocation)} away
+                      </Text>
+                    </View>
+                    {isSelected && approachDuration != null && (
+                      <Text style={s.trailApproach}>
+                        {'\u{1F6B6}'} {Math.ceil(approachDuration / 60)} min walk to trailhead
+                        {approachDistance != null && ` (${formatDistance(approachDistance)})`}
+                      </Text>
+                    )}
+                  </Pressable>
+                )
+              })
+            )}
+          </ScrollView>
+
+          <View style={[s.bottomBtns, { paddingBottom: Math.max(insets.bottom, 14) }]}>
+            <Pressable style={s.backBtn} onPress={() => setStep(1)}>
+              <Text style={s.backBtnText}>Back</Text>
+            </Pressable>
+            <Pressable style={[s.nextBtn, s.btnFlex]} onPress={() => setStep(3)}>
+              <Text style={s.nextBtnText}>{selectedTrail ? 'Next' : 'Skip'}</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
+      {/* ── Step 3: Date & Time ── */}
+      {step === 3 && (
         <View style={s.flex}>
           <ScrollView contentContainerStyle={s.pickerSection}>
             <Text style={s.sectionTitle}>When is your activity?</Text>
@@ -400,12 +557,12 @@ export default function CreateActivityScreen() {
           </ScrollView>
 
           <View style={[s.bottomBtns, { paddingBottom: Math.max(insets.bottom, 14) }]}>
-            <Pressable style={s.backBtn} onPress={() => setStep(1)}>
+            <Pressable style={s.backBtn} onPress={() => handleBackFromStep(3)}>
               <Text style={s.backBtnText}>Back</Text>
             </Pressable>
             <Pressable
               style={[s.nextBtn, s.btnFlex, !canGoStep3 && { opacity: 0.4 }]}
-              onPress={() => canGoStep3 && setStep(3)}
+              onPress={() => canGoStep3 && setStep(4)}
               disabled={!canGoStep3}
             >
               <Text style={s.nextBtnText}>Next</Text>
@@ -414,14 +571,20 @@ export default function CreateActivityScreen() {
         </View>
       )}
 
-      {/* ── Step 3: Details ── */}
-      {step === 3 && (
+      {/* ── Step 4: Details ── */}
+      {step === 4 && (
         <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView contentContainerStyle={s.detailScroll} keyboardShouldPersistTaps="handled">
             {/* Summary */}
             <View style={s.summaryCard}>
               <Text style={s.summaryLabel}>Location</Text>
               <Text style={s.summaryVal}>{locationName}</Text>
+              {selectedTrail && (
+                <>
+                  <Text style={s.summaryLabel}>Trail</Text>
+                  <Text style={[s.summaryVal, { color: C.trail }]}>{selectedTrail.name}</Text>
+                </>
+              )}
               <Text style={s.summaryLabel}>When</Text>
               <Text style={s.summaryVal}>
                 {scheduledDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} at {scheduledDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
@@ -465,15 +628,6 @@ export default function CreateActivityScreen() {
               multiline
             />
 
-            <Text style={s.fieldLabel}>Activity type</Text>
-            <View style={s.chips}>
-              {Object.entries(SPORT_LABELS).map(([key, label]) => (
-                <Pressable key={key} style={[s.chip, sportType === key && s.chipActive]} onPress={() => setSportType(key)}>
-                  <Text style={[s.chipText, sportType === key && s.chipTextActive]}>{label}</Text>
-                </Pressable>
-              ))}
-            </View>
-
             <Text style={s.fieldLabel}>Skill level</Text>
             <View style={s.chips}>
               {Object.entries(SKILL_LABELS).map(([key, label]) => (
@@ -496,7 +650,7 @@ export default function CreateActivityScreen() {
           </ScrollView>
 
           <View style={[s.bottomBtns, { paddingBottom: Math.max(insets.bottom, 14) }]}>
-            <Pressable style={s.backBtn} onPress={() => setStep(2)}>
+            <Pressable style={s.backBtn} onPress={() => setStep(3)}>
               <Text style={s.backBtnText}>Back</Text>
             </Pressable>
             <Pressable
@@ -567,14 +721,22 @@ const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
   flex: { flex: 1 },
 
-  // Steps
   headerTitleWrap: { alignItems: 'center', gap: 4, minWidth: 160 },
   headerTitleText: { fontSize: 17, fontWeight: '600', color: C.text },
   progressTrack: { height: 4, backgroundColor: '#f0f0f0', borderRadius: 2, width: '100%' },
   progressFill: { height: 4, backgroundColor: C.primary, borderRadius: 2 },
 
-  // Step 1
-  searchWrap: { paddingHorizontal: 14, paddingTop: 24, zIndex: 10 },
+  // Step 1 — sport picker
+  sportPickerWrap: { paddingHorizontal: 14, paddingTop: 14, gap: 6 },
+  sportPickerLabel: { fontSize: 13, fontWeight: '600', color: C.textSecondary },
+  sportPickerChips: { gap: 8, paddingRight: 14 },
+  sportPickerChip: { backgroundColor: '#f0f0f0', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8 },
+  sportPickerChipActive: { backgroundColor: C.primary },
+  sportPickerChipText: { color: C.textSecondary, fontSize: 14, fontWeight: '600' },
+  sportPickerChipTextActive: { color: '#fff' },
+
+  // Step 1 — search
+  searchWrap: { paddingHorizontal: 14, paddingTop: 10, zIndex: 10 },
   searchInput: { backgroundColor: C.card, borderRadius: 12, padding: 14, fontSize: 15, color: C.text, borderWidth: 1, borderColor: C.inputBorder },
   dropdown: { position: 'absolute', top: 58, left: 14, right: 14, backgroundColor: C.card, borderRadius: 12, borderWidth: 1, borderColor: C.border, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 12, elevation: 8, zIndex: 20 },
   dropdownItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f5f5f5' },
@@ -583,14 +745,30 @@ const s = StyleSheet.create({
   map: { flex: 1, backgroundColor: '#e8e0d8' },
   bottomBar: { padding: 14, paddingBottom: 34, borderTopWidth: 1, borderTopColor: C.border, backgroundColor: C.card },
 
-  // Step 2
+  // Step 2: Trail
+  trailScroll: { padding: 20, paddingBottom: 20 },
+  trailSubtitle: { fontSize: 14, color: C.textSecondary, marginBottom: 16 },
+  trailLoading: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 20 },
+  trailLoadingText: { fontSize: 14, color: C.textMuted },
+  trailEmpty: { padding: 20, backgroundColor: '#f8f8f8', borderRadius: 12 },
+  trailEmptyText: { fontSize: 14, color: C.textMuted, textAlign: 'center' },
+  trailCard: { backgroundColor: C.card, borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: C.border },
+  trailCardSelected: { borderColor: C.trail, backgroundColor: '#f0fdf4' },
+  trailCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  trailCheckMark: { fontSize: 14, fontWeight: '700', color: C.trail },
+  trailName: { fontSize: 15, fontWeight: '600', color: C.text, flex: 1 },
+  trailNameSelected: { color: C.trail },
+  trailMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 6 },
+  trailMetaText: { fontSize: 12, color: C.textSecondary },
+  trailApproach: { fontSize: 12, color: C.approach, fontWeight: '500', marginTop: 6 },
+
+  // Step 3
   pickerSection: { padding: 20, paddingBottom: 40 },
   picker: { minHeight: 480 },
   sectionTitle: { fontSize: 18, fontWeight: '600', color: C.text, marginBottom: 8 },
   pickerSummary: { fontSize: 15, color: C.primary, fontWeight: '500', marginBottom: 16 },
 
-
-  // Step 3
+  // Step 4
   detailScroll: { padding: 20, paddingBottom: 20 },
   summaryCard: { backgroundColor: C.primaryMuted, borderRadius: 14, padding: 14, marginBottom: 16 },
   summaryLabel: { fontSize: 11, fontWeight: '600', color: C.primary, textTransform: 'uppercase', letterSpacing: 0.5 },

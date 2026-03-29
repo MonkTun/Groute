@@ -15,6 +15,8 @@ import {
 import { Stack, useRouter } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 
+import Constants from 'expo-constants'
+
 import {
   SPORT_LABELS,
   SKILL_LABELS,
@@ -25,6 +27,8 @@ import {
 import { useSession } from '../lib/AuthProvider'
 import { supabase } from '../lib/supabase'
 import { apiFetch, apiPatch, apiUpload } from '../lib/api'
+
+const APP_VERSION = Constants.expoConfig?.version ?? '0.3.0'
 
 // ── Design tokens matching web ──
 const C = {
@@ -455,6 +459,9 @@ export default function EditProfileScreen() {
         <Pressable style={s.signOutBtn} onPress={async () => { await supabase.auth.signOut(); router.replace('/') }}>
           <Text style={s.signOutText}>Sign out</Text>
         </Pressable>
+
+        {/* Version */}
+        <Text style={s.versionText}>Groute v{APP_VERSION}</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   )
@@ -578,4 +585,5 @@ const s = StyleSheet.create({
   // Sign out
   signOutBtn: { alignItems: 'center', paddingVertical: 16, marginTop: 32 },
   signOutText: { fontSize: 15, fontWeight: '500', color: '#dc2626' },
+  versionText: { textAlign: 'center', fontSize: 12, color: C.textMuted, marginTop: 16 },
 })
