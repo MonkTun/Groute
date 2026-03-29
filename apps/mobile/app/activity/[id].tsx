@@ -11,13 +11,11 @@ import {
 } from 'react-native'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
-import * as FileSystem from 'expo-file-system'
-import { decode } from 'base64-arraybuffer'
 import ConfettiCannon from 'react-native-confetti-cannon'
 
 import { SPORT_LABELS, SKILL_LABELS, VISIBILITY_LABELS } from '@groute/shared'
 import { useSession } from '../../lib/AuthProvider'
-import { supabase } from '../../lib/supabase'
+import { apiFetch, apiPost, apiDelete, apiUpload } from '../../lib/api'
 
 interface ActivityDetail {
   id: string
@@ -69,49 +67,45 @@ export default function ActivityDetailScreen() {
 
   useEffect(() => {
     async function load() {
-      const [actResult, partResult, myPartResult] = await Promise.all([
-        supabase
-          .from('activities')
-          .select(`
-            *, creator:users!creator_id ( id, display_name, first_name, last_name, avatar_url, area )
-          `)
-          .eq('id', id)
-          .single(),
+      const { data, error } = await apiFetch<{
+        id: string; title: string; description: string | null; sport_type: string
+        skill_level: string; visibility: string; creator_id: string; banner_url: string | null
+        location_name: string; scheduled_at: string; max_participants: number; status: string
+        creator: { id: string; display_name: string; first_name: string | null; last_name: string | null; avatar_url: string | null; area: string | null } | null
+        participants: Array<{ id: string; userId: string; status: string; joinedAt: string; user: { id: string; display_name: string; first_name: string | null; last_name: string | null; avatar_url: string | null } | null }>
+        myStatus: string | null
+        isOwner: boolean
+      }>(`/api/activities/${id}`)
 
-        supabase
-          .from('activity_participants')
-          .select(`
-            id, status,
-            user:users!user_id ( id, display_name, first_name, last_name, avatar_url )
-          `)
-          .eq('activity_id', id)
-          .eq('status', 'accepted'),
-
-        user
-          ? supabase
-              .from('activity_participants')
-              .select('status')
-              .eq('activity_id', id)
-              .eq('user_id', user.id)
-              .maybeSingle()
-          : Promise.resolve({ data: null }),
-      ])
-
-      if (actResult.data) {
-        const a = actResult.data
-        setActivity({
-          ...a,
-          creator: Array.isArray(a.creator) ? a.creator[0] ?? null : a.creator,
-        })
-        setBannerUrl(a.banner_url)
+      if (error || !data) {
+        setIsLoading(false)
+        return
       }
+
+      setActivity({
+        id: data.id,
+        title: data.title,
+        description: data.description,
+        sport_type: data.sport_type,
+        skill_level: data.skill_level,
+        visibility: data.visibility,
+        creator_id: data.creator_id,
+        banner_url: data.banner_url,
+        location_name: data.location_name,
+        scheduled_at: data.scheduled_at,
+        max_participants: data.max_participants,
+        status: data.status,
+        creator: data.creator,
+      })
+      setBannerUrl(data.banner_url)
       setParticipants(
-        (partResult.data ?? []).map((p) => ({
-          ...p,
-          user: Array.isArray(p.user) ? p.user[0] ?? null : p.user,
+        data.participants.map((p) => ({
+          id: p.id,
+          status: p.status,
+          user: p.user,
         }))
       )
-      setMyStatus(myPartResult.data?.status ?? null)
+      setMyStatus(data.myStatus)
       setIsLoading(false)
     }
     load()
@@ -119,15 +113,11 @@ export default function ActivityDetailScreen() {
 
   async function handleJoin() {
     setIsJoining(true)
-    const { data, error } = await supabase
-      .from('activity_participants')
-      .insert({ activity_id: id, user_id: user!.id })
-      .select('status')
-      .single()
+    const { data, error } = await apiPost<{ status: string }>(`/api/activities/${id}/join`, {})
 
     if (error) {
-      Alert.alert('Error', error.message)
-    } else {
+      Alert.alert('Error', error)
+    } else if (data) {
       setMyStatus(data.status)
       if (data.status === 'accepted') {
         setShowConfetti(true)
@@ -146,7 +136,7 @@ export default function ActivityDetailScreen() {
         text: 'Delete',
         style: 'destructive',
         onPress: async () => {
-          await supabase.from('activities').delete().eq('id', id)
+          await apiDelete(`/api/activities/${id}`)
           router.back()
         },
       },
@@ -159,7 +149,6 @@ export default function ActivityDetailScreen() {
       allowsEditing: true,
       aspect: [16, 9],
       quality: 0.8,
-      base64: true,
     })
 
     if (result.canceled || !result.assets[0]) return
@@ -169,36 +158,26 @@ export default function ActivityDetailScreen() {
 
     try {
       const ext = asset.uri.split('.').pop() ?? 'jpg'
-      const filePath = `activity-photos/${id}.${ext}`
       const mimeType = asset.mimeType ?? 'image/jpeg'
 
-      const base64 = asset.base64
-        ?? await FileSystem.readAsStringAsync(asset.uri, {
-          encoding: FileSystem.EncodingType.Base64,
-        })
+      const formData = new FormData()
+      formData.append('file', {
+        uri: asset.uri,
+        name: `activity-photo.${ext}`,
+        type: mimeType,
+      } as unknown as Blob)
 
-      const { error: uploadError } = await supabase.storage
-        .from('activity-photos')
-        .upload(filePath, decode(base64), {
-          upsert: true,
-          contentType: mimeType,
-        })
+      const { data, error } = await apiUpload<{ bannerUrl: string }>(`/api/activities/${id}/photo`, formData)
 
-      if (uploadError) {
-        Alert.alert('Error', uploadError.message)
+      if (error) {
+        Alert.alert('Error', error)
         setIsUploadingBanner(false)
         return
       }
 
-      const { data: { publicUrl } } = supabase.storage.from('activity-photos').getPublicUrl(filePath)
-      const freshUrl = `${publicUrl}?t=${Date.now()}`
-
-      await supabase
-        .from('activities')
-        .update({ banner_url: freshUrl })
-        .eq('id', id)
-
-      setBannerUrl(freshUrl)
+      if (data) {
+        setBannerUrl(`${data.bannerUrl}?t=${Date.now()}`)
+      }
     } catch {
       Alert.alert('Error', 'Failed to upload photo')
     }

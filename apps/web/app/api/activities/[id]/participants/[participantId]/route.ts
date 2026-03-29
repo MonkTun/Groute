@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { createServerClient } from "@/lib/supabase/server";
+import { createApiClient } from "@/lib/supabase/api";
 
 // PATCH: accept or decline a participant (host only)
 export async function PATCH(
@@ -8,7 +8,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string; participantId: string }> }
 ) {
   const { id: activityId, participantId } = await params;
-  const supabase = await createServerClient();
+  const supabase = await createApiClient(request);
   const {
     data: { user },
     error: authError,

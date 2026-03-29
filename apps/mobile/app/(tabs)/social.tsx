@@ -12,7 +12,7 @@ import {
 import { useRouter } from 'expo-router'
 
 import { useSession } from '../../lib/AuthProvider'
-import { supabase } from '../../lib/supabase'
+import { apiFetch } from '../../lib/api'
 
 type Tab = 'friends' | 'messages' | 'notifications'
 
@@ -63,70 +63,32 @@ export default function SocialScreen() {
   const fetchData = useCallback(async () => {
     if (!user) return
 
-    const [
-      fwingResult, fwersResult,
-      notifResult,
-      dmResult, groupResult, myActivitiesResult,
-    ] = await Promise.all([
-      supabase.from('follows').select('following_id').eq('follower_id', user.id),
-      supabase.from('follows').select('follower_id').eq('following_id', user.id),
+    const { data: socialData } = await apiFetch<{
+      following: string[]
+      followers: string[]
+      mutualFriends: Friend[]
+      notifications: Array<{
+        id: string
+        type: string
+        read: boolean
+        activity_id: string | null
+        created_at: string
+        from_user: Notification['from_user'] | Array<Notification['from_user']>
+      }>
+      dmConversations: Array<{
+        partnerId: string
+        partner: { id: string; display_name: string; first_name: string | null; last_name: string | null; avatar_url: string | null }
+        lastMessage: string
+        lastMessageAt: string
+      }>
+      groupChats: Array<{ id: string; title: string; sport_type?: string; scheduled_at?: string; creator_id?: string }>
+    }>('/api/social')
 
-      supabase
-        .from('notifications')
-        .select(`
-          id, type, read, activity_id, created_at,
-          from_user:users!from_user_id ( id, display_name, first_name, last_name, avatar_url )
-        `)
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(30),
-
-      // DMs
-      supabase
-        .from('messages')
-        .select(`
-          id, content, created_at, sender_id, receiver_id,
-          sender:users!sender_id ( id, display_name, first_name, last_name, avatar_url ),
-          receiver:users!receiver_id ( id, display_name, first_name, last_name, avatar_url )
-        `)
-        .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
-        .is('activity_id', null)
-        .not('receiver_id', 'is', null)
-        .order('created_at', { ascending: false })
-        .limit(50),
-
-      // Group chats I participate in
-      supabase
-        .from('activity_participants')
-        .select('activity:activities!activity_id ( id, title, banner_url )')
-        .eq('user_id', user.id)
-        .eq('status', 'accepted'),
-
-      // Group chats I created
-      supabase
-        .from('activities')
-        .select('id, title, banner_url')
-        .eq('creator_id', user.id)
-        .eq('status', 'open'),
-    ])
-
-    // Friends (mutual follows)
-    const followingSet = new Set((fwingResult.data ?? []).map((f) => f.following_id))
-    const followerSet = new Set((fwersResult.data ?? []).map((f) => f.follower_id))
-    const mutualIds = [...followingSet].filter((id) => followerSet.has(id))
-
-    if (mutualIds.length > 0) {
-      const { data } = await supabase
-        .from('users')
-        .select('id, display_name, first_name, last_name, avatar_url, area')
-        .in('id', mutualIds)
-      setFriends(data ?? [])
-    } else {
-      setFriends([])
-    }
+    // Friends (mutual friends from social endpoint)
+    setFriends(socialData?.mutualFriends ?? [])
 
     // Notifications
-    const notifs = (notifResult.data ?? []).map((n) => ({
+    const notifs = (socialData?.notifications ?? []).map((n) => ({
       ...n,
       from_user: Array.isArray(n.from_user) ? n.from_user[0] ?? null : n.from_user,
     }))
@@ -136,58 +98,34 @@ export default function SocialScreen() {
     // Build conversations
     const convos: Conversation[] = []
 
-    // DMs — deduplicate by partner
-    const dmPartners = new Map<string, Conversation>()
-    for (const msg of dmResult.data ?? []) {
-      const isFromMe = msg.sender_id === user.id
-      const partner = isFromMe
-        ? (Array.isArray(msg.receiver) ? msg.receiver[0] : msg.receiver)
-        : (Array.isArray(msg.sender) ? msg.sender[0] : msg.sender)
+    // DMs from social endpoint (already deduplicated by partner)
+    for (const dm of socialData?.dmConversations ?? []) {
+      const partner = dm.partner
       if (!partner) continue
-      if (!dmPartners.has(partner.id)) {
-        const name = partner.first_name && partner.last_name
-          ? `${partner.first_name} ${partner.last_name}`
-          : partner.display_name
-        dmPartners.set(partner.id, {
-          id: `dm-${partner.id}`,
-          type: 'dm',
-          name,
-          avatarUrl: partner.avatar_url,
-          lastMessage: isFromMe ? `You: ${msg.content}` : msg.content,
-          lastMessageAt: msg.created_at,
-          routePath: `/dm/${partner.id}`,
-        })
-      }
-    }
-    convos.push(...dmPartners.values())
-
-    // Group chats
-    const seen = new Set<string>()
-    for (const p of groupResult.data ?? []) {
-      const activity = Array.isArray(p.activity) ? p.activity[0] : p.activity
-      if (!activity || seen.has(activity.id)) continue
-      seen.add(activity.id)
+      const name = partner.first_name && partner.last_name
+        ? `${partner.first_name} ${partner.last_name}`
+        : partner.display_name
       convos.push({
-        id: `group-${activity.id}`,
-        type: 'group',
-        name: activity.title,
-        avatarUrl: activity.banner_url,
-        lastMessage: 'Group chat',
-        lastMessageAt: '',
-        routePath: `/chat/${activity.id}`,
+        id: `dm-${partner.id}`,
+        type: 'dm',
+        name,
+        avatarUrl: partner.avatar_url,
+        lastMessage: dm.lastMessage,
+        lastMessageAt: dm.lastMessageAt,
+        routePath: `/dm/${partner.id}`,
       })
     }
-    for (const a of myActivitiesResult.data ?? []) {
-      if (seen.has(a.id)) continue
-      seen.add(a.id)
+
+    // Group chats from social endpoint (already deduplicated)
+    for (const chat of socialData?.groupChats ?? []) {
       convos.push({
-        id: `group-${a.id}`,
+        id: `group-${chat.id}`,
         type: 'group',
-        name: a.title,
-        avatarUrl: a.banner_url,
+        name: chat.title,
+        avatarUrl: null,
         lastMessage: 'Group chat',
         lastMessageAt: '',
-        routePath: `/chat/${a.id}`,
+        routePath: `/chat/${chat.id}`,
       })
     }
 

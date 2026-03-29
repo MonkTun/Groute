@@ -17,7 +17,7 @@ import * as Location from 'expo-location'
 
 import { SPORT_LABELS } from '@groute/shared'
 import { useSession } from '../../lib/AuthProvider'
-import { supabase } from '../../lib/supabase'
+import { apiFetch, apiPost } from '../../lib/api'
 import FloatingActionButton from '../../components/FloatingActionButton'
 import SearchBar from '../../components/SearchBar'
 
@@ -285,15 +285,10 @@ export default function ExploreScreen() {
 
           // Update server
           if (user) {
-            supabase
-              .from('users')
-              .update({
-                last_location_lat: String(loc.coords.latitude),
-                last_location_lng: String(loc.coords.longitude),
-                last_location_at: new Date().toISOString(),
-              })
-              .eq('id', user.id)
-              .then(() => {})
+            apiPost('/api/location', {
+              latitude: loc.coords.latitude,
+              longitude: loc.coords.longitude,
+            }).then(() => {})
           }
         }
       } catch {
@@ -310,67 +305,61 @@ export default function ExploreScreen() {
   const fetchData = useCallback(async () => {
     if (!user) return
 
-    const [activitiesResult, participantsResult, fwingResult, fwersResult] = await Promise.all([
-      supabase
-        .from('activities')
-        .select(`
-          id, title, sport_type, skill_level, creator_id,
-          location_name, location_lat, location_lng, scheduled_at, max_participants, status
-        `)
-        .eq('status', 'open')
-        .neq('visibility', 'private')
-        .gte('scheduled_at', new Date().toISOString())
-        .order('scheduled_at', { ascending: true })
-        .limit(50),
+    const [activitiesResult, friendsResult] = await Promise.all([
+      apiFetch<Array<{
+        id: string
+        title: string
+        sport_type: string
+        skill_level: string
+        creator_id: string
+        location_name: string
+        location_lat: string | null
+        location_lng: string | null
+        scheduled_at: string
+        max_participants: number
+      }>>('/api/activities'),
 
-      supabase
-        .from('activity_participants')
-        .select('activity_id, status')
-        .eq('user_id', user.id),
-
-      supabase.from('follows').select('following_id').eq('follower_id', user.id),
-      supabase.from('follows').select('follower_id').eq('following_id', user.id),
+      apiFetch<Array<{
+        id: string
+        display_name: string
+        first_name: string | null
+        last_name: string | null
+        avatar_url: string | null
+        last_location_lat: string | null
+        last_location_lng: string | null
+        last_location_at: string | null
+      }>>('/api/friends'),
     ])
-
-    const pMap = new Map(
-      ((participantsResult.data ?? []) as Array<{ activity_id: string; status: string }>).map((p) => [p.activity_id, p.status])
-    )
 
     setActivities(
       (activitiesResult.data ?? []).map((a) => ({
         ...a,
-        participantStatus: pMap.get(a.id) ?? null,
+        participantStatus: null,
         isOwner: a.creator_id === user.id,
       }))
     )
 
-    // Get mutual friends with locations
-    const followingSet = new Set((fwingResult.data ?? []).map((f) => f.following_id))
-    const followerSet = new Set((fwersResult.data ?? []).map((f) => f.follower_id))
-    const mutualIds = [...followingSet].filter((id) => followerSet.has(id))
+    // Filter friends to those with recent location data (within 24h)
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    const friendsData = friendsResult.data ?? []
 
-    if (mutualIds.length > 0) {
-      const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-      const { data: friendsData } = await supabase
-        .from('users')
-        .select('id, display_name, first_name, last_name, avatar_url, last_location_lat, last_location_lng, last_location_at')
-        .in('id', mutualIds)
-        .not('last_location_lat', 'is', null)
-        .gte('last_location_at', cutoff)
-
-      setFriends(
-        (friendsData ?? [])
-          .filter((f) => f.last_location_lat && f.last_location_lng)
-          .map((f) => ({
-            id: f.id,
-            name: f.first_name && f.last_name ? `${f.first_name} ${f.last_name[0]}.` : f.display_name,
-            avatarUrl: f.avatar_url,
-            initial: (f.first_name?.[0] ?? f.display_name[0]).toUpperCase(),
-            lat: parseFloat(f.last_location_lat!),
-            lng: parseFloat(f.last_location_lng!),
-          }))
-      )
-    }
+    setFriends(
+      friendsData
+        .filter((f) =>
+          f.last_location_lat &&
+          f.last_location_lng &&
+          f.last_location_at &&
+          f.last_location_at >= cutoff
+        )
+        .map((f) => ({
+          id: f.id,
+          name: f.first_name && f.last_name ? `${f.first_name} ${f.last_name[0]}.` : f.display_name,
+          avatarUrl: f.avatar_url,
+          initial: (f.first_name?.[0] ?? f.display_name[0]).toUpperCase(),
+          lat: parseFloat(f.last_location_lat!),
+          lng: parseFloat(f.last_location_lng!),
+        }))
+    )
   }, [user])
 
   const pathname = usePathname()

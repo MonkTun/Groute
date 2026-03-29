@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { createServerClient } from "@/lib/supabase/server";
+import { createApiClient } from "@/lib/supabase/api";
 
 // POST: follow a user
 export async function POST(request: NextRequest) {
-  const supabase = await createServerClient();
+  const supabase = await createApiClient(request);
   const {
     data: { user },
     error: authError,
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
 
 // DELETE: unfollow a user
 export async function DELETE(request: NextRequest) {
-  const supabase = await createServerClient();
+  const supabase = await createApiClient(request);
   const {
     data: { user },
     error: authError,

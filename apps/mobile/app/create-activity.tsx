@@ -27,7 +27,7 @@ import ConfettiCannon from 'react-native-confetti-cannon'
 
 import { SPORT_LABELS, SKILL_LABELS } from '@groute/shared'
 import { useSession } from '../lib/AuthProvider'
-import { supabase } from '../lib/supabase'
+import { apiFetch, apiPost, apiUpload } from '../lib/api'
 
 const mapboxToken = Constants.expoConfig?.extra?.mapboxToken as string
 
@@ -117,16 +117,8 @@ export default function CreateActivityScreen() {
   useEffect(() => {
     if (!user) return
     ;(async () => {
-      const [fwing, fwers] = await Promise.all([
-        supabase.from('follows').select('following_id').eq('follower_id', user.id),
-        supabase.from('follows').select('follower_id').eq('following_id', user.id),
-      ])
-      const followingSet = new Set((fwing.data ?? []).map((f) => f.following_id))
-      const mutualIds = (fwers.data ?? []).filter((f) => followingSet.has(f.follower_id)).map((f) => f.follower_id)
-      if (mutualIds.length > 0) {
-        const { data } = await supabase.from('users').select('id, display_name, first_name, last_name, avatar_url').in('id', mutualIds)
-        setFriends(data ?? [])
-      }
+      const { data } = await apiFetch<Array<{ id: string; display_name: string; first_name: string | null; last_name: string | null; avatar_url: string | null }>>('/api/friends')
+      setFriends(data ?? [])
     })()
   }, [user])
 
@@ -242,58 +234,40 @@ export default function CreateActivityScreen() {
     setIsSubmitting(true)
     const scheduledAt = scheduledDate.toISOString()
 
-    const { data, error } = await supabase
-      .from('activities')
-      .insert({
-        creator_id: user!.id,
-        title: title.trim(),
-        description: description.trim() || null,
-        sport_type: sportType,
-        skill_level: skillLevel,
-        visibility: 'public',
-        location_name: locationName.trim() || 'Dropped Pin',
-        location_lat: String(locationLat),
-        location_lng: String(locationLng),
-        max_participants: parseInt(maxParticipants, 10) || 4,
-        scheduled_at: scheduledAt,
-      })
-      .select()
-      .single()
+    const { data, error } = await apiPost<{ id: string }>('/api/activities', {
+      title: title.trim(),
+      description: description.trim() || null,
+      sportType,
+      skillLevel,
+      visibility: 'public',
+      location: { latitude: locationLat, longitude: locationLng },
+      locationName: locationName.trim() || 'Dropped Pin',
+      maxParticipants: parseInt(maxParticipants, 10) || 4,
+      scheduledAt,
+    })
 
-    if (error) {
-      Alert.alert('Error', error.message)
+    if (error || !data) {
+      Alert.alert('Error', error ?? 'Failed to create activity')
       setIsSubmitting(false)
       return
     }
 
-    if (data) {
-      // Upload banner if selected
-      if (bannerAsset) {
-        try {
-          const ext = bannerAsset.uri.split('.').pop() ?? 'jpg'
-          const filePath = `activity-photos/${data.id}.${ext}`
-          const mimeType = bannerAsset.mimeType ?? 'image/jpeg'
-          const base64 = bannerAsset.base64
-            ?? await FileSystem.readAsStringAsync(bannerAsset.uri, { encoding: FileSystem.EncodingType.Base64 })
-
-          const { error: uploadErr } = await supabase.storage
-            .from('activity-photos')
-            .upload(filePath, decode(base64), { upsert: true, contentType: mimeType })
-
-          if (!uploadErr) {
-            const { data: { publicUrl } } = supabase.storage.from('activity-photos').getPublicUrl(filePath)
-            await supabase.from('activities').update({ banner_url: `${publicUrl}?t=${Date.now()}` }).eq('id', data.id)
-          }
-        } catch {}
-      }
-
-      await supabase.from('messages').insert({
-        activity_id: data.id,
-        sender_id: user!.id,
-        content: 'created this activity. Welcome to the group!',
-      })
-      setCreatedActivityId(data.id)
+    // Upload banner if selected
+    if (bannerAsset) {
+      try {
+        const ext = bannerAsset.uri.split('.').pop() ?? 'jpg'
+        const mimeType = bannerAsset.mimeType ?? 'image/jpeg'
+        const formData = new FormData()
+        formData.append('file', {
+          uri: bannerAsset.uri,
+          name: `photo.${ext}`,
+          type: mimeType,
+        } as unknown as Blob)
+        await apiUpload(`/api/activities/${data.id}/photo`, formData)
+      } catch {}
     }
+
+    setCreatedActivityId(data.id)
 
     setIsSubmitting(false)
     setShowConfetti(true)
@@ -314,24 +288,14 @@ export default function CreateActivityScreen() {
 
     const inviteArray = Array.from(invitedIds)
 
-    // Send notifications + DMs to invited friends
-    await Promise.all([
-      supabase.from('notifications').insert(
-        inviteArray.map((friendId) => ({
-          user_id: friendId,
-          from_user_id: user!.id,
-          type: 'invite',
-          activity_id: createdActivityId,
-        }))
-      ),
-      supabase.from('messages').insert(
-        inviteArray.map((friendId) => ({
-          sender_id: user!.id,
-          receiver_id: friendId,
+    // Send invite DMs to each selected friend via API
+    await Promise.all(
+      inviteArray.map((friendId) =>
+        apiPost(`/api/dm/${friendId}`, {
           content: `[invite:${createdActivityId}] ${title}`,
-        }))
-      ),
-    ])
+        })
+      )
+    )
 
     router.back()
   }

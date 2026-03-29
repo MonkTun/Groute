@@ -17,7 +17,7 @@ import DateTimePicker from '@react-native-community/datetimepicker'
 import Constants from 'expo-constants'
 
 import { useSession } from '../lib/AuthProvider'
-import { supabase } from '../lib/supabase'
+import { apiFetch, apiPatch } from '../lib/api'
 
 const mapboxToken = Constants.expoConfig?.extra?.mapboxToken as string
 
@@ -80,22 +80,26 @@ export default function EditActivityScreen() {
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase
-        .from('activities')
-        .select('title, description, location_name, location_lat, location_lng, scheduled_at, max_participants')
-        .eq('id', id)
-        .single()
+      const { data } = await apiFetch<{
+        title: string
+        description: string | null
+        locationName: string
+        locationLat: string | null
+        locationLng: string | null
+        scheduledAt: string
+        maxParticipants: number
+      }>(`/api/activities/${id}`)
 
       if (data) {
         setTitle(data.title)
         setDescription(data.description ?? '')
-        setLocationName(data.location_name)
-        const lat = data.location_lat ? parseFloat(data.location_lat) : 34.0522
-        const lng = data.location_lng ? parseFloat(data.location_lng) : -118.2437
+        setLocationName(data.locationName)
+        const lat = data.locationLat ? parseFloat(data.locationLat) : 34.0522
+        const lng = data.locationLng ? parseFloat(data.locationLng) : -118.2437
         setLocationLat(lat)
         setLocationLng(lng)
-        setScheduledDate(new Date(data.scheduled_at))
-        setMaxParticipants(String(data.max_participants))
+        setScheduledDate(new Date(data.scheduledAt))
+        setMaxParticipants(String(data.maxParticipants))
         mapHtmlRef.current = buildPickerHtml(lat, lng, mapboxToken)
         setMapReady(true)
       }
@@ -119,21 +123,17 @@ export default function EditActivityScreen() {
     if (!title.trim()) return Alert.alert('Error', 'Title is required')
     setIsSaving(true)
 
-    const { error } = await supabase
-      .from('activities')
-      .update({
-        title: title.trim(),
-        description: description.trim() || null,
-        location_name: locationName || 'Dropped Pin',
-        location_lat: String(locationLat),
-        location_lng: String(locationLng),
-        scheduled_at: scheduledDate.toISOString(),
-        max_participants: parseInt(maxParticipants, 10) || 4,
-      })
-      .eq('id', id)
+    const { error } = await apiPatch(`/api/activities/${id}`, {
+      title: title.trim(),
+      description: description.trim() || null,
+      locationName: locationName || 'Dropped Pin',
+      location: { latitude: locationLat, longitude: locationLng },
+      scheduledAt: scheduledDate.toISOString(),
+      maxParticipants: parseInt(maxParticipants, 10) || 4,
+    })
 
     if (error) {
-      Alert.alert('Error', error.message)
+      Alert.alert('Error', error)
     } else {
       Alert.alert('Saved', 'Activity updated.', [{ text: 'OK', onPress: () => router.back() }])
     }

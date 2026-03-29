@@ -16,7 +16,7 @@ import { useRouter, usePathname } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useSession } from '../../lib/AuthProvider'
-import { supabase } from '../../lib/supabase'
+import { apiFetch, apiPost, apiDelete } from '../../lib/api'
 
 const C = {
   bg: '#fafafa',
@@ -71,60 +71,46 @@ export default function SocialScreen() {
   const fetchData = useCallback(async () => {
     if (!user) return
 
-    const [profileResult, fwingRes, fwersRes, dmResult] = await Promise.all([
-      supabase.from('users').select('display_name, first_name, last_name, avatar_url').eq('id', user.id).single(),
-      supabase.from('follows').select('following_id').eq('follower_id', user.id),
-      supabase.from('follows').select('follower_id').eq('following_id', user.id),
-      supabase
-        .from('messages')
-        .select('sender_id, receiver_id, content, created_at')
-        .is('activity_id', null)
-        .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
-        .not('receiver_id', 'is', null)
-        .order('created_at', { ascending: false })
-        .limit(200),
+    const [profileResult, socialResult, friendsResult] = await Promise.all([
+      apiFetch<{ display_name: string; first_name: string | null; last_name: string | null; avatar_url: string | null }>('/api/profile'),
+      apiFetch<{
+        following: string[]
+        followers: string[]
+        mutualFriends: Friend[]
+        dmConversations: Array<{ partnerId: string; partner: { id: string; display_name: string; first_name: string | null; last_name: string | null; avatar_url: string | null }; lastMessage: string; lastMessageAt: string }>
+      }>('/api/social'),
+      apiFetch<Friend[]>('/api/friends'),
     ])
 
-    setProfile(profileResult.data)
+    setProfile(profileResult.data ?? null)
 
-    const followingIds = new Set((fwingRes.data ?? []).map((f) => f.following_id))
+    const followingIds = new Set(socialResult.data?.following ?? [])
     setFollowingSet(followingIds)
-    const followerIds = new Set((fwersRes.data ?? []).map((f) => f.follower_id))
-    const mutualIds = [...followingIds].filter((id) => followerIds.has(id))
 
-    // Build last message map per friend
+    // Build last message map per friend from DM conversations
     const lastMsgMap = new Map<string, { content: string; at: string }>()
-    for (const m of dmResult.data ?? []) {
-      const otherId = m.sender_id === user.id ? m.receiver_id : m.sender_id
-      if (!otherId || lastMsgMap.has(otherId)) continue
-      lastMsgMap.set(otherId, {
-        content: m.sender_id === user.id ? `You: ${m.content}` : m.content,
-        at: m.created_at,
+    for (const dm of socialResult.data?.dmConversations ?? []) {
+      lastMsgMap.set(dm.partnerId, {
+        content: dm.lastMessage,
+        at: dm.lastMessageAt,
       })
     }
 
-    if (mutualIds.length > 0) {
-      const { data } = await supabase
-        .from('users')
-        .select('id, display_name, first_name, last_name, avatar_url, area')
-        .in('id', mutualIds)
+    const mutualFriendProfiles = friendsResult.data ?? []
 
-      const friendsWithMessages = (data ?? []).map((f) => ({
-        ...f,
-        lastMessage: lastMsgMap.get(f.id)?.content,
-        lastMessageAt: lastMsgMap.get(f.id)?.at,
-      }))
+    const friendsWithMessages = mutualFriendProfiles.map((f) => ({
+      ...f,
+      lastMessage: lastMsgMap.get(f.id)?.content,
+      lastMessageAt: lastMsgMap.get(f.id)?.at,
+    }))
 
-      // Sort: friends with recent messages first
-      friendsWithMessages.sort((a, b) => {
-        if (a.lastMessageAt && b.lastMessageAt) return new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()
-        return a.lastMessageAt ? -1 : 1
-      })
+    // Sort: friends with recent messages first
+    friendsWithMessages.sort((a, b) => {
+      if (a.lastMessageAt && b.lastMessageAt) return new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()
+      return a.lastMessageAt ? -1 : 1
+    })
 
-      setFriends(friendsWithMessages)
-    } else {
-      setFriends([])
-    }
+    setFriends(friendsWithMessages)
   }, [user])
 
   useEffect(() => {
@@ -147,12 +133,9 @@ export default function SocialScreen() {
     setSearchQuery(query)
     if (query.length < 2) { setSearchResults([]); return }
 
-    const { data } = await supabase
-      .from('users')
-      .select('id, display_name, first_name, last_name, avatar_url, area')
-      .or(`display_name.ilike.%${query}%,first_name.ilike.%${query}%,last_name.ilike.%${query}%`)
-      .neq('id', user!.id)
-      .limit(10)
+    const { data } = await apiFetch<Array<{ id: string; display_name: string; first_name: string | null; last_name: string | null; avatar_url: string | null; area: string | null }>>(
+      `/api/users/search?q=${encodeURIComponent(query)}`
+    )
 
     setSearchResults(
       (data ?? []).map((u) => ({ ...u, isFollowing: followingSet.has(u.id) }))
@@ -160,15 +143,13 @@ export default function SocialScreen() {
   }
 
   async function handleFollow(userId: string) {
-    await supabase.from('follows').insert({ follower_id: user!.id, following_id: userId })
-    // Send notification
-    await supabase.from('notifications').insert({ user_id: userId, from_user_id: user!.id, type: 'follow' })
+    await apiPost('/api/follow', { followingId: userId })
     setFollowingSet((prev) => new Set([...prev, userId]))
     setSearchResults((prev) => prev.map((u) => u.id === userId ? { ...u, isFollowing: true } : u))
   }
 
   async function handleUnfollow(userId: string) {
-    await supabase.from('follows').delete().eq('follower_id', user!.id).eq('following_id', userId)
+    await apiDelete('/api/follow', { followingId: userId })
     setFollowingSet((prev) => { const next = new Set(prev); next.delete(userId); return next })
     setSearchResults((prev) => prev.map((u) => u.id === userId ? { ...u, isFollowing: false } : u))
   }

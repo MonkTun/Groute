@@ -14,8 +14,6 @@ import {
 } from 'react-native'
 import { Stack, useRouter } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
-import * as FileSystem from 'expo-file-system'
-import { decode } from 'base64-arraybuffer'
 
 import {
   SPORT_LABELS,
@@ -26,6 +24,7 @@ import {
 } from '@groute/shared'
 import { useSession } from '../lib/AuthProvider'
 import { supabase } from '../lib/supabase'
+import { apiFetch, apiPatch, apiUpload } from '../lib/api'
 
 // ── Design tokens matching web ──
 const C = {
@@ -77,45 +76,38 @@ export default function EditProfileScreen() {
   const fetchProfile = useCallback(async () => {
     if (!user) return
 
-    const [profileResult, sportsResult] = await Promise.all([
-      supabase
-        .from('users')
-        .select('first_name, last_name, avatar_url, bio, area, date_of_birth, preferred_language, edu_email')
-        .eq('id', user.id)
-        .single(),
-      supabase
-        .from('user_sports')
-        .select('sport_type, self_reported_level')
-        .eq('user_id', user.id),
-    ])
+    const { data } = await apiFetch<{
+      firstName: string | null
+      lastName: string | null
+      avatarUrl: string | null
+      bio: string | null
+      area: string | null
+      dateOfBirth: string | null
+      preferredLanguage: string | null
+      eduEmail: string | null
+      sports: { sportType: string; selfReportedLevel: string }[]
+    }>('/api/profile')
 
-    if (profileResult.data) {
-      const p = profileResult.data
-      setFirstName(p.first_name ?? '')
-      setLastName(p.last_name ?? '')
-      setDateOfBirth(p.date_of_birth ?? '')
-      setBio(p.bio ?? '')
-      setAvatarUrl(p.avatar_url)
-      setPreferredLanguage(p.preferred_language ?? '')
-      setEduEmail(p.edu_email ?? '')
+    if (data) {
+      setFirstName(data.firstName ?? '')
+      setLastName(data.lastName ?? '')
+      setDateOfBirth(data.dateOfBirth ?? '')
+      setBio(data.bio ?? '')
+      setAvatarUrl(data.avatarUrl)
+      setPreferredLanguage(data.preferredLanguage ?? '')
+      setEduEmail(data.eduEmail ?? '')
       // Parse area: "Region, Country"
-      if (p.area) {
-        const parts = p.area.split(', ')
+      if (data.area) {
+        const parts = data.area.split(', ')
         if (parts.length === 2) {
           setRegion(parts[0])
           setCountry(parts[1])
         } else {
-          setRegion(p.area)
+          setRegion(data.area)
         }
       }
+      setSports(data.sports ?? [])
     }
-
-    setSports(
-      (sportsResult.data ?? []).map((s) => ({
-        sportType: s.sport_type,
-        selfReportedLevel: s.self_reported_level,
-      }))
-    )
   }, [user])
 
   useEffect(() => {
@@ -137,26 +129,26 @@ export default function EditProfileScreen() {
 
     try {
       const ext = asset.uri.split('.').pop() ?? 'jpg'
-      const filePath = `avatars/${user!.id}.${ext}`
       const mimeType = asset.mimeType ?? 'image/jpeg'
 
-      const base64 = asset.base64
-        ?? await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 })
+      const formData = new FormData()
+      formData.append('file', {
+        uri: asset.uri,
+        name: `avatar.${ext}`,
+        type: mimeType,
+      } as unknown as Blob)
 
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, decode(base64), { upsert: true, contentType: mimeType })
+      const { data, error } = await apiUpload<{ avatarUrl: string }>('/api/avatar', formData)
 
-      if (uploadError) {
-        Alert.alert('Error', uploadError.message)
+      if (error) {
+        Alert.alert('Error', error)
         setIsUploadingAvatar(false)
         return
       }
 
-      const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(filePath)
-      const freshUrl = `${publicUrl}?t=${Date.now()}`
-      await supabase.from('users').update({ avatar_url: freshUrl }).eq('id', user!.id)
-      setAvatarUrl(freshUrl)
+      if (data?.avatarUrl) {
+        setAvatarUrl(data.avatarUrl)
+      }
     } catch {
       Alert.alert('Error', 'Failed to upload photo')
     }
@@ -182,35 +174,24 @@ export default function EditProfileScreen() {
     try {
       const area = region && country ? `${region}, ${country}` : region || country
 
-      const { error: profileError } = await supabase
-        .from('users')
-        .update({
-          first_name: firstName.trim() || null,
-          last_name: lastName.trim() || null,
-          date_of_birth: dateOfBirth || null,
-          area: area || null,
-          bio: bio.trim() || null,
-          preferred_language: preferredLanguage || null,
-          edu_email: eduEmail.trim() || null,
-        })
-        .eq('id', user!.id)
+      const { error } = await apiPatch('/api/profile', {
+        firstName: firstName.trim() || null,
+        lastName: lastName.trim() || null,
+        dateOfBirth: dateOfBirth || null,
+        area: area || null,
+        bio: bio.trim() || null,
+        preferredLanguage: preferredLanguage || null,
+        eduEmail: eduEmail.trim() || null,
+        sports: sports.map((s) => ({
+          sportType: s.sportType,
+          selfReportedLevel: s.selfReportedLevel,
+        })),
+      })
 
-      if (profileError) {
-        Alert.alert('Error', profileError.message)
+      if (error) {
+        Alert.alert('Error', error)
         setIsSaving(false)
         return
-      }
-
-      // Update sports: delete all then re-insert
-      await supabase.from('user_sports').delete().eq('user_id', user!.id)
-      if (sports.length > 0) {
-        await supabase.from('user_sports').insert(
-          sports.map((s) => ({
-            user_id: user!.id,
-            sport_type: s.sportType,
-            self_reported_level: s.selfReportedLevel,
-          }))
-        )
       }
 
       Alert.alert('Saved', 'Your profile has been updated.', [

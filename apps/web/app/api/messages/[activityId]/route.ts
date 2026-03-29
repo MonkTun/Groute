@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { createServerClient } from "@/lib/supabase/server";
+import { createApiClient } from "@/lib/supabase/api";
 
 // GET messages for an activity group chat
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ activityId: string }> }
 ) {
   const { activityId } = await params;
-  const supabase = await createServerClient();
+  const supabase = await createApiClient(request);
   const {
     data: { user },
     error: authError,
@@ -70,7 +70,7 @@ export async function POST(
   { params }: { params: Promise<{ activityId: string }> }
 ) {
   const { activityId } = await params;
-  const supabase = await createServerClient();
+  const supabase = await createApiClient(request);
   const {
     data: { user },
     error: authError,

@@ -16,7 +16,7 @@ import ConfettiCannon from 'react-native-confetti-cannon'
 
 import { SPORT_LABELS } from '@groute/shared'
 import { useSession } from '../../lib/AuthProvider'
-import { supabase } from '../../lib/supabase'
+import { apiFetch, apiPatch, apiPost, apiDelete } from '../../lib/api'
 
 interface Trip {
   id: string
@@ -55,55 +55,41 @@ export default function TripsScreen() {
   const fetchTrips = useCallback(async () => {
     if (!user) return
 
-    const [createdResult, participatingResult] = await Promise.all([
-      supabase
-        .from('activities')
-        .select('id, title, sport_type, location_name, scheduled_at, max_participants, status')
-        .eq('creator_id', user.id)
-        .order('scheduled_at', { ascending: false }),
+    const { data, error } = await apiFetch<{
+      created: Array<{
+        id: string; title: string; sport_type: string; location_name: string
+        scheduled_at: string; max_participants: number; status: string
+      }>
+      participating: Array<{
+        id: string; title: string; sport_type: string; location_name: string
+        scheduled_at: string; max_participants: number; status: string
+        participantStatus: string
+        creator: { id: string; display_name: string; first_name: string | null; last_name: string | null } | null
+      }>
+      pendingRequests: Array<{
+        id: string; user_id: string; activity_id: string; status: string; joined_at: string
+        user: { id: string; display_name: string; first_name: string | null; last_name: string | null; avatar_url: string | null } | null
+        activity: { id: string; title: string; sport_type: string } | null
+      }>
+    }>('/api/trips')
 
-      supabase
-        .from('activity_participants')
-        .select(`
-          status,
-          activity:activities!activity_id (
-            id, title, sport_type, location_name, scheduled_at, max_participants, status,
-            creator:users!creator_id ( display_name, first_name, last_name )
-          )
-        `)
-        .eq('user_id', user.id)
-        .order('joined_at', { ascending: false }),
-    ])
+    if (error || !data) return
 
-    // Get pending requests for hosted activities
-    const myActivityIds = (createdResult.data ?? []).map((a) => a.id)
-    let pendingMap = new Map<string, PendingRequest[]>()
-
-    if (myActivityIds.length > 0) {
-      const { data: pendingData } = await supabase
-        .from('activity_participants')
-        .select(`
-          id, activity_id,
-          user:users!user_id ( id, display_name, first_name, last_name, area )
-        `)
-        .eq('status', 'requested')
-        .in('activity_id', myActivityIds)
-
-      for (const p of pendingData ?? []) {
-        const u = Array.isArray(p.user) ? p.user[0] : p.user
-        if (!u) continue
-        const list = pendingMap.get(p.activity_id) ?? []
-        list.push({
-          id: p.id,
-          activity_id: p.activity_id,
-          user_id: u.id,
-          display_name: u.display_name,
-          first_name: u.first_name,
-          last_name: u.last_name,
-          area: u.area,
-        })
-        pendingMap.set(p.activity_id, list)
-      }
+    // Build pending requests map
+    const pendingMap = new Map<string, PendingRequest[]>()
+    for (const p of data.pendingRequests) {
+      if (!p.user) continue
+      const list = pendingMap.get(p.activity_id) ?? []
+      list.push({
+        id: p.id,
+        activity_id: p.activity_id,
+        user_id: p.user.id,
+        display_name: p.user.display_name,
+        first_name: p.user.first_name,
+        last_name: p.user.last_name,
+        area: null,
+      })
+      pendingMap.set(p.activity_id, list)
     }
     setPendingByActivity(pendingMap)
 
@@ -111,7 +97,7 @@ export default function TripsScreen() {
     const allTrips: Trip[] = []
 
     // Created
-    for (const a of createdResult.data ?? []) {
+    for (const a of data.created) {
       allTrips.push({
         ...a,
         role: 'host',
@@ -120,19 +106,22 @@ export default function TripsScreen() {
     }
 
     // Participating
-    for (const p of participatingResult.data ?? []) {
-      const act = Array.isArray(p.activity) ? p.activity[0] : p.activity
-      if (!act) continue
-      const creator = Array.isArray(act.creator) ? act.creator[0] : act.creator
+    for (const p of data.participating) {
+      const creator = p.creator
       const creatorName = creator
         ? creator.first_name && creator.last_name
           ? `${creator.first_name} ${creator.last_name[0]}.`
           : creator.display_name
         : 'Unknown'
       allTrips.push({
-        ...act,
+        id: p.id,
+        title: p.title,
+        sport_type: p.sport_type,
+        location_name: p.location_name,
+        scheduled_at: p.scheduled_at,
+        max_participants: p.max_participants,
         role: 'participant',
-        participantStatus: p.status as string,
+        participantStatus: p.participantStatus,
         creatorName,
         pendingCount: 0,
       })
@@ -153,39 +142,22 @@ export default function TripsScreen() {
   }
 
   async function handleAccept(participantId: string, activityId: string) {
-    const { error } = await supabase
-      .from('activity_participants')
-      .update({ status: 'accepted' })
-      .eq('id', participantId)
+    const { error } = await apiPatch(`/api/activities/${activityId}/participants/${participantId}`, { status: 'accepted' })
 
     if (error) {
-      Alert.alert('Error', error.message)
+      Alert.alert('Error', error)
       return
     }
 
     setShowConfetti(true)
-
-    // Send welcome message
-    const req = pendingByActivity.get(activityId)?.find((r) => r.id === participantId)
-    if (req) {
-      await supabase.from('messages').insert({
-        activity_id: activityId,
-        sender_id: req.user_id,
-        content: 'has joined the activity!',
-      })
-    }
-
     await fetchTrips()
   }
 
-  async function handleDecline(participantId: string) {
-    const { error } = await supabase
-      .from('activity_participants')
-      .update({ status: 'declined' })
-      .eq('id', participantId)
+  async function handleDecline(participantId: string, activityId: string) {
+    const { error } = await apiPatch(`/api/activities/${activityId}/participants/${participantId}`, { status: 'declined' })
 
     if (error) {
-      Alert.alert('Error', error.message)
+      Alert.alert('Error', error)
       return
     }
     await fetchTrips()
@@ -197,11 +169,7 @@ export default function TripsScreen() {
       {
         text: 'Leave', style: 'destructive',
         onPress: async () => {
-          await supabase
-            .from('activity_participants')
-            .delete()
-            .eq('activity_id', activityId)
-            .eq('user_id', user!.id)
+          await apiPost(`/api/activities/${activityId}/leave`, {})
           await fetchTrips()
         },
       },
@@ -214,7 +182,7 @@ export default function TripsScreen() {
       {
         text: 'Delete', style: 'destructive',
         onPress: async () => {
-          await supabase.from('activities').delete().eq('id', activityId)
+          await apiDelete(`/api/activities/${activityId}`)
           await fetchTrips()
         },
       },
@@ -331,7 +299,7 @@ export default function TripsScreen() {
                     </Pressable>
                     <Pressable
                       style={styles.declineButton}
-                      onPress={() => handleDecline(req.id)}
+                      onPress={() => handleDecline(req.id, item.id)}
                     >
                       <Text style={styles.declineText}>Decline</Text>
                     </Pressable>

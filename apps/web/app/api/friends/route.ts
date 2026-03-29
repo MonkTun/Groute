@@ -1,10 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-import { createServerClient } from "@/lib/supabase/server";
+import { createApiClient } from "@/lib/supabase/api";
 
 // GET: list mutual follows (friends)
-export async function GET() {
-  const supabase = await createServerClient();
+export async function GET(request: NextRequest) {
+  const supabase = await createApiClient(request);
   const {
     data: { user },
     error: authError,

@@ -13,7 +13,7 @@ import { useRouter } from 'expo-router'
 
 import { SPORT_LABELS, SKILL_LABELS } from '@groute/shared'
 import { useSession } from '../../lib/AuthProvider'
-import { supabase } from '../../lib/supabase'
+import { apiFetch } from '../../lib/api'
 import FloatingActionButton from '../../components/FloatingActionButton'
 import SearchBar from '../../components/SearchBar'
 
@@ -70,45 +70,45 @@ export default function RightNowScreen() {
     const now = new Date()
     const in48h = new Date(now.getTime() + 48 * 60 * 60 * 1000)
 
-    const [activitiesResult, sportsResult, participantsResult] = await Promise.all([
-      supabase
-        .from('activities')
-        .select(`
-          id, title, description, sport_type, skill_level, banner_url,
-          creator_id, location_name, scheduled_at, max_participants, status,
-          creator:users!creator_id ( display_name, first_name, last_name, avatar_url )
-        `)
-        .eq('status', 'open')
-        .neq('visibility', 'private')
-        .gte('scheduled_at', now.toISOString())
-        .lte('scheduled_at', in48h.toISOString())
-        .order('scheduled_at', { ascending: true })
-        .limit(20),
+    const [activitiesResult, profileResult] = await Promise.all([
+      apiFetch<Array<{
+        id: string
+        title: string
+        description: string | null
+        sport_type: string
+        skill_level: string
+        banner_url: string | null
+        creator_id: string
+        location_name: string
+        scheduled_at: string
+        max_participants: number
+        participant_count: number
+        creator: {
+          display_name: string
+          first_name: string | null
+          last_name: string | null
+          avatar_url: string | null
+        } | null
+      }>>('/api/activities'),
 
-      supabase
-        .from('user_sports')
-        .select('sport_type')
-        .eq('user_id', user.id),
-
-      supabase
-        .from('activity_participants')
-        .select('activity_id')
-        .eq('status', 'accepted'),
+      apiFetch<{
+        sports: Array<{ sport_type: string }>
+      }>('/api/profile'),
     ])
 
-    setUserSports(new Set((sportsResult.data ?? []).map((s) => s.sport_type)))
+    setUserSports(new Set((profileResult.data?.sports ?? []).map((s) => s.sport_type)))
 
-    // Count participants per activity
-    const countMap = new Map<string, number>()
-    for (const p of participantsResult.data ?? []) {
-      countMap.set(p.activity_id, (countMap.get(p.activity_id) ?? 0) + 1)
-    }
+    // Filter to 48h window client-side (API returns all open future activities)
+    const allActivities = activitiesResult.data ?? []
+    const within48h = allActivities
+      .filter((a) => new Date(a.scheduled_at) <= in48h)
+      .slice(0, 20)
 
     setActivities(
-      (activitiesResult.data ?? []).map((a) => ({
+      within48h.map((a) => ({
         ...a,
         creator: Array.isArray(a.creator) ? a.creator[0] ?? null : a.creator,
-        participantCount: (countMap.get(a.id) ?? 0) + 1, // +1 for creator
+        participantCount: a.participant_count,
       }))
     )
   }, [user])

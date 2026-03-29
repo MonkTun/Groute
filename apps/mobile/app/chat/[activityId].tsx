@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 
 import { useSession } from '../../lib/AuthProvider'
 import { supabase } from '../../lib/supabase'
+import { apiFetch, apiPost } from '../../lib/api'
 import ChatView from '../../components/ChatView'
 
 interface Message {
@@ -28,23 +29,18 @@ export default function GroupChatScreen() {
 
   const fetchMessages = useCallback(async () => {
     const [actResult, msgResult] = await Promise.all([
-      supabase.from('activities').select('title').eq('id', activityId).single(),
-      supabase
-        .from('messages')
-        .select(`
-          id, content, created_at, sender_id,
-          sender:users!sender_id ( id, display_name, first_name, avatar_url )
-        `)
-        .eq('activity_id', activityId)
-        .order('created_at', { ascending: true })
-        .limit(100),
+      apiFetch<{ title: string }>(`/api/activities/${activityId}`),
+      apiFetch<Array<{ id: string; content: string; created_at: string; sender: { id: string; display_name: string; first_name: string | null; last_name: string | null; avatar_url: string | null } | null }>>(`/api/messages/${activityId}`),
     ])
 
     if (actResult.data) setTitle(actResult.data.title)
     setMessages(
       (msgResult.data ?? []).map((m) => ({
-        ...m,
-        sender: Array.isArray(m.sender) ? m.sender[0] ?? null : m.sender,
+        id: m.id,
+        content: m.content,
+        created_at: m.created_at,
+        sender_id: m.sender?.id ?? '',
+        sender: m.sender ? { id: m.sender.id, display_name: m.sender.display_name, first_name: m.sender.first_name, avatar_url: m.sender.avatar_url } : null,
       }))
     )
   }, [activityId])
@@ -83,15 +79,11 @@ export default function GroupChatScreen() {
     }
     setMessages((prev) => [...prev, optimistic])
 
-    const { error } = await supabase.from('messages').insert({
-      activity_id: activityId,
-      sender_id: user.id,
-      content: text,
-    })
+    const { error } = await apiPost(`/api/messages/${activityId}`, { content: text })
     if (error) {
       console.error('Failed to send group message:', error)
       setMessages((prev) => prev.filter((m) => m.id !== optimistic.id))
-      return { error: error.message }
+      return { error }
     }
     return {}
   }

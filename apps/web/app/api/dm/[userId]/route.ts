@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { createServerClient } from "@/lib/supabase/server";
+import { createApiClient } from "@/lib/supabase/api";
 
 // GET DMs with a specific user
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
 ) {
   const { userId: otherUserId } = await params;
-  const supabase = await createServerClient();
+  const supabase = await createApiClient(request);
   const {
     data: { user },
     error: authError,
@@ -50,7 +50,7 @@ export async function POST(
   { params }: { params: Promise<{ userId: string }> }
 ) {
   const { userId: otherUserId } = await params;
-  const supabase = await createServerClient();
+  const supabase = await createApiClient(request);
   const {
     data: { user },
     error: authError,

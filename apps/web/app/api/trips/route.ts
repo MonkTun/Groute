@@ -1,9 +1,9 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-import { createServerClient } from "@/lib/supabase/server";
+import { createApiClient } from "@/lib/supabase/api";
 
-export async function GET() {
-  const supabase = await createServerClient();
+export async function GET(request: NextRequest) {
+  const supabase = await createApiClient(request);
   const {
     data: { user },
     error: authError,
@@ -13,8 +13,8 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Fetch activities I created and activities I'm participating in, in parallel
-  const [createdResult, participatingResult] = await Promise.all([
+  // Fetch activities I created, participating in, and pending requests in parallel
+  const [createdResult, participatingResult, pendingResult] = await Promise.all([
     supabase
       .from("activities")
       .select(
@@ -45,6 +45,34 @@ export async function GET() {
       )
       .eq("user_id", user.id)
       .order("joined_at", { ascending: false }),
+
+    // Pending join requests for activities I created
+    (async () => {
+      const { data: myActivities } = await supabase
+        .from("activities")
+        .select("id")
+        .eq("creator_id", user.id);
+
+      if (!myActivities?.length) return [];
+
+      const activityIds = myActivities.map((a) => a.id);
+      const { data: pending } = await supabase
+        .from("activity_participants")
+        .select(
+          `id, user_id, activity_id, status, joined_at,
+           user:users!user_id ( id, display_name, first_name, last_name, avatar_url ),
+           activity:activities!activity_id ( id, title, sport_type )`
+        )
+        .in("activity_id", activityIds)
+        .eq("status", "requested")
+        .order("joined_at", { ascending: false });
+
+      return (pending ?? []).map((p) => ({
+        ...p,
+        user: Array.isArray(p.user) ? p.user[0] : p.user,
+        activity: Array.isArray(p.activity) ? p.activity[0] : p.activity,
+      }));
+    })(),
   ]);
 
   if (createdResult.error) {
@@ -72,6 +100,7 @@ export async function GET() {
     data: {
       created: createdResult.data ?? [],
       participating,
+      pendingRequests: pendingResult,
     },
   });
 }

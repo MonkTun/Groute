@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 
 import { useSession } from '../../lib/AuthProvider'
 import { supabase } from '../../lib/supabase'
+import { apiFetch, apiPost } from '../../lib/api'
 import ChatView from '../../components/ChatView'
 
 const C = {
@@ -34,16 +35,8 @@ export default function DMScreen() {
     if (!user) return
 
     const [partnerResult, msgResult] = await Promise.all([
-      supabase.from('users').select('display_name, first_name, last_name, avatar_url').eq('id', userId).single(),
-      supabase
-        .from('messages')
-        .select('id, content, created_at, sender_id')
-        .is('activity_id', null)
-        .or(
-          `and(sender_id.eq.${user.id},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${user.id})`
-        )
-        .order('created_at', { ascending: true })
-        .limit(100),
+      apiFetch<{ display_name: string; first_name: string | null; last_name: string | null; avatar_url: string | null }>(`/api/users/${userId}`),
+      apiFetch<Array<{ id: string; content: string; created_at: string; sender: { id: string; display_name: string; first_name: string | null; last_name: string | null; avatar_url: string | null } | null }>>(`/api/dm/${userId}`),
     ])
 
     if (partnerResult.data) {
@@ -55,7 +48,14 @@ export default function DMScreen() {
       )
       setPartnerAvatar(p.avatar_url)
     }
-    setMessages(msgResult.data ?? [])
+    setMessages(
+      (msgResult.data ?? []).map((m) => ({
+        id: m.id,
+        content: m.content,
+        created_at: m.created_at,
+        sender_id: m.sender?.id ?? '',
+      }))
+    )
   }, [userId, user])
 
   useEffect(() => {
@@ -97,15 +97,11 @@ export default function DMScreen() {
     }
     setMessages((prev) => [...prev, optimistic])
 
-    const { error } = await supabase.from('messages').insert({
-      sender_id: user.id,
-      receiver_id: userId,
-      content: text,
-    })
+    const { error } = await apiPost(`/api/dm/${userId}`, { content: text })
     if (error) {
       console.error('Failed to send DM:', error)
       setMessages((prev) => prev.filter((m) => m.id !== optimistic.id))
-      return { error: error.message }
+      return { error }
     }
     return {}
   }

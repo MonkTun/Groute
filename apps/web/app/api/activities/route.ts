@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { createActivitySchema } from "@groute/shared";
 
-import { createServerClient } from "@/lib/supabase/server";
+import { createApiClient } from "@/lib/supabase/api";
 
 export async function GET(request: NextRequest) {
-  const supabase = await createServerClient();
+  const supabase = await createApiClient(request);
   const {
     data: { user },
     error: authError,
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     .from("activities")
     .select(
       `
-      id, title, description, sport_type, skill_level, banner_url, location_lat, location_lng, location_name, max_participants, scheduled_at, status, created_at,
+      id, title, description, sport_type, skill_level, banner_url, location_lat, location_lng, location_name, max_participants, scheduled_at, status, created_at, creator_id,
       creator:users!creator_id (
         id,
         display_name,
@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
     `
     )
     .eq("status", status)
+    .neq("visibility", "private")
     .gte("scheduled_at", new Date().toISOString())
     .order("scheduled_at", { ascending: true })
     .limit(50);
@@ -53,11 +54,34 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  return NextResponse.json({ data: activities });
+  // Fetch participant counts for returned activities
+  const activityIds = (activities ?? []).map((a) => a.id);
+  let participantCounts: Record<string, number> = {};
+
+  if (activityIds.length > 0) {
+    const { data: participants } = await supabase
+      .from("activity_participants")
+      .select("activity_id")
+      .in("activity_id", activityIds)
+      .eq("status", "accepted");
+
+    const countMap: Record<string, number> = {};
+    for (const p of participants ?? []) {
+      countMap[p.activity_id] = (countMap[p.activity_id] ?? 0) + 1;
+    }
+    participantCounts = countMap;
+  }
+
+  const activitiesWithCounts = (activities ?? []).map((a) => ({
+    ...a,
+    participant_count: (participantCounts[a.id] ?? 0) + 1, // +1 for creator
+  }));
+
+  return NextResponse.json({ data: activitiesWithCounts });
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = await createServerClient();
+  const supabase = await createApiClient(request);
   const {
     data: { user },
     error: authError,

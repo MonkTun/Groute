@@ -13,7 +13,7 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 
 import { SPORT_LABELS, SKILL_LABELS } from '@groute/shared'
 import { useSession } from '../../lib/AuthProvider'
-import { supabase } from '../../lib/supabase'
+import { apiFetch, apiPost, apiDelete } from '../../lib/api'
 
 const C = {
   bg: '#fafafa',
@@ -28,19 +28,22 @@ const C = {
 
 interface UserProfile {
   id: string
-  display_name: string
-  first_name: string | null
-  last_name: string | null
-  avatar_url: string | null
+  displayName: string
+  firstName: string | null
+  lastName: string | null
+  avatarUrl: string | null
   area: string | null
-  preferred_language: string | null
-  edu_email: string | null
-  created_at: string
+  preferredLanguage: string | null
+  eduEmail: string | null
+  createdAt: string
+  sports: UserSport[]
+  isFollowing: boolean
+  mutualFriendCount: number
 }
 
 interface UserSport {
-  sport_type: string
-  self_reported_level: string
+  sportType: string
+  selfReportedLevel: string
 }
 
 export default function UserProfileScreen() {
@@ -60,30 +63,15 @@ export default function UserProfileScreen() {
     async function load() {
       if (!user) return
 
-      const [profileResult, sportsResult, followingResult, followerResult] = await Promise.all([
-        supabase
-          .from('users')
-          .select('id, display_name, first_name, last_name, avatar_url, area, preferred_language, edu_email, created_at')
-          .eq('id', id)
-          .single(),
-        supabase.from('user_sports').select('sport_type, self_reported_level').eq('user_id', id),
-        supabase.from('follows').select('id').eq('follower_id', user.id).eq('following_id', id).maybeSingle(),
-        supabase.from('follows').select('id').eq('follower_id', id).eq('following_id', user.id).maybeSingle(),
-      ])
+      const { data } = await apiFetch<UserProfile>(`/api/users/${id}`)
 
-      setProfile(profileResult.data)
-      setSports(sportsResult.data ?? [])
-      setIsFollowing(!!followingResult.data)
-      setIsMutual(!!followingResult.data && !!followerResult.data)
-
-      // Mutual friends count
-      const [myFollowing, theirFollowing] = await Promise.all([
-        supabase.from('follows').select('following_id').eq('follower_id', user.id),
-        supabase.from('follows').select('following_id').eq('follower_id', id),
-      ])
-      const mySet = new Set((myFollowing.data ?? []).map((f) => f.following_id))
-      const mutual = (theirFollowing.data ?? []).filter((f) => mySet.has(f.following_id)).length
-      setMutualFriendCount(mutual)
+      if (data) {
+        setProfile(data)
+        setSports(data.sports ?? [])
+        setIsFollowing(data.isFollowing ?? false)
+        setIsMutual(data.isFollowing && data.mutualFriendCount > 0)
+        setMutualFriendCount(data.mutualFriendCount ?? 0)
+      }
 
       setIsLoading(false)
     }
@@ -92,14 +80,13 @@ export default function UserProfileScreen() {
 
   async function handleFollow() {
     if (!user) return
-    await supabase.from('follows').insert({ follower_id: user.id, following_id: id })
-    await supabase.from('notifications').insert({ user_id: id, from_user_id: user.id, type: 'follow' })
+    await apiPost('/api/follow', { followingId: id })
     setIsFollowing(true)
   }
 
   async function handleUnfollow() {
     if (!user) return
-    await supabase.from('follows').delete().eq('follower_id', user.id).eq('following_id', id)
+    await apiDelete('/api/follow', { followingId: id })
     setIsFollowing(false)
     setIsMutual(false)
   }
@@ -113,11 +100,11 @@ export default function UserProfileScreen() {
     )
   }
 
-  const fullName = profile.first_name && profile.last_name
-    ? `${profile.first_name} ${profile.last_name}`
-    : profile.display_name
+  const fullName = profile.firstName && profile.lastName
+    ? `${profile.firstName} ${profile.lastName}`
+    : profile.displayName
 
-  const joinedDate = new Date(profile.created_at).toLocaleDateString('en-US', {
+  const joinedDate = new Date(profile.createdAt).toLocaleDateString('en-US', {
     month: 'long',
     year: 'numeric',
   })
@@ -128,11 +115,11 @@ export default function UserProfileScreen() {
 
       {/* Header */}
       <View style={s.header}>
-        {profile.avatar_url ? (
-          <Image source={{ uri: profile.avatar_url }} style={s.avatar} />
+        {profile.avatarUrl ? (
+          <Image source={{ uri: profile.avatarUrl }} style={s.avatar} />
         ) : (
           <View style={s.avatarFallback}>
-            <Text style={s.avatarInitial}>{(profile.first_name?.[0] ?? profile.display_name[0]).toUpperCase()}</Text>
+            <Text style={s.avatarInitial}>{(profile.firstName?.[0] ?? profile.displayName[0]).toUpperCase()}</Text>
           </View>
         )}
         <Text style={s.name}>{fullName}</Text>
@@ -142,7 +129,7 @@ export default function UserProfileScreen() {
           {mutualFriendCount > 0 && (
             <Text style={s.stat}>{mutualFriendCount} mutual friend{mutualFriendCount !== 1 ? 's' : ''}</Text>
           )}
-          {profile.edu_email && (
+          {profile.eduEmail && (
             <View style={s.verifiedBadge}>
               <Text style={s.verifiedText}>.edu verified</Text>
             </View>
@@ -186,9 +173,9 @@ export default function UserProfileScreen() {
           <Text style={s.sectionTitle}>Activities</Text>
           <View style={s.sportsGrid}>
             {sports.map((sp) => (
-              <View key={sp.sport_type} style={s.sportCard}>
-                <Text style={s.sportName}>{SPORT_LABELS[sp.sport_type] ?? sp.sport_type}</Text>
-                <Text style={s.sportLevel}>{SKILL_LABELS[sp.self_reported_level] ?? sp.self_reported_level}</Text>
+              <View key={sp.sportType} style={s.sportCard}>
+                <Text style={s.sportName}>{SPORT_LABELS[sp.sportType] ?? sp.sportType}</Text>
+                <Text style={s.sportLevel}>{SKILL_LABELS[sp.selfReportedLevel] ?? sp.selfReportedLevel}</Text>
               </View>
             ))}
           </View>
@@ -205,10 +192,10 @@ export default function UserProfileScreen() {
               <Text style={s.infoValue}>{profile.area}</Text>
             </View>
           )}
-          {profile.preferred_language && (
+          {profile.preferredLanguage && (
             <View style={s.infoRow}>
               <Text style={s.infoLabel}>Language</Text>
-              <Text style={s.infoValue}>{profile.preferred_language}</Text>
+              <Text style={s.infoValue}>{profile.preferredLanguage}</Text>
             </View>
           )}
         </View>

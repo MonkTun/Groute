@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { createServerClient } from "@/lib/supabase/server";
+import { createApiClient } from "@/lib/supabase/api";
 
-export async function GET() {
-  const supabase = await createServerClient();
+export async function GET(request: NextRequest) {
+  const supabase = await createApiClient(request);
   const {
     data: { user },
     error: authError,
@@ -38,7 +38,7 @@ export async function GET() {
 
 // PATCH: mark notifications as read
 export async function PATCH(request: NextRequest) {
-  const supabase = await createServerClient();
+  const supabase = await createApiClient(request);
   const {
     data: { user },
     error: authError,

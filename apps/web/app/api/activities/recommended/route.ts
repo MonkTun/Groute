@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-import { createServerClient } from "@/lib/supabase/server";
+import { createApiClient } from "@/lib/supabase/api";
 
 const SKILL_ORDER: Record<string, number> = {
   beginner: 0,
@@ -8,8 +8,8 @@ const SKILL_ORDER: Record<string, number> = {
   advanced: 2,
 };
 
-export async function GET() {
-  const supabase = await createServerClient();
+export async function GET(request: NextRequest) {
+  const supabase = await createApiClient(request);
   const {
     data: { user },
     error: authError,
