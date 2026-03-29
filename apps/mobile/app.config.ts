@@ -6,13 +6,14 @@ loadEnv({ path: '../../.env' })
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: 'Groute',
+  owner: 'tundraswan',
   slug: 'groute',
-  version: '0.1.0',
+  version: '0.1.3',
   orientation: 'portrait',
   // icon: './assets/icon.png',
   scheme: 'groute',
   userInterfaceStyle: 'automatic',
-  newArchEnabled: true,
+  newArchEnabled: false,
   splash: {
     backgroundColor: '#fafafa',
   },
@@ -36,9 +37,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       locationAlwaysAndWhenInUsePermission: 'Allow Groute to use your location to find nearby activities and show you on the map.',
     }],
     'expo-image-picker',
+    '@react-native-community/datetimepicker',
   ],
   extra: {
-    eas: { projectId: '' }, // Fill after running `eas init`
+    eas: { projectId: '89f29baf-b117-4d7a-b341-76c8991d6baf' },
     supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
     supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     apiUrl: process.env.NEXT_PUBLIC_APP_URL,

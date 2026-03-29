@@ -276,7 +276,7 @@ export default function ExploreScreen() {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync()
         if (status === 'granted') {
-          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High })
+          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
           setUserLocation({ lat: loc.coords.latitude, lng: loc.coords.longitude })
 
           // Update server
@@ -299,7 +299,7 @@ export default function ExploreScreen() {
     })()
 
     // Don't block forever if location is slow
-    timeout = setTimeout(() => setLocationReady(true), 5000)
+    timeout = setTimeout(() => setLocationReady(true), 2000)
     return () => clearTimeout(timeout)
   }, [user])
 

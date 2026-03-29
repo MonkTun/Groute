@@ -4,6 +4,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -44,7 +45,13 @@ export default function SignupScreen() {
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
     >
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        bounces={false}
+      >
       <View style={styles.form}>
         <Text style={styles.title}>Create account</Text>
         <Text style={styles.subtitle}>
@@ -57,7 +64,9 @@ export default function SignupScreen() {
           placeholderTextColor="#9ca3af"
           value={displayName}
           onChangeText={setDisplayName}
-          autoComplete="name"
+          autoComplete="off"
+          autoCorrect={false}
+          textContentType="none"
         />
         <TextInput
           style={styles.input}
@@ -66,7 +75,9 @@ export default function SignupScreen() {
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
-          autoComplete="email"
+          autoComplete="off"
+          autoCorrect={false}
+          textContentType="none"
           keyboardType="email-address"
         />
         <TextInput
@@ -76,7 +87,9 @@ export default function SignupScreen() {
           value={password}
           onChangeText={setPassword}
           secureTextEntry
-          autoComplete="new-password"
+          autoComplete="off"
+          autoCorrect={false}
+          textContentType="none"
         />
 
         <Pressable
@@ -95,6 +108,7 @@ export default function SignupScreen() {
           </Text>
         </Link>
       </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   )
 }
@@ -102,6 +116,9 @@ export default function SignupScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: 'center',
     padding: 24,
   },

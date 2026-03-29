@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Alert,
   Image,
@@ -12,6 +12,7 @@ import {
   TextInput,
   View,
 } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router'
 import { WebView } from 'react-native-webview'
 import * as Location from 'expo-location'
@@ -69,6 +70,7 @@ map.on('moveend',function(){var c=map.getCenter();window.ReactNativeWebView.post
 export default function CreateActivityScreen() {
   const { user } = useSession()
   const router = useRouter()
+  const insets = useSafeAreaInsets()
   const params = useLocalSearchParams<{ lat?: string; lng?: string }>()
   const webViewRef = useRef<WebView>(null)
 
@@ -348,21 +350,18 @@ export default function CreateActivityScreen() {
   return (
     <View style={s.container}>
       <Stack.Screen options={{
-        title: step === 1 ? 'Where?' : step === 2 ? 'When?' : 'Details',
         headerBackTitle: 'Cancel',
-      }} />
-
-      {/* Step indicator */}
-      <View style={s.stepBar}>
-        {[1, 2, 3].map((n) => (
-          <View key={n} style={s.stepRow}>
-            <View style={[s.stepDot, step >= n && s.stepDotActive]}>
-              <Text style={[s.stepDotText, step >= n && s.stepDotTextActive]}>{n}</Text>
+        headerTitle: () => (
+          <View style={s.headerTitleWrap}>
+            <Text style={s.headerTitleText}>
+              {step === 1 ? 'Where?' : step === 2 ? 'When?' : 'Details'}
+            </Text>
+            <View style={s.progressTrack}>
+              <View style={[s.progressFill, { width: `${(step / 3) * 100}%` }]} />
             </View>
-            {n < 3 && <View style={[s.stepLine, step > n && s.stepLineActive]} />}
           </View>
-        ))}
-      </View>
+        ),
+      }} />
 
       {/* ── Step 1: Location ── */}
       {step === 1 && (
@@ -375,7 +374,6 @@ export default function CreateActivityScreen() {
               placeholderTextColor={C.textMuted}
               value={searchQuery}
               onChangeText={handleSearch}
-              autoFocus
             />
             {searchResults.length > 0 && (
               <View style={s.dropdown}>
@@ -404,13 +402,8 @@ export default function CreateActivityScreen() {
           </View>
 
           {/* Confirm */}
-          <View style={s.bottomBar}>
-            {locationName ? (
-              <Text style={s.selectedLocation} numberOfLines={1}>{locationName}</Text>
-            ) : (
-              <Text style={s.hintText}>Drag the map to adjust the pin</Text>
-            )}
-            <Pressable style={s.nextBtn} onPress={() => {
+          <View style={[s.bottomBar, { paddingBottom: Math.max(insets.bottom, 14) }]}>
+            <Pressable style={[s.nextBtn, s.btnFlex]} onPress={() => {
               if (!locationName) setLocationName('Dropped Pin')
               setStep(2)
             }}>
@@ -441,7 +434,7 @@ export default function CreateActivityScreen() {
             />
           </View>
 
-          <View style={s.bottomBtns}>
+          <View style={[s.bottomBtns, { paddingBottom: Math.max(insets.bottom, 14) }]}>
             <Pressable style={s.backBtn} onPress={() => setStep(1)}>
               <Text style={s.backBtnText}>Back</Text>
             </Pressable>
@@ -537,7 +530,7 @@ export default function CreateActivityScreen() {
             </View>
           </ScrollView>
 
-          <View style={s.bottomBtns}>
+          <View style={[s.bottomBtns, { paddingBottom: Math.max(insets.bottom, 14) }]}>
             <Pressable style={s.backBtn} onPress={() => setStep(2)}>
               <Text style={s.backBtnText}>Back</Text>
             </Pressable>
@@ -610,14 +603,10 @@ const s = StyleSheet.create({
   flex: { flex: 1 },
 
   // Steps
-  stepBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, paddingHorizontal: 40 },
-  stepRow: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-  stepDot: { width: 26, height: 26, borderRadius: 13, backgroundColor: '#f0f0f0', alignItems: 'center', justifyContent: 'center' },
-  stepDotActive: { backgroundColor: C.primary },
-  stepDotText: { fontSize: 12, fontWeight: '700', color: C.textMuted },
-  stepDotTextActive: { color: '#fff' },
-  stepLine: { flex: 1, height: 2, backgroundColor: '#f0f0f0', marginHorizontal: 4 },
-  stepLineActive: { backgroundColor: C.primary },
+  headerTitleWrap: { alignItems: 'center', gap: 4, minWidth: 160 },
+  headerTitleText: { fontSize: 17, fontWeight: '600', color: C.text },
+  progressTrack: { height: 4, backgroundColor: '#f0f0f0', borderRadius: 2, width: '100%' },
+  progressFill: { height: 4, backgroundColor: C.primary, borderRadius: 2 },
 
   // Step 1
   searchWrap: { paddingHorizontal: 14, paddingTop: 6, zIndex: 10 },
@@ -627,9 +616,7 @@ const s = StyleSheet.create({
   dropdownIcon: { fontSize: 16 },
   dropdownText: { fontSize: 14, color: C.text, flex: 1 },
   map: { flex: 1, backgroundColor: '#e8e0d8' },
-  bottomBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, borderTopWidth: 1, borderTopColor: C.border, backgroundColor: C.card },
-  selectedLocation: { fontSize: 14, fontWeight: '500', color: C.text, flex: 1, marginRight: 12 },
-  hintText: { fontSize: 13, color: C.textMuted, flex: 1 },
+  bottomBar: { padding: 14, borderTopWidth: 1, borderTopColor: C.border, backgroundColor: C.card },
 
   // Step 2
   pickerSection: { flex: 1, padding: 20 },
@@ -659,10 +646,10 @@ const s = StyleSheet.create({
   bottomBtns: { flexDirection: 'row', gap: 12, padding: 14, borderTopWidth: 1, borderTopColor: C.border, backgroundColor: C.card },
   backBtn: { borderWidth: 1, borderColor: C.border, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 18, alignItems: 'center' },
   backBtnText: { fontSize: 15, fontWeight: '600', color: C.text },
-  nextBtn: { backgroundColor: C.primary, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 22, alignItems: 'center' },
+  nextBtn: { backgroundColor: C.primary, borderRadius: 12, paddingVertical: 18, paddingHorizontal: 22, alignItems: 'center', justifyContent: 'center', minHeight: 56 },
   btnFlex: { flex: 1 },
-  nextBtnText: { fontSize: 15, fontWeight: '600', color: '#fff' },
-  createBtn: { backgroundColor: C.primary, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  nextBtnText: { fontSize: 17, fontWeight: '700', color: '#ffffff' },
+  createBtn: { backgroundColor: C.primary, borderRadius: 12, paddingVertical: 18, alignItems: 'center', justifyContent: 'center', minHeight: 56 },
 
   // Banner picker
   bannerPicker: { height: 100, borderRadius: 14, borderWidth: 1, borderStyle: 'dashed', borderColor: C.border, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8f8f8', gap: 6 },

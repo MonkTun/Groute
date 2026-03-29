@@ -4,6 +4,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -40,7 +41,13 @@ export default function LoginScreen() {
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
     >
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        bounces={false}
+      >
       <View style={styles.form}>
         <Text style={styles.title}>Welcome back</Text>
         <Text style={styles.subtitle}>Sign in to your Groute account</Text>
@@ -52,7 +59,9 @@ export default function LoginScreen() {
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
-          autoComplete="email"
+          autoComplete="off"
+          autoCorrect={false}
+          textContentType="none"
           keyboardType="email-address"
         />
         <TextInput
@@ -62,7 +71,9 @@ export default function LoginScreen() {
           value={password}
           onChangeText={setPassword}
           secureTextEntry
-          autoComplete="current-password"
+          autoComplete="off"
+          autoCorrect={false}
+          textContentType="none"
         />
 
         <Pressable
@@ -81,6 +92,7 @@ export default function LoginScreen() {
           </Text>
         </Link>
       </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   )
 }
@@ -88,6 +100,9 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: 'center',
     padding: 24,
   },
