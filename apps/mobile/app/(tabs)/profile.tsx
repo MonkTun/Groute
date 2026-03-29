@@ -179,8 +179,8 @@ export default function SocialScreen() {
             <Text style={s.addBtnText}>+</Text>
           </Pressable>
 
-          {/* Profile avatar → edit */}
-          <Pressable style={s.profileBtn} onPress={() => router.push('/edit-profile')}>
+          {/* Profile avatar → own profile */}
+          <Pressable style={s.profileBtn} onPress={() => user?.id ? router.push(`/user/${user.id}`) : undefined}>
             {profile?.avatar_url ? (
               <Image source={{ uri: profile.avatar_url }} style={s.headerAvatar} />
             ) : (

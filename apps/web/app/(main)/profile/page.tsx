@@ -11,7 +11,7 @@ export default async function ProfilePage() {
 
   if (!user) redirect('/login')
 
-  const [profileResult, sportsResult, followingResult, followersResult, notificationsResult] = await Promise.all([
+  const [profileResult, sportsResult, followingResult, followersResult, notificationsResult, createdActivitiesResult, participantResult] = await Promise.all([
     supabase.from('users').select('*').eq('id', user.id).single(),
     supabase
       .from('user_sports')
@@ -37,6 +37,22 @@ export default async function ProfilePage() {
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(20),
+
+    // Past activities created by user
+    supabase
+      .from('activities')
+      .select('id, title, sport_type, location_name, scheduled_at, banner_url, max_participants')
+      .eq('creator_id', user.id)
+      .lt('scheduled_at', new Date().toISOString())
+      .order('scheduled_at', { ascending: false })
+      .limit(10),
+
+    // Activities user participated in
+    supabase
+      .from('activity_participants')
+      .select('activity_id')
+      .eq('user_id', user.id)
+      .eq('status', 'accepted'),
   ])
 
   const profile = profileResult.data
@@ -74,6 +90,31 @@ export default async function ProfilePage() {
     fromUser: Array.isArray(n.from_user) ? n.from_user[0] : n.from_user,
   }))
 
+  // Build activity history
+  const createdActivities = createdActivitiesResult.data ?? []
+  const joinedIds = (participantResult.data ?? []).map((r) => r.activity_id)
+
+  let joinedActivities: typeof createdActivities = []
+  if (joinedIds.length > 0) {
+    const { data } = await supabase
+      .from('activities')
+      .select('id, title, sport_type, location_name, scheduled_at, banner_url, max_participants')
+      .in('id', joinedIds)
+      .neq('creator_id', user.id)
+      .lt('scheduled_at', new Date().toISOString())
+      .order('scheduled_at', { ascending: false })
+      .limit(10)
+    joinedActivities = data ?? []
+  }
+
+  const pastActivities = [...createdActivities, ...joinedActivities]
+    .sort((a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime())
+    .slice(0, 10)
+    .map((a) => ({
+      ...a,
+      isCreator: createdActivities.some((c) => c.id === a.id),
+    }))
+
   return (
     <ProfileView
       profile={profile}
@@ -82,6 +123,7 @@ export default async function ProfilePage() {
       incomingFollows={incomingFollows}
       notifications={notifications}
       currentUserId={user.id}
+      pastActivities={pastActivities}
     />
   )
 }

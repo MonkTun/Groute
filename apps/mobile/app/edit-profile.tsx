@@ -455,6 +455,29 @@ export default function EditProfileScreen() {
           )}
         </View>
 
+        {/* Restart Onboarding */}
+        <Pressable
+          style={s.restartBtn}
+          onPress={() => {
+            Alert.alert(
+              'Restart Onboarding',
+              'This will take you through the onboarding flow to update your experience and preferences.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Restart',
+                  onPress: async () => {
+                    await apiPatch('/api/profile', { resetOnboarding: true })
+                    router.replace('/onboarding')
+                  },
+                },
+              ]
+            )
+          }}
+        >
+          <Text style={s.restartText}>Restart Onboarding</Text>
+        </Pressable>
+
         {/* Sign out */}
         <Pressable style={s.signOutBtn} onPress={async () => { await supabase.auth.signOut(); router.replace('/') }}>
           <Text style={s.signOutText}>Sign out</Text>
@@ -582,8 +605,12 @@ const s = StyleSheet.create({
   levelButtonText: { fontSize: 12, color: C.textSecondary },
   levelButtonTextActive: { color: '#fff', fontWeight: '600' },
 
+  // Restart onboarding
+  restartBtn: { alignItems: 'center', paddingVertical: 14, marginTop: 24, borderWidth: 1, borderColor: C.border, borderRadius: 12 },
+  restartText: { fontSize: 15, fontWeight: '500', color: C.textSecondary },
+
   // Sign out
-  signOutBtn: { alignItems: 'center', paddingVertical: 16, marginTop: 32 },
+  signOutBtn: { alignItems: 'center', paddingVertical: 16, marginTop: 16 },
   signOutText: { fontSize: 15, fontWeight: '500', color: '#dc2626' },
   versionText: { textAlign: 'center', fontSize: 12, color: C.textMuted, marginTop: 16 },
 })

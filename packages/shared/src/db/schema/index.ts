@@ -1,5 +1,7 @@
 export * from "./users";
 export * from "./user-sports";
+export * from "./user-experience";
+export * from "./user-preferences";
 export * from "./activities";
 export * from "./activity-participants";
 export * from "./messages";

@@ -61,6 +61,7 @@ export default function RootLayout() {
           <Stack.Screen name="chat/[activityId]" options={{ title: 'Group Chat' }} />
           <Stack.Screen name="dm/[userId]" options={{ title: 'Chat' }} />
           <Stack.Screen name="user/[id]" options={{ title: 'Profile' }} />
+          <Stack.Screen name="onboarding" options={{ title: 'Onboarding', headerShown: false }} />
         </Stack>
       </AuthProvider>
     </ErrorBoundary>

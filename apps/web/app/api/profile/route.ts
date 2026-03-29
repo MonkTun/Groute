@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { onboardingProfileSchema } from "@groute/shared";
+import { onboardingProfileExtendedSchema } from "@groute/shared";
 
 import { createApiClient } from "@/lib/supabase/api";
 
@@ -25,13 +25,29 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ data: null });
   }
 
-  const { data: sports } = await supabase
-    .from("user_sports")
-    .select("sport_type, self_reported_level, strava_verified_level")
-    .eq("user_id", user.id);
+  const [{ data: sports }, { data: experience }, { data: preferences }] = await Promise.all([
+    supabase
+      .from("user_sports")
+      .select("sport_type, self_reported_level, strava_verified_level")
+      .eq("user_id", user.id),
+    supabase
+      .from("user_experience")
+      .select("*")
+      .eq("user_id", user.id),
+    supabase
+      .from("user_preferences")
+      .select("*")
+      .eq("user_id", user.id)
+      .maybeSingle(),
+  ]);
 
   return NextResponse.json({
-    data: { ...profile, sports: sports ?? [] },
+    data: {
+      ...profile,
+      sports: sports ?? [],
+      experience: experience ?? [],
+      preferences: preferences ?? null,
+    },
   });
 }
 
@@ -48,6 +64,22 @@ export async function PATCH(request: NextRequest) {
   }
 
   const body = await request.json();
+
+  // Reset onboarding: set profile_completed to false and redirect
+  if (body.resetOnboarding) {
+    const { error } = await supabase
+      .from("users")
+      .update({ profile_completed: false })
+      .eq("id", user.id);
+
+    if (error) {
+      return NextResponse.json({ error: "Failed to reset" }, { status: 500 });
+    }
+
+    const response = NextResponse.json({ data: { success: true } });
+    response.cookies.delete("profile_completed");
+    return response;
+  }
 
   try {
     // Build update object from allowed fields
@@ -138,16 +170,18 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const parsed = onboardingProfileSchema.safeParse(body);
+  const parsed = onboardingProfileExtendedSchema.safeParse(body);
 
   if (!parsed.success) {
+    const issues = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
+    console.error("Onboarding validation failed:", issues);
     return NextResponse.json(
-      { error: "Validation failed", details: parsed.error.issues },
+      { error: `Validation failed: ${issues}`, details: parsed.error.issues },
       { status: 400 }
     );
   }
 
-  const { sports, ...profileData } = parsed.data;
+  const { sports, experience, preferences, ...profileData } = parsed.data;
 
   try {
     // Upsert user profile
@@ -192,6 +226,58 @@ export async function POST(request: NextRequest) {
           { error: "Failed to save activities" },
           { status: 500 }
         );
+      }
+    }
+
+    // Save experience data (per sport)
+    if (experience && experience.length > 0) {
+      await supabase.from("user_experience").delete().eq("user_id", user.id);
+
+      const { error: expError } = await supabase
+        .from("user_experience")
+        .insert(
+          experience.map((e) => ({
+            user_id: user.id,
+            sport_type: e.sportType,
+            highest_altitude_ft: e.highestAltitudeFt ?? null,
+            longest_distance_mi: e.longestDistanceMi ?? null,
+            trips_last_12_months: e.tripsLast12Months ?? null,
+            years_experience: e.yearsExperience ?? null,
+            certifications: e.certifications,
+            terrain_comfort: e.terrainComfort,
+            water_comfort: e.waterComfort ?? null,
+          }))
+        );
+
+      if (expError) {
+        console.error("Failed to save experience:", expError);
+      }
+    }
+
+    // Save preferences (upsert)
+    if (preferences) {
+      await supabase.from("user_preferences").delete().eq("user_id", user.id);
+
+      const { error: prefError } = await supabase
+        .from("user_preferences")
+        .insert({
+          user_id: user.id,
+          has_car: preferences.hasCar ?? null,
+          willing_to_carpool: preferences.willingToCarpool ?? null,
+          max_drive_distance_mi: preferences.maxDriveDistanceMi ?? null,
+          preferred_group_size: preferences.preferredGroupSize ?? null,
+          preferred_time_of_day: preferences.preferredTimeOfDay,
+          weekday_availability: preferences.weekdayAvailability,
+          weekend_availability: preferences.weekendAvailability,
+          gear_level: preferences.gearLevel ?? null,
+          overnight_comfort: preferences.overnightComfort ?? null,
+          fitness_level: preferences.fitnessLevel ?? null,
+          comfort_with_strangers: preferences.comfortWithStrangers ?? null,
+          accessibility_notes: preferences.accessibilityNotes ?? null,
+        });
+
+      if (prefError) {
+        console.error("Failed to save preferences:", prefError);
       }
     }
 

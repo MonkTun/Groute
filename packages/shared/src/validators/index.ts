@@ -106,5 +106,83 @@ export const onboardingProfileSchema = z.object({
     .min(1, "Select at least one activity"),
 });
 
+// ── Experience (per sport) ──
+
+export const terrainComfortSchema = z.enum([
+  "trail",
+  "off_trail",
+  "scramble",
+  "technical",
+  "snow_ice",
+]);
+
+export const waterComfortSchema = z.enum([
+  "flatwater",
+  "class_i_ii",
+  "class_iii_iv",
+  "class_v",
+  "open_ocean",
+]);
+
+export const certificationSchema = z.enum([
+  "wilderness_first_aid",
+  "wilderness_first_responder",
+  "belay_certified",
+  "lead_climbing",
+  "avalanche_level_1",
+  "avalanche_level_2",
+  "dive_certified",
+  "swift_water_rescue",
+  "lifeguard",
+  "cpr_aed",
+]);
+
+export const userExperienceSchema = z.object({
+  sportType: sportTypeSchema,
+  highestAltitudeFt: z.number().int().min(0).max(30_000).optional(),
+  longestDistanceMi: z.number().int().min(0).max(500).optional(),
+  tripsLast12Months: z.number().int().min(0).max(365).optional(),
+  yearsExperience: z.number().int().min(0).max(80).optional(),
+  certifications: z.array(certificationSchema).default([]),
+  terrainComfort: z.array(terrainComfortSchema).default([]),
+  waterComfort: waterComfortSchema.optional(),
+});
+
+// ── Preferences (logistics, gear, social) ──
+
+export const hasCarSchema = z.enum(["yes", "no", "sometimes"]);
+export const willingToCarpoolSchema = z.enum(["yes", "no", "within_radius"]);
+export const preferredGroupSizeSchema = z.enum(["duo", "small", "medium", "large"]);
+export const preferredTimeOfDaySchema = z.enum(["early_morning", "morning", "afternoon", "evening"]);
+export const gearLevelSchema = z.enum(["none", "basic", "full"]);
+export const overnightComfortSchema = z.enum(["day_only", "car_camping", "backcountry"]);
+export const fitnessLevelSchema = z.enum(["casual", "active", "athletic", "competitive"]);
+export const comfortWithStrangersSchema = z.enum(["friends_only", "friends_of_friends", "open"]);
+
+export const userPreferencesSchema = z.object({
+  hasCar: hasCarSchema.optional(),
+  willingToCarpool: willingToCarpoolSchema.optional(),
+  maxDriveDistanceMi: z.number().int().min(5).max(500).optional(),
+  preferredGroupSize: preferredGroupSizeSchema.optional(),
+  preferredTimeOfDay: z.array(preferredTimeOfDaySchema).default([]),
+  weekdayAvailability: z.boolean().default(false),
+  weekendAvailability: z.boolean().default(true),
+  gearLevel: gearLevelSchema.optional(),
+  overnightComfort: overnightComfortSchema.optional(),
+  fitnessLevel: fitnessLevelSchema.optional(),
+  comfortWithStrangers: comfortWithStrangersSchema.optional(),
+  accessibilityNotes: z.string().max(500).optional(),
+});
+
+// ── Extended onboarding schema (includes experience + preferences) ──
+
+export const onboardingProfileExtendedSchema = onboardingProfileSchema.extend({
+  experience: z.array(userExperienceSchema).optional(),
+  preferences: userPreferencesSchema.optional(),
+});
+
 export type OnboardingProfileInput = z.infer<typeof onboardingProfileSchema>;
+export type OnboardingProfileExtendedInput = z.infer<typeof onboardingProfileExtendedSchema>;
 export type UserSportInput = z.infer<typeof userSportSchema>;
+export type UserExperienceInput = z.infer<typeof userExperienceSchema>;
+export type UserPreferencesInput = z.infer<typeof userPreferencesSchema>;

@@ -125,3 +125,137 @@ export const SURFACE_LABELS: Record<string, string> = {
 };
 
 export const DEFAULT_TRAIL_SEARCH_RADIUS_METERS = 8_000; // ~5 miles
+
+// ── Onboarding: Experience & Preferences ──
+
+export const TERRAIN_COMFORT_OPTIONS = [
+  "trail",
+  "off_trail",
+  "scramble",
+  "technical",
+  "snow_ice",
+] as const;
+
+export const TERRAIN_COMFORT_LABELS: Record<string, string> = {
+  trail: "Trail",
+  off_trail: "Off-trail",
+  scramble: "Scramble",
+  technical: "Technical",
+  snow_ice: "Snow / Ice",
+};
+
+export const WATER_COMFORT_OPTIONS = [
+  "flatwater",
+  "class_i_ii",
+  "class_iii_iv",
+  "class_v",
+  "open_ocean",
+] as const;
+
+export const WATER_COMFORT_LABELS: Record<string, string> = {
+  flatwater: "Flatwater",
+  class_i_ii: "Class I-II rapids",
+  class_iii_iv: "Class III-IV rapids",
+  class_v: "Class V rapids",
+  open_ocean: "Open ocean",
+};
+
+export const CERTIFICATION_OPTIONS = [
+  "wilderness_first_aid",
+  "wilderness_first_responder",
+  "belay_certified",
+  "lead_climbing",
+  "avalanche_level_1",
+  "avalanche_level_2",
+  "dive_certified",
+  "swift_water_rescue",
+  "lifeguard",
+  "cpr_aed",
+] as const;
+
+export const CERTIFICATION_LABELS: Record<string, string> = {
+  wilderness_first_aid: "Wilderness First Aid",
+  wilderness_first_responder: "Wilderness First Responder",
+  belay_certified: "Belay Certified",
+  lead_climbing: "Lead Climbing Certified",
+  avalanche_level_1: "Avalanche Level 1",
+  avalanche_level_2: "Avalanche Level 2",
+  dive_certified: "Dive Certified (PADI/SSI)",
+  swift_water_rescue: "Swift Water Rescue",
+  lifeguard: "Lifeguard",
+  cpr_aed: "CPR / AED",
+};
+
+export const HAS_CAR_OPTIONS = ["yes", "no", "sometimes"] as const;
+
+export const HAS_CAR_LABELS: Record<string, string> = {
+  yes: "Yes",
+  no: "No",
+  sometimes: "Sometimes",
+};
+
+export const WILLING_TO_CARPOOL_OPTIONS = ["yes", "no", "within_radius"] as const;
+
+export const WILLING_TO_CARPOOL_LABELS: Record<string, string> = {
+  yes: "Yes, happy to!",
+  no: "No",
+  within_radius: "Within a certain distance",
+};
+
+export const MAX_DRIVE_DISTANCE_OPTIONS = [10, 25, 50, 100] as const;
+
+export const PREFERRED_GROUP_SIZE_OPTIONS = ["duo", "small", "medium", "large"] as const;
+
+export const PREFERRED_GROUP_SIZE_LABELS: Record<string, string> = {
+  duo: "1-on-1",
+  small: "Small (2-4)",
+  medium: "Medium (5-8)",
+  large: "Large (8+)",
+};
+
+export const PREFERRED_TIME_OF_DAY_OPTIONS = [
+  "early_morning",
+  "morning",
+  "afternoon",
+  "evening",
+] as const;
+
+export const PREFERRED_TIME_OF_DAY_LABELS: Record<string, string> = {
+  early_morning: "Early morning (before 7am)",
+  morning: "Morning (7am-12pm)",
+  afternoon: "Afternoon (12-5pm)",
+  evening: "Evening (after 5pm)",
+};
+
+export const GEAR_LEVEL_OPTIONS = ["none", "basic", "full"] as const;
+
+export const GEAR_LEVEL_LABELS: Record<string, string> = {
+  none: "No gear yet",
+  basic: "Basic (day pack, shoes)",
+  full: "Full kit (tent, stove, etc.)",
+};
+
+export const OVERNIGHT_COMFORT_OPTIONS = ["day_only", "car_camping", "backcountry"] as const;
+
+export const OVERNIGHT_COMFORT_LABELS: Record<string, string> = {
+  day_only: "Day trips only",
+  car_camping: "Car camping",
+  backcountry: "Backcountry camping",
+};
+
+export const FITNESS_LEVEL_OPTIONS = ["casual", "active", "athletic", "competitive"] as const;
+
+export const FITNESS_LEVEL_LABELS: Record<string, string> = {
+  casual: "Casual",
+  active: "Active",
+  athletic: "Athletic",
+  competitive: "Competitive",
+};
+
+export const COMFORT_WITH_STRANGERS_OPTIONS = ["friends_only", "friends_of_friends", "open"] as const;
+
+export const COMFORT_WITH_STRANGERS_LABELS: Record<string, string> = {
+  friends_only: "Prefer friends only",
+  friends_of_friends: "Friends of friends",
+  open: "Open to anyone",
+};

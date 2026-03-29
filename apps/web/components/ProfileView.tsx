@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Pencil, Camera } from 'lucide-react'
+import { Pencil, Camera, MapPin, Calendar } from 'lucide-react'
 
 import {
   SPORT_LABELS,
@@ -55,6 +55,16 @@ interface UserInfo {
   area: string | null
 }
 
+interface PastActivity {
+  id: string
+  title: string
+  sport_type: string
+  location_name: string
+  scheduled_at: string
+  banner_url: string | null
+  isCreator: boolean
+}
+
 interface NotificationData {
   id: string
   type: string
@@ -71,9 +81,10 @@ interface ProfileViewProps {
   incomingFollows?: UserInfo[]
   notifications?: NotificationData[]
   currentUserId?: string
+  pastActivities?: PastActivity[]
 }
 
-export function ProfileView({ profile, sports: initialSports, friends = [], incomingFollows = [], notifications = [], currentUserId }: ProfileViewProps) {
+export function ProfileView({ profile, sports: initialSports, friends = [], incomingFollows = [], notifications = [], currentUserId, pastActivities = [] }: ProfileViewProps) {
   const router = useRouter()
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -335,6 +346,66 @@ export function ProfileView({ profile, sports: initialSports, friends = [], inco
             </CardContent>
           </Card>
 
+          {/* Past Activities */}
+          {pastActivities.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Past Activities</CardTitle>
+                <CardAction>
+                  <span className="text-xs text-muted-foreground">
+                    {pastActivities.length} trip{pastActivities.length !== 1 ? 's' : ''}
+                  </span>
+                </CardAction>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {pastActivities.map((activity) => (
+                    <a
+                      key={activity.id}
+                      href={`/activity/${activity.id}`}
+                      className="flex items-center gap-3 rounded-lg border border-border p-2.5 transition-colors hover:bg-muted/50"
+                    >
+                      {activity.banner_url ? (
+                        <img
+                          src={activity.banner_url}
+                          alt=""
+                          className="size-12 rounded-md object-cover"
+                        />
+                      ) : (
+                        <div className="flex size-12 items-center justify-center rounded-md bg-muted text-lg">
+                          {SPORT_LABELS[activity.sport_type]?.[0] ?? '?'}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="truncate text-sm font-medium">{activity.title}</p>
+                          {activity.isCreator && (
+                            <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                              HOST
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <MapPin className="size-3" />
+                            {activity.location_name}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Calendar className="size-3" />
+                            {new Date(activity.scheduled_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </span>
+                        </div>
+                      </div>
+                      <span className="rounded-md bg-muted px-2 py-1 text-[10px]">
+                        {SPORT_LABELS[activity.sport_type] ?? activity.sport_type}
+                      </span>
+                    </a>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Friends */}
           <Card>
             <CardHeader>
@@ -429,6 +500,20 @@ export function ProfileView({ profile, sports: initialSports, friends = [], inco
         </div>
       </div>
     )
+  }
+
+  async function handleRestartOnboarding() {
+    try {
+      await fetch('/api/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resetOnboarding: true }),
+      })
+      router.push('/onboarding')
+      router.refresh()
+    } catch {
+      // ignore
+    }
   }
 
   // ── Edit mode ──
@@ -644,6 +729,18 @@ export function ProfileView({ profile, sports: initialSports, friends = [], inco
             )}
           </CardContent>
         </Card>
+
+        {/* Restart Onboarding */}
+        <div className="flex justify-center pt-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-muted-foreground"
+            onClick={handleRestartOnboarding}
+          >
+            Restart Onboarding
+          </Button>
+        </div>
       </div>
     </div>
   )

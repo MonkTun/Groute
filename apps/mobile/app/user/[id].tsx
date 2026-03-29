@@ -46,6 +46,21 @@ interface UserSport {
   self_reported_level: string
 }
 
+interface PastActivity {
+  id: string
+  title: string
+  sport_type: string
+  location_name: string
+  scheduled_at: string
+  banner_url: string | null
+  isCreator: boolean
+}
+
+interface ActivityHistoryData {
+  activities: PastActivity[]
+  stats: { totalTrips: number; uniqueSports: number; peopleMet: number } | null
+}
+
 export default function UserProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const { user } = useSession()
@@ -56,6 +71,7 @@ export default function UserProfileScreen() {
   const [isMutual, setIsMutual] = useState(false)
   const [mutualFriendCount, setMutualFriendCount] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
+  const [activityHistory, setActivityHistory] = useState<ActivityHistoryData | null>(null)
 
   const isMe = id === user?.id
 
@@ -63,14 +79,21 @@ export default function UserProfileScreen() {
     async function load() {
       if (!user) return
 
-      const { data } = await apiFetch<UserProfile>(`/api/users/${id}`)
+      const [profileResult, historyResult] = await Promise.all([
+        apiFetch<UserProfile>(`/api/users/${id}`),
+        apiFetch<ActivityHistoryData>(`/api/users/${id}/activities?limit=10`),
+      ])
 
-      if (data) {
-        setProfile(data)
-        setSports(data.sports ?? [])
-        setIsFollowing(data.isFollowing ?? false)
-        setIsMutual(data.isFollowing && data.mutualFriendCount > 0)
-        setMutualFriendCount(data.mutualFriendCount ?? 0)
+      if (profileResult.data) {
+        setProfile(profileResult.data)
+        setSports(profileResult.data.sports ?? [])
+        setIsFollowing(profileResult.data.isFollowing ?? false)
+        setIsMutual(profileResult.data.isFollowing && profileResult.data.mutualFriendCount > 0)
+        setMutualFriendCount(profileResult.data.mutualFriendCount ?? 0)
+      }
+
+      if (historyResult.data) {
+        setActivityHistory(historyResult.data)
       }
 
       setIsLoading(false)
@@ -201,6 +224,64 @@ export default function UserProfileScreen() {
         </View>
       </View>
 
+      {/* Activity History */}
+      {activityHistory && activityHistory.stats && activityHistory.stats.totalTrips > 0 && (
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Past Activities</Text>
+
+          {/* Stats row */}
+          <View style={s.statsCards}>
+            <View style={s.statCard}>
+              <Text style={s.statNumber}>{activityHistory.stats.totalTrips}</Text>
+              <Text style={s.statLabel}>Trips</Text>
+            </View>
+            <View style={s.statCard}>
+              <Text style={s.statNumber}>{activityHistory.stats.uniqueSports}</Text>
+              <Text style={s.statLabel}>Sports</Text>
+            </View>
+            <View style={s.statCard}>
+              <Text style={s.statNumber}>{activityHistory.stats.peopleMet}</Text>
+              <Text style={s.statLabel}>People met</Text>
+            </View>
+          </View>
+
+          {/* Activity list */}
+          {activityHistory.activities.map((activity) => (
+            <Pressable
+              key={activity.id}
+              style={s.activityRow}
+              onPress={() => router.push(`/activity/${activity.id}`)}
+            >
+              {activity.banner_url ? (
+                <Image source={{ uri: activity.banner_url }} style={s.activityThumb} />
+              ) : (
+                <View style={s.activityThumbFallback}>
+                  <Text style={s.activityThumbText}>
+                    {(SPORT_LABELS[activity.sport_type] ?? '?')[0]}
+                  </Text>
+                </View>
+              )}
+              <View style={s.activityInfo}>
+                <View style={s.activityTitleRow}>
+                  <Text style={s.activityTitle} numberOfLines={1}>{activity.title}</Text>
+                  {activity.isCreator && (
+                    <View style={s.hostBadge}>
+                      <Text style={s.hostBadgeText}>HOST</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={s.activityMeta} numberOfLines={1}>
+                  {activity.location_name} · {new Date(activity.scheduled_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                </Text>
+              </View>
+              <View style={s.activitySportBadge}>
+                <Text style={s.activitySportText}>{SPORT_LABELS[activity.sport_type] ?? activity.sport_type}</Text>
+              </View>
+            </Pressable>
+          ))}
+        </View>
+      )}
+
       <View style={{ height: 40 }} />
     </ScrollView>
   )
@@ -243,4 +324,22 @@ const s = StyleSheet.create({
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#f0f0f0' },
   infoLabel: { fontSize: 14, color: C.textMuted },
   infoValue: { fontSize: 14, fontWeight: '500', color: C.text },
+
+  // Activity history
+  statsCards: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  statCard: { flex: 1, backgroundColor: C.card, borderRadius: 10, borderWidth: 1, borderColor: C.border, alignItems: 'center', paddingVertical: 12 },
+  statNumber: { fontSize: 20, fontWeight: '700', color: C.primary },
+  statLabel: { fontSize: 11, color: C.textMuted, marginTop: 2 },
+  activityRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.card, borderRadius: 10, borderWidth: 1, borderColor: C.border, padding: 10, marginBottom: 8 },
+  activityThumb: { width: 44, height: 44, borderRadius: 8 },
+  activityThumbFallback: { width: 44, height: 44, borderRadius: 8, backgroundColor: '#f0f0f0', alignItems: 'center', justifyContent: 'center' },
+  activityThumbText: { fontSize: 18, fontWeight: '600', color: C.textMuted },
+  activityInfo: { flex: 1 },
+  activityTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  activityTitle: { fontSize: 14, fontWeight: '600', color: C.text, flexShrink: 1 },
+  hostBadge: { backgroundColor: C.primaryMuted, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
+  hostBadgeText: { fontSize: 9, fontWeight: '700', color: C.primary },
+  activityMeta: { fontSize: 12, color: C.textMuted, marginTop: 2 },
+  activitySportBadge: { backgroundColor: '#f0f0f0', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
+  activitySportText: { fontSize: 10, fontWeight: '500', color: C.textSecondary },
 })
