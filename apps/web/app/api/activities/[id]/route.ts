@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { createApiClient } from "@/lib/supabase/api";
+import { getTrailGeometry, getApproachRoute } from "@/lib/trails";
 
 // GET: fetch a single activity with full details
 export async function GET(
@@ -72,6 +73,57 @@ export async function GET(
     joinedAt: p.joined_at,
     user: Array.isArray(p.user) ? p.user[0] : p.user,
   }));
+
+  // Backfill: if trail exists but geometry is missing, fetch and store it
+  const needsTrailGeo = activity.trail_osm_id && !activity.trail_geometry;
+  const needsApproachGeo =
+    activity.trail_osm_id &&
+    activity.location_lat &&
+    activity.location_lng &&
+    activity.trailhead_lat &&
+    activity.trailhead_lng &&
+    !activity.approach_geometry;
+
+  if (needsTrailGeo || needsApproachGeo) {
+    // Non-blocking — respond immediately, backfill in background
+    Promise.all([
+      needsTrailGeo
+        ? getTrailGeometry(activity.trail_osm_id!)
+        : Promise.resolve(null),
+      needsApproachGeo
+        ? getApproachRoute(
+            parseFloat(activity.location_lat!),
+            parseFloat(activity.location_lng!),
+            parseFloat(activity.trailhead_lat!),
+            parseFloat(activity.trailhead_lng!)
+          )
+        : Promise.resolve(null),
+    ])
+      .then(async ([trailGeo, approachRoute]) => {
+        const updates: Record<string, unknown> = {};
+        if (trailGeo) updates.trail_geometry = JSON.stringify(trailGeo);
+        if (approachRoute) {
+          updates.approach_geometry = JSON.stringify(
+            approachRoute.coordinates
+          );
+          if (!activity.trail_approach_distance_m) {
+            updates.trail_approach_distance_m = approachRoute.distanceMeters;
+          }
+          if (!activity.trail_approach_duration_s) {
+            updates.trail_approach_duration_s = approachRoute.durationSeconds;
+          }
+        }
+        if (Object.keys(updates).length > 0) {
+          await supabase
+            .from("activities")
+            .update(updates)
+            .eq("id", activityId);
+        }
+      })
+      .catch((err) => {
+        console.error("Trail geometry backfill failed:", err);
+      });
+  }
 
   return NextResponse.json({
     data: {

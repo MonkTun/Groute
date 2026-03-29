@@ -20,6 +20,7 @@ import { useSession } from '../../lib/AuthProvider'
 import { apiFetch, apiPost, apiDelete, apiUpload } from '../../lib/api'
 
 const mapboxToken = Constants.expoConfig?.extra?.mapboxToken as string
+const apiUrl = (Constants.expoConfig?.extra?.apiUrl as string) ?? 'http://localhost:3000'
 
 const C = {
   bg: '#fafafa',
@@ -96,9 +97,14 @@ function buildTrailMapHtml(
   trailName: string,
   trailGeometry: string | null,
   approachGeometry: string | null,
+  apiUrl: string,
+  osmId: number,
 ): string {
-  const trailCoords = trailGeometry ? `JSON.parse('${trailGeometry.replace(/'/g, "\\'")}')` : 'null'
-  const approachCoords = approachGeometry ? `JSON.parse('${approachGeometry.replace(/'/g, "\\'")}')` : 'null'
+  // Embed cached geometry directly as JS array literals, or null
+  const trailLiteral = trailGeometry ?? 'null'
+  const approachLiteral = approachGeometry ?? 'null'
+  const safeLocName = locName.replace(/'/g, "\\'").replace(/\n/g, ' ')
+  const safeTrailName = trailName.replace(/'/g, "\\'").replace(/\n/g, ' ')
 
   return `<!DOCTYPE html>
 <html><head>
@@ -121,26 +127,40 @@ mapboxgl.accessToken='${token}';
 var map=new mapboxgl.Map({container:'map',style:'mapbox://styles/mapbox/outdoors-v12',center:[${(locLng + thLng) / 2},${(locLat + thLat) / 2}],zoom:14});
 map.addControl(new mapboxgl.NavigationControl({showCompass:false}),'top-right');
 
-new mapboxgl.Marker({color:'#1a1a1a',scale:0.8}).setLngLat([${locLng},${locLat}]).setPopup(new mapboxgl.Popup({offset:25,closeButton:false}).setText('${locName.replace(/'/g, "\\'")}')).addTo(map);
-new mapboxgl.Marker({color:'#16a34a',scale:0.7}).setLngLat([${thLng},${thLat}]).setPopup(new mapboxgl.Popup({offset:25,closeButton:false}).setText('${trailName.replace(/'/g, "\\'")} trailhead')).addTo(map);
+new mapboxgl.Marker({color:'#1a1a1a',scale:0.8}).setLngLat([${locLng},${locLat}]).setPopup(new mapboxgl.Popup({offset:25,closeButton:false}).setText('${safeLocName}')).addTo(map);
+new mapboxgl.Marker({color:'#16a34a',scale:0.7}).setLngLat([${thLng},${thLat}]).setPopup(new mapboxgl.Popup({offset:25,closeButton:false}).setText('${safeTrailName} trailhead')).addTo(map);
 
 var bounds=new mapboxgl.LngLatBounds();
 bounds.extend([${locLng},${locLat}]);
 bounds.extend([${thLng},${thLat}]);
 
+function addTrail(tc){
+  if(!tc||!tc.length)return;
+  map.addSource('trail',{type:'geojson',data:{type:'Feature',properties:{},geometry:{type:'LineString',coordinates:tc}}});
+  map.addLayer({id:'trail-line',type:'line',source:'trail',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#16a34a','line-width':4,'line-opacity':0.9}});
+  tc.forEach(function(c){bounds.extend(c)});
+  map.fitBounds(bounds,{padding:40,maxZoom:16,duration:300});
+}
+function addApproach(ac){
+  if(!ac||!ac.length)return;
+  map.addSource('approach',{type:'geojson',data:{type:'Feature',properties:{},geometry:{type:'LineString',coordinates:ac}}});
+  map.addLayer({id:'approach-line',type:'line',source:'approach',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#f97316','line-width':3,'line-opacity':0.8,'line-dasharray':[2,2]}});
+}
+
 map.on('load',function(){
-  var tc=${trailCoords};
-  if(tc&&tc.length){
-    map.addSource('trail',{type:'geojson',data:{type:'Feature',properties:{},geometry:{type:'LineString',coordinates:tc}}});
-    map.addLayer({id:'trail-line',type:'line',source:'trail',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#16a34a','line-width':4,'line-opacity':0.9}});
-    tc.forEach(function(c){bounds.extend(c)});
+  var tc=${trailLiteral};
+  var ac=${approachLiteral};
+  if(tc){addTrail(tc);addApproach(ac);map.fitBounds(bounds,{padding:40,maxZoom:16,duration:0});}
+  else{
+    // Fallback: fetch geometry from API if not cached
+    fetch('${apiUrl}/api/trails/geometry?osmId=${osmId}').then(function(r){return r.json()}).then(function(d){
+      if(d.data)addTrail(d.data);
+    }).catch(function(){});
+    fetch('${apiUrl}/api/trails/approach?fromLat=${locLat}&fromLng=${locLng}&toLat=${thLat}&toLng=${thLng}').then(function(r){return r.json()}).then(function(d){
+      if(d.data&&d.data.coordinates)addApproach(d.data.coordinates);
+      map.fitBounds(bounds,{padding:40,maxZoom:16,duration:300});
+    }).catch(function(){});
   }
-  var ac=${approachCoords};
-  if(ac&&ac.length){
-    map.addSource('approach',{type:'geojson',data:{type:'Feature',properties:{},geometry:{type:'LineString',coordinates:ac}}});
-    map.addLayer({id:'approach-line',type:'line',source:'approach',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#f97316','line-width':3,'line-opacity':0.8,'line-dasharray':[2,2]}});
-  }
-  map.fitBounds(bounds,{padding:40,maxZoom:16,duration:0});
 });
 </` + `script>
 </body></html>`
@@ -264,11 +284,6 @@ export default function ActivityDetailScreen() {
     && !!activity.location_lat && !!activity.location_lng
     && !!activity.trailhead_lat && !!activity.trailhead_lng
 
-  // Debug: log trail data to help diagnose visibility issues
-  if (__DEV__) {
-    console.log('[ActivityDetail] trail_name:', activity.trail_name, '| trail_osm_id:', activity.trail_osm_id, '| hasTrail:', hasTrail, '| hasTrailMap:', hasTrailMap, '| location_lat:', activity.location_lat, '| trailhead_lat:', activity.trailhead_lat)
-  }
-
   return (
     <>
     <ScrollView style={st.container}>
@@ -327,13 +342,6 @@ export default function ActivityDetailScreen() {
           </View>
         </View>
 
-        {/* Trail debug — temporarily visible to diagnose */}
-        <View style={{ backgroundColor: '#fef3c7', borderRadius: 8, padding: 8, marginTop: 10 }}>
-          <Text style={{ fontSize: 11, color: '#92400e' }}>
-            Trail debug: name={activity.trail_name ?? 'null'} | osm={String(activity.trail_osm_id ?? 'null')} | locLat={activity.location_lat ?? 'null'} | thLat={activity.trailhead_lat ?? 'null'} | hasTrail={String(hasTrail)} | hasMap={String(hasTrailMap)}
-          </Text>
-        </View>
-
         {/* Trail info + map */}
         {hasTrail && (
           <View style={st.trailSection}>
@@ -353,6 +361,8 @@ export default function ActivityDetailScreen() {
                     activity.trail_name!,
                     activity.trail_geometry,
                     activity.approach_geometry,
+                    apiUrl,
+                    activity.trail_osm_id!,
                   ) }}
                   style={st.trailMap}
                   scrollEnabled={false}

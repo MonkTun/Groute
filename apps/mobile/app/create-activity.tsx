@@ -77,12 +77,95 @@ map.on('moveend',function(){var c=map.getCenter();window.ReactNativeWebView.post
 </body></html>`
 }
 
+function buildTrailPickerMapHtml(
+  token: string,
+  locLat: number,
+  locLng: number,
+  trails: Trail[],
+  selectedOsmId: number | null,
+): string {
+  const features = trails.map((t) => ({
+    type: 'Feature',
+    properties: { osmId: t.osmId, name: t.name },
+    geometry: {
+      type: 'LineString',
+      coordinates: t.coordinates.map(([lat, lng]: [number, number]) => [lng, lat]),
+    },
+  }))
+  const geojson = JSON.stringify({ type: 'FeatureCollection', features })
+
+  return `<!DOCTYPE html>
+<html><head>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<link href="https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.css" rel="stylesheet">
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.js"></` + `script>
+<style>body{margin:0}#map{width:100%;height:100vh}.mapboxgl-ctrl-bottom-left,.mapboxgl-ctrl-bottom-right .mapboxgl-ctrl-attrib{display:none}</style>
+</head><body>
+<div id="map"></div>
+<script>
+mapboxgl.accessToken='${token}';
+var map=new mapboxgl.Map({container:'map',style:'mapbox://styles/mapbox/outdoors-v12',center:[${locLng},${locLat}],zoom:13});
+map.addControl(new mapboxgl.NavigationControl({showCompass:false}),'top-right');
+
+new mapboxgl.Marker({color:'#1a1a1a',scale:0.7}).setLngLat([${locLng},${locLat}]).addTo(map);
+
+var selectedId=${selectedOsmId ?? 'null'};
+var mapReady=false;
+
+map.on('load',function(){
+  map.addSource('trails',{type:'geojson',data:${geojson}});
+  map.addLayer({id:'trails-default',type:'line',source:'trails',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#94a3b8','line-width':3.5,'line-opacity':0.7}});
+  map.addLayer({id:'trails-selected',type:'line',source:'trails',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#16a34a','line-width':5,'line-opacity':1},filter:['==',['get','osmId'],selectedId||-1]});
+
+  // Approach route layer (empty until RN injects coordinates)
+  map.addSource('approach',{type:'geojson',data:{type:'Feature',properties:{},geometry:{type:'LineString',coordinates:[]}}});
+  map.addLayer({id:'approach-line',type:'line',source:'approach',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#f97316','line-width':3,'line-opacity':0.8,'line-dasharray':[2,2]}});
+
+  var bounds=new mapboxgl.LngLatBounds();
+  bounds.extend([${locLng},${locLat}]);
+  var fc=${geojson};
+  if(fc.features.length){fc.features.forEach(function(f){f.geometry.coordinates.forEach(function(c){bounds.extend(c)})})}
+  map.fitBounds(bounds,{padding:40,maxZoom:15,duration:0});
+
+  map.on('click','trails-default',function(e){
+    var f=e.features&&e.features[0];
+    if(f){window.ReactNativeWebView.postMessage(JSON.stringify({type:'selectTrail',osmId:f.properties.osmId}))}
+  });
+  map.on('click','trails-selected',function(e){
+    var f=e.features&&e.features[0];
+    if(f){window.ReactNativeWebView.postMessage(JSON.stringify({type:'deselectTrail'}))}
+  });
+  mapReady=true;
+});
+
+// Called from RN to update trail selection highlight
+window.updateSelection=function(osmId){
+  if(!mapReady)return;
+  selectedId=osmId;
+  map.setFilter('trails-selected',['==',['get','osmId'],osmId||-1]);
+  map.setPaintProperty('trails-default','line-opacity',osmId?0.3:0.7);
+};
+
+// Called from RN to set/clear approach route coordinates
+window.setApproachCoords=function(coords){
+  if(!mapReady||!map.getSource('approach'))return;
+  if(coords&&coords.length){
+    map.getSource('approach').setData({type:'Feature',properties:{},geometry:{type:'LineString',coordinates:coords}});
+  }else{
+    map.getSource('approach').setData({type:'Feature',properties:{},geometry:{type:'LineString',coordinates:[]}});
+  }
+};
+</` + `script>
+</body></html>`
+}
+
 export default function CreateActivityScreen() {
   const { user } = useSession()
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const params = useLocalSearchParams<{ lat?: string; lng?: string }>()
   const webViewRef = useRef<WebView>(null)
+  const trailMapRef = useRef<WebView>(null)
 
   const initLat = params.lat ? parseFloat(params.lat) : 34.0522
   const initLng = params.lng ? parseFloat(params.lng) : -118.2437
@@ -185,21 +268,27 @@ export default function CreateActivityScreen() {
     return () => { cancelled = true }
   }, [step, locationLat, locationLng, isTrailSport])
 
-  // Fetch approach route when trail is selected
+  // Fetch approach route when trail is selected — inject into WebView map
   useEffect(() => {
     if (!selectedTrail) {
       setApproachDuration(null)
       setApproachDistance(null)
+      // Clear approach line on map
+      trailMapRef.current?.injectJavaScript(`window.setApproachCoords(null);true;`)
       return
     }
     let cancelled = false
     ;(async () => {
-      const { data } = await apiFetch<{ distanceMeters: number; durationSeconds: number }>(
+      const { data } = await apiFetch<{ distanceMeters: number; durationSeconds: number; coordinates: [number, number][] }>(
         `/api/trails/approach?fromLat=${locationLat}&fromLng=${locationLng}&toLat=${selectedTrail.trailheadLat}&toLng=${selectedTrail.trailheadLng}`
       )
       if (!cancelled && data) {
         setApproachDuration(data.durationSeconds)
         setApproachDistance(data.distanceMeters)
+        // Send coordinates to WebView map
+        if (data.coordinates) {
+          trailMapRef.current?.injectJavaScript(`window.setApproachCoords(${JSON.stringify(data.coordinates)});true;`)
+        }
       }
     })()
     return () => { cancelled = true }
@@ -467,7 +556,42 @@ export default function CreateActivityScreen() {
       {/* ── Step 2: Trail Selection ── */}
       {step === 2 && (
         <View style={s.flex}>
-          <ScrollView contentContainerStyle={s.trailScroll}>
+          {/* Trail map — top half */}
+          {!isLoadingTrails && trails.length > 0 && (
+            <View style={s.trailPickerMapWrap}>
+              <WebView
+                ref={trailMapRef}
+                source={{ html: buildTrailPickerMapHtml(
+                  mapboxToken,
+                  locationLat,
+                  locationLng,
+                  trails,
+                  selectedTrail?.osmId ?? null,
+                ) }}
+                style={s.trailPickerMap}
+                scrollEnabled={false}
+                javaScriptEnabled
+                onMessage={(event) => {
+                  try {
+                    const msg = JSON.parse(event.nativeEvent.data)
+                    if (msg.type === 'selectTrail') {
+                      const trail = trails.find((t) => t.osmId === msg.osmId)
+                      if (trail) {
+                        setSelectedTrail(trail)
+                        trailMapRef.current?.injectJavaScript(`window.updateSelection(${msg.osmId});true;`)
+                      }
+                    } else if (msg.type === 'deselectTrail') {
+                      setSelectedTrail(null)
+                      trailMapRef.current?.injectJavaScript(`window.updateSelection(null);true;`)
+                    }
+                  } catch {}
+                }}
+              />
+            </View>
+          )}
+
+          {/* Trail list — bottom half */}
+          <ScrollView contentContainerStyle={s.trailScroll} style={s.flex}>
             <Text style={s.sectionTitle}>Select a trail (optional)</Text>
             <Text style={s.trailSubtitle}>
               {locationName ? `Near ${locationName}` : 'Nearby trails'}
@@ -489,7 +613,11 @@ export default function CreateActivityScreen() {
                   <Pressable
                     key={trail.osmId}
                     style={[s.trailCard, isSelected && s.trailCardSelected]}
-                    onPress={() => setSelectedTrail(isSelected ? null : trail)}
+                    onPress={() => {
+                      const next = isSelected ? null : trail
+                      setSelectedTrail(next)
+                      trailMapRef.current?.injectJavaScript(`window.updateSelection(${next ? next.osmId : 'null'});true;`)
+                    }}
                   >
                     <View style={s.trailCardHeader}>
                       {isSelected && <Text style={s.trailCheckMark}>{'\u2713'}</Text>}
@@ -746,6 +874,8 @@ const s = StyleSheet.create({
   bottomBar: { padding: 14, paddingBottom: 34, borderTopWidth: 1, borderTopColor: C.border, backgroundColor: C.card },
 
   // Step 2: Trail
+  trailPickerMapWrap: { height: 220, borderBottomWidth: 1, borderBottomColor: C.border },
+  trailPickerMap: { flex: 1, backgroundColor: '#e8e0d8' },
   trailScroll: { padding: 20, paddingBottom: 20 },
   trailSubtitle: { fontSize: 14, color: C.textSecondary, marginBottom: 16 },
   trailLoading: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 20 },

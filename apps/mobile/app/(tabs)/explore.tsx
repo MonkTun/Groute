@@ -264,6 +264,9 @@ export default function ExploreScreen() {
   const [friends, setFriends] = useState<FriendPin[]>([])
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [isSearching, setIsSearching] = useState(false)
+  const [aiRankedIds, setAiRankedIds] = useState<string[] | null>(null)
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [selectedSport, setSelectedSport] = useState<string | null>(null)
   const [timeframeDays, setTimeframeDays] = useState(7)
   const [showTimePicker, setShowTimePicker] = useState(false)
@@ -375,23 +378,76 @@ export default function ExploreScreen() {
     }
   }, [pathname]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const filtered = activities.filter((a) => {
-    if (selectedSport && a.sport_type !== selectedSport) return false
-    const scheduled = new Date(a.scheduled_at)
-    const endDate = new Date()
-    endDate.setDate(endDate.getDate() + timeframeDays)
-    endDate.setHours(23, 59, 59)
-    if (scheduled > endDate) return false
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase()
-      if (
-        !a.title.toLowerCase().includes(q) &&
-        !a.location_name.toLowerCase().includes(q) &&
-        !(SPORT_LABELS[a.sport_type] ?? a.sport_type).toLowerCase().includes(q)
-      ) return false
+  const filtered = (() => {
+    let result = activities.filter((a) => {
+      if (selectedSport && a.sport_type !== selectedSport) return false
+      const scheduled = new Date(a.scheduled_at)
+      const endDate = new Date()
+      endDate.setDate(endDate.getDate() + timeframeDays)
+      endDate.setHours(23, 59, 59)
+      if (scheduled > endDate) return false
+      // When AI-ranked, rely on rankedIds for filtering; otherwise fallback to substring
+      if (searchQuery.trim() && !aiRankedIds) {
+        const q = searchQuery.toLowerCase()
+        if (
+          !a.title.toLowerCase().includes(q) &&
+          !a.location_name.toLowerCase().includes(q) &&
+          !(SPORT_LABELS[a.sport_type] ?? a.sport_type).toLowerCase().includes(q)
+        ) return false
+      }
+      return true
+    })
+    // Apply AI ranking if available
+    if (aiRankedIds && aiRankedIds.length > 0) {
+      const rankMap = new Map(aiRankedIds.map((id, i) => [id, i]))
+      result.sort((a, b) => (rankMap.get(a.id) ?? 9999) - (rankMap.get(b.id) ?? 9999))
     }
-    return true
-  })
+    return result
+  })()
+
+  async function handleAiSearch(query: string) {
+    if (!query.trim() || query.trim().length < 3) {
+      setAiRankedIds(null)
+      return
+    }
+    setIsSearching(true)
+    try {
+      const { data } = await apiPost<{
+        sport: string | null
+        skill: string | null
+        timeframeDays: number | null
+        rankedIds: string[]
+      }>('/api/search', {
+        query: query.trim(),
+        activities: activities.slice(0, 50).map((a) => ({
+          id: a.id,
+          title: a.title,
+          sport_type: a.sport_type,
+          skill_level: a.skill_level,
+          location_name: a.location_name,
+          scheduled_at: a.scheduled_at,
+          trail_name: null,
+        })),
+      })
+      if (data) {
+        if (data.sport) setSelectedSport(data.sport)
+        if (data.rankedIds?.length) setAiRankedIds(data.rankedIds)
+      }
+    } catch {
+      // Fallback: keep substring filtering
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  function handleSearchInput(text: string) {
+    setSearchQuery(text)
+    setAiRankedIds(null)
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+    if (text.trim().length >= 3) {
+      searchTimerRef.current = setTimeout(() => handleAiSearch(text), 600)
+    }
+  }
 
   const activeTimeLabel = TIMEFRAMES.find((t) => t.days === timeframeDays)?.label ?? 'Week'
 
@@ -437,8 +493,8 @@ export default function ExploreScreen() {
         <View style={s.searchOverlay}>
           <SearchBar
             value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholder="Search activities, locations..."
+            onChangeText={handleSearchInput}
+            placeholder='Try "easy hike near Griffith"...'
             overlay
           />
           {searchQuery.trim().length > 0 && (

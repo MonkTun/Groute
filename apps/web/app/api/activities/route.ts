@@ -81,6 +81,56 @@ export async function GET(request: NextRequest) {
     participant_count: (participantCounts[a.id] ?? 0) + 1, // +1 for creator
   }));
 
+  // Backfill missing trail geometries in background
+  for (const a of activitiesWithCounts) {
+    const needsTrailGeo = a.trail_osm_id && !a.trail_geometry;
+    const needsApproachGeo =
+      a.trail_osm_id &&
+      a.location_lat &&
+      a.location_lng &&
+      a.trailhead_lat &&
+      a.trailhead_lng &&
+      !a.approach_geometry;
+
+    if (needsTrailGeo || needsApproachGeo) {
+      Promise.all([
+        needsTrailGeo
+          ? getTrailGeometry(a.trail_osm_id!)
+          : Promise.resolve(null),
+        needsApproachGeo
+          ? getApproachRoute(
+              parseFloat(a.location_lat!),
+              parseFloat(a.location_lng!),
+              parseFloat(a.trailhead_lat!),
+              parseFloat(a.trailhead_lng!)
+            )
+          : Promise.resolve(null),
+      ])
+        .then(async ([trailGeo, approachRoute]) => {
+          const updates: Record<string, unknown> = {};
+          if (trailGeo) updates.trail_geometry = JSON.stringify(trailGeo);
+          if (approachRoute) {
+            updates.approach_geometry = JSON.stringify(
+              approachRoute.coordinates
+            );
+            if (!a.trail_approach_distance_m) {
+              updates.trail_approach_distance_m = approachRoute.distanceMeters;
+            }
+            if (!a.trail_approach_duration_s) {
+              updates.trail_approach_duration_s = approachRoute.durationSeconds;
+            }
+          }
+          if (Object.keys(updates).length > 0) {
+            await supabase
+              .from("activities")
+              .update(updates)
+              .eq("id", a.id);
+          }
+        })
+        .catch(() => {});
+    }
+  }
+
   return NextResponse.json({ data: activitiesWithCounts });
 }
 

@@ -5,7 +5,7 @@ import { Calendar, Search, X } from 'lucide-react'
 
 import { SPORT_LABELS } from '@groute/shared'
 
-import { parseSearchQuery } from '@/lib/searchParser'
+import { parseSearchQuery } from '@/lib/searchParser' // fallback for when AI search is unavailable
 
 import { DiscoverMap, type DiscoverMapHandle } from '@/components/DiscoverMap'
 import { ActivityFeed } from '@/components/ActivityFeed'
@@ -106,6 +106,8 @@ export function DiscoverView({ initialActivities, currentUserId, friends = [] }:
   const [selectedSport, setSelectedSport] = useState<string | null>(null)
   const [selectedSkill, setSelectedSkill] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [isSearching, setIsSearching] = useState(false)
+  const [aiRankedIds, setAiRankedIds] = useState<string[] | null>(null)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [selectedActivity, setSelectedActivity] = useState<ActivityData | null>(null)
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
@@ -160,13 +162,20 @@ export function DiscoverView({ initialActivities, currentUserId, friends = [] }:
         return { ...a, distanceMiles }
       })
 
-    // Sort: nearest first when we have location, otherwise by scheduled date
-    if (userLocation) {
+    // Sort: AI-ranked first, then by distance, then by date
+    if (aiRankedIds && aiRankedIds.length > 0) {
+      const rankMap = new Map(aiRankedIds.map((id, i) => [id, i]))
+      result.sort((a, b) => {
+        const ra = rankMap.get(a.id) ?? 9999
+        const rb = rankMap.get(b.id) ?? 9999
+        return ra - rb
+      })
+    } else if (userLocation) {
       result.sort((a, b) => (a.distanceMiles ?? Infinity) - (b.distanceMiles ?? Infinity))
     }
 
     return result
-  }, [initialActivities, selectedSport, selectedSkill, endDate, userLocation])
+  }, [initialActivities, selectedSport, selectedSkill, endDate, userLocation, aiRankedIds])
 
   const mapActivities = filtered.map((a) => ({
     id: a.id,
@@ -214,22 +223,60 @@ export function DiscoverView({ initialActivities, currentUserId, friends = [] }:
     setEndDate(d.toISOString().slice(0, 10))
   }
 
-  function handleSearch(query: string) {
+  async function handleSearch(query: string) {
     setSearchQuery(query)
-    if (!query.trim()) {
-      // Clear search-applied filters
-      return
+    if (!query.trim()) return
+
+    setIsSearching(true)
+    setAiRankedIds(null)
+
+    try {
+      const res = await fetch('/api/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: query.trim(),
+          activities: initialActivities.slice(0, 50).map((a) => ({
+            id: a.id,
+            title: a.title,
+            sport_type: a.sport_type,
+            skill_level: a.skill_level,
+            location_name: a.location_name,
+            scheduled_at: a.scheduled_at,
+            trail_name: a.trail_name,
+          })),
+        }),
+      })
+
+      if (res.ok) {
+        const { data } = await res.json()
+        if (data.sport) setSelectedSport(data.sport)
+        if (data.skill) setSelectedSkill(data.skill)
+        if (data.timeframeDays != null) setTimeframeDays(data.timeframeDays)
+        if (data.rankedIds?.length) setAiRankedIds(data.rankedIds)
+      } else {
+        // Fallback to keyword parser
+        const parsed = parseSearchQuery(query)
+        if (parsed.sport) setSelectedSport(parsed.sport)
+        if (parsed.skill) setSelectedSkill(parsed.skill)
+        if (parsed.timeframeDays !== null) setTimeframeDays(parsed.timeframeDays)
+      }
+    } catch {
+      // Fallback to keyword parser
+      const parsed = parseSearchQuery(query)
+      if (parsed.sport) setSelectedSport(parsed.sport)
+      if (parsed.skill) setSelectedSkill(parsed.skill)
+      if (parsed.timeframeDays !== null) setTimeframeDays(parsed.timeframeDays)
+    } finally {
+      setIsSearching(false)
     }
-    const parsed = parseSearchQuery(query)
-    if (parsed.sport) setSelectedSport(parsed.sport)
-    if (parsed.skill) setSelectedSkill(parsed.skill)
-    if (parsed.timeframeDays !== null) setTimeframeDays(parsed.timeframeDays)
   }
 
   function clearSearch() {
     setSearchQuery('')
     setSelectedSport(null)
     setSelectedSkill(null)
+    setAiRankedIds(null)
   }
 
   return (
@@ -302,16 +349,21 @@ export function DiscoverView({ initialActivities, currentUserId, friends = [] }:
           {/* Search bar */}
           <div className="shrink-0 border-b border-border/50 px-3 py-2">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/50" />
+              {isSearching ? (
+                <div className="absolute left-3 top-1/2 size-4 -translate-y-1/2 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+              ) : (
+                <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/50" />
+              )}
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(searchQuery) }}
-                placeholder='Try "easy hike this weekend"...'
-                className="h-9 w-full rounded-xl border border-border/50 bg-muted/30 pl-9 pr-8 text-sm outline-none placeholder:text-muted-foreground/40 focus-visible:border-primary/50 focus-visible:ring-2 focus-visible:ring-primary/20 transition-all"
+                placeholder='Try "easy hike near Griffith Park"...'
+                disabled={isSearching}
+                className="h-9 w-full rounded-xl border border-border/50 bg-muted/30 pl-9 pr-8 text-sm outline-none placeholder:text-muted-foreground/40 focus-visible:border-primary/50 focus-visible:ring-2 focus-visible:ring-primary/20 transition-all disabled:opacity-60"
               />
-              {searchQuery && (
+              {searchQuery && !isSearching && (
                 <button
                   onClick={clearSearch}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-muted-foreground hover:text-foreground transition-colors"
