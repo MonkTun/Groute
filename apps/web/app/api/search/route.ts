@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { createApiClient } from "@/lib/supabase/api";
-
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+import { callAI, AIError, getAIConfig } from "@/lib/ai";
 
 interface ActivityForSearch {
   id: string;
@@ -35,8 +34,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!GEMINI_API_KEY) {
-    console.error("[AI Search] GEMINI_API_KEY is not set");
+  const { hasKey } = getAIConfig();
+  if (!hasKey) {
+    console.error("[AI Search] API key is not set");
     return NextResponse.json(
       { error: "Search AI not configured" },
       { status: 503 }
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
     .join("\n");
 
   console.log(
-    `[AI Search] query="${query.trim()}" activities=${activities.length} key=${GEMINI_API_KEY.slice(0, 10)}...`
+    `[AI Search] query="${query.trim()}" activities=${activities.length}`
   );
 
   const systemPrompt = `You are the search engine for Groute, an outdoor activity app for young adults. Given the user's search and a list of activities, return the most relevant ones ranked by relevance.
@@ -129,41 +129,10 @@ Activities:
 ${activityLines || "(none available)"}`;
 
   try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: systemPrompt }] },
-          contents: [{ role: "user", parts: [{ text: userMessage }] }],
-          generationConfig: { maxOutputTokens: 512 },
-        }),
-        signal: AbortSignal.timeout(10_000),
-      }
-    );
+    const result = await callAI(systemPrompt, userMessage, 512);
+    console.log(`[AI Search] Raw: ${result.text.slice(0, 300)}`);
 
-    if (!response.ok) {
-      const errBody = await response.text();
-      console.error(
-        `[AI Search] Gemini API error ${response.status}:`,
-        errBody
-      );
-      return NextResponse.json(
-        {
-          error: "Search failed",
-          debug: { status: response.status, body: errBody.slice(0, 200) },
-        },
-        { status: 502 }
-      );
-    }
-
-    const data = await response.json();
-    const text =
-      data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-    console.log(`[AI Search] Raw: ${text.slice(0, 300)}`);
-
-    const jsonStr = text
+    const jsonStr = result.text
       .replace(/```json?\n?/g, "")
       .replace(/```/g, "")
       .trim();
@@ -181,6 +150,15 @@ ${activityLines || "(none available)"}`;
     return NextResponse.json({ data: parsed });
   } catch (err) {
     console.error("[AI Search] Error:", err);
+    if (err instanceof AIError) {
+      return NextResponse.json(
+        {
+          error: "Search failed",
+          debug: { status: err.status, body: err.body.slice(0, 200) },
+        },
+        { status: 502 }
+      );
+    }
     return NextResponse.json(
       {
         error: "Search failed",

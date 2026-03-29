@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { createApiClient } from "@/lib/supabase/api";
+import { callAI, getAIConfig } from "@/lib/ai";
 
 /**
  * GET /api/search/debug — check if AI search is properly configured.
@@ -17,44 +18,25 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  const hasKey = !!apiKey;
-  const keyPrefix = apiKey ? apiKey.slice(0, 10) + "..." : null;
+  const { provider, hasKey, keyPrefix } = getAIConfig();
 
-  // Test the Gemini API with a minimal request
   let apiStatus = "not_tested";
   let apiError: string | null = null;
 
   if (hasKey) {
     try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ role: "user", parts: [{ text: "Say hi" }] }],
-            generationConfig: { maxOutputTokens: 10 },
-          }),
-          signal: AbortSignal.timeout(10_000),
-        }
-      );
-
-      if (res.ok) {
-        apiStatus = "ok";
-      } else {
-        const body = await res.text();
-        apiStatus = `error_${res.status}`;
-        apiError = body.slice(0, 200);
-      }
+      await callAI("You are a test.", "Say hi", 10);
+      apiStatus = "ok";
     } catch (err) {
-      apiStatus = "network_error";
-      apiError = err instanceof Error ? err.message : String(err);
+      apiStatus = "error";
+      apiError =
+        err instanceof Error ? err.message.slice(0, 200) : String(err);
     }
   }
 
   return NextResponse.json({
     data: {
+      provider,
       hasKey,
       keyPrefix,
       apiStatus,
