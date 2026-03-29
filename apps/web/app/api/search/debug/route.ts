@@ -17,30 +17,28 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   const hasKey = !!apiKey;
   const keyPrefix = apiKey ? apiKey.slice(0, 10) + "..." : null;
 
-  // Test the Anthropic API with a minimal request
+  // Test the Gemini API with a minimal request
   let apiStatus = "not_tested";
   let apiError: string | null = null;
 
   if (hasKey) {
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": apiKey!,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 10,
-          messages: [{ role: "user", content: "Say hi" }],
-        }),
-        signal: AbortSignal.timeout(10_000),
-      });
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ role: "user", parts: [{ text: "Say hi" }] }],
+            generationConfig: { maxOutputTokens: 10 },
+          }),
+          signal: AbortSignal.timeout(10_000),
+        }
+      );
 
       if (res.ok) {
         apiStatus = "ok";

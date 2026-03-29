@@ -138,10 +138,23 @@ export function RightNowView({ activities, userSports, userId, friendIds = [] }:
         </p>
       </div>
 
-      {/* Search */}
-      <div className="mb-8">
-        <div className="relative">
-          <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/50" />
+      {/* AI Search with animated glow border */}
+      <div className="glow-wrap relative mb-8">
+        {/* Soft outer halo */}
+        <div className="glow-border glow-halo pointer-events-none">
+          <div className="glow-dot glow-a" />
+          <div className="glow-dot glow-b" />
+          <div className="glow-dot glow-c" />
+        </div>
+        {/* Crisp border glow */}
+        <div className="glow-border glow-edge pointer-events-none">
+          <div className="glow-dot glow-a" />
+          <div className="glow-dot glow-b" />
+          <div className="glow-dot glow-c" />
+        </div>
+        {/* Input */}
+        <div className="relative rounded-xl bg-background ring-1 ring-primary/8">
+          <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/50 z-10" />
           <input
             type="text"
             value={searchQuery}
@@ -149,17 +162,65 @@ export function RightNowView({ activities, userSports, userId, friendIds = [] }:
             onKeyDown={(e) => { if (e.key === 'Enter') handleSearch() }}
             placeholder='Try "easy hike tomorrow"...'
             disabled={isSearching}
-            className="h-10 w-full rounded-xl border border-border/50 bg-muted/30 pl-10 pr-9 text-sm outline-none placeholder:text-muted-foreground/40 focus-visible:border-primary/50 focus-visible:ring-2 focus-visible:ring-primary/20 transition-all disabled:opacity-60"
+            className="relative h-10 w-full rounded-xl border-0 bg-background pl-10 pr-9 text-sm outline-none placeholder:text-muted-foreground/40 disabled:opacity-60"
           />
           {searchQuery && !isSearching && (
             <button
               onClick={clearSearch}
-              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-muted-foreground hover:text-foreground transition-colors"
+              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-muted-foreground hover:text-foreground transition-colors z-10"
             >
               <X className="size-3.5" />
             </button>
           )}
         </div>
+        <style dangerouslySetInnerHTML={{ __html: `
+          .glow-border {
+            position: absolute;
+            overflow: hidden;
+          }
+          .glow-halo {
+            inset: -10px;
+            border-radius: 22px;
+            filter: blur(18px);
+            opacity: 0.3;
+          }
+          .glow-edge {
+            inset: -2px;
+            border-radius: 14px;
+            filter: blur(4px);
+            opacity: 0.35;
+          }
+          .glow-dot {
+            position: absolute;
+            border-radius: 50%;
+            background: radial-gradient(circle, #0f8a6e, transparent 50%);
+            offset-path: rect(0% 100% 100% 0% round 12px);
+            animation: glow-run linear infinite;
+          }
+          .glow-a {
+            width: 350px; height: 350px;
+            margin: -175px 0 0 -175px;
+            offset-distance: 0%;
+            animation-duration: 6s;
+          }
+          .glow-b {
+            width: 300px; height: 300px;
+            margin: -150px 0 0 -150px;
+            offset-distance: 37%;
+            animation-duration: 7s;
+            opacity: 0.6;
+          }
+          .glow-c {
+            width: 280px; height: 280px;
+            margin: -140px 0 0 -140px;
+            offset-distance: 68%;
+            animation-duration: 8s;
+            opacity: 0.4;
+          }
+          @keyframes glow-run {
+            to { offset-distance: 100%; }
+          }
+        `}} />
       </div>
 
       {/* Loading overlay */}

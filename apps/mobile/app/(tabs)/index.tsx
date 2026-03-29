@@ -235,12 +235,16 @@ export default function RightNowScreen() {
 
         if (item.type === 'search') {
           return (
-            <SearchBar
-              value={searchQuery}
-              onChangeText={(text) => { setSearchQuery(text); if (!text.trim()) handleSearchClear() }}
-              onSubmit={handleSearchSubmit}
-              placeholder='Try "easy hike tomorrow"...'
-            />
+            <View style={s.aiSearchWrap}>
+              <View style={s.aiSearchGlow}>
+                <SearchBar
+                  value={searchQuery}
+                  onChangeText={(text) => { setSearchQuery(text); if (!text.trim()) handleSearchClear() }}
+                  onSubmit={handleSearchSubmit}
+                  placeholder='Try "easy hike tomorrow"...'
+                />
+              </View>
+            </View>
           )
         }
 
@@ -362,6 +366,14 @@ const s = StyleSheet.create({
   loading: { flex: 1, backgroundColor: C.bg, justifyContent: 'center', alignItems: 'center' },
   searchLoading: { alignItems: 'center', justifyContent: 'center', paddingVertical: 80, gap: 12 },
   searchLoadingText: { fontSize: 14, color: C.textSecondary },
+  aiSearchWrap: { paddingHorizontal: 0, paddingBottom: 0 },
+  aiSearchGlow: {
+    shadowColor: '#0f8a6e',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 4,
+  },
 
   header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },
   greeting: { fontSize: 26, fontWeight: '700', color: C.text },

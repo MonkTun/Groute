@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { createApiClient } from "@/lib/supabase/api";
 
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 interface ActivityForSearch {
   id: string;
@@ -35,8 +35,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!ANTHROPIC_API_KEY) {
-    console.error("[AI Search] ANTHROPIC_API_KEY is not set");
+  if (!GEMINI_API_KEY) {
+    console.error("[AI Search] GEMINI_API_KEY is not set");
     return NextResponse.json(
       { error: "Search AI not configured" },
       { status: 503 }
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
     .join("\n");
 
   console.log(
-    `[AI Search] query="${query.trim()}" activities=${activities.length} key=${ANTHROPIC_API_KEY.slice(0, 10)}...`
+    `[AI Search] query="${query.trim()}" activities=${activities.length} key=${GEMINI_API_KEY.slice(0, 10)}...`
   );
 
   const systemPrompt = `You are the search engine for Groute, an outdoor activity app for young adults. Given the user's search and a list of activities, return the most relevant ones ranked by relevance.
@@ -129,26 +129,24 @@ Activities:
 ${activityLines || "(none available)"}`;
 
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 512,
-        system: systemPrompt,
-        messages: [{ role: "user", content: userMessage }],
-      }),
-      signal: AbortSignal.timeout(10_000),
-    });
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          contents: [{ role: "user", parts: [{ text: userMessage }] }],
+          generationConfig: { maxOutputTokens: 512 },
+        }),
+        signal: AbortSignal.timeout(10_000),
+      }
+    );
 
     if (!response.ok) {
       const errBody = await response.text();
       console.error(
-        `[AI Search] Anthropic API error ${response.status}:`,
+        `[AI Search] Gemini API error ${response.status}:`,
         errBody
       );
       return NextResponse.json(
@@ -161,7 +159,8 @@ ${activityLines || "(none available)"}`;
     }
 
     const data = await response.json();
-    const text = data.content?.[0]?.text ?? "";
+    const text =
+      data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
     console.log(`[AI Search] Raw: ${text.slice(0, 300)}`);
 
     const jsonStr = text
