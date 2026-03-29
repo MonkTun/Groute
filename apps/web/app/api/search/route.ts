@@ -4,26 +4,24 @@ import { createApiClient } from "@/lib/supabase/api";
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
-interface SearchRequest {
-  query: string;
-  activities: Array<{
-    id: string;
-    title: string;
-    sport_type: string;
-    skill_level: string;
-    location_name: string;
-    scheduled_at: string;
-    trail_name: string | null;
-  }>;
+interface ActivityForSearch {
+  id: string;
+  title: string;
+  sport_type: string;
+  skill_level: string;
+  location_name: string;
+  scheduled_at: string;
+  trail_name: string | null;
+  creator_name: string | null;
+  participant_names: string[];
+  has_friends_going: boolean;
+  spots_left: number;
+  distance_label: string | null;
 }
 
-interface ParsedFilters {
-  sport: string | null;
-  skill: string | null;
-  timeframeDays: number | null;
-  locationKeyword: string | null;
-  trailKeyword: string | null;
-  rankedIds: string[];
+interface SearchRequest {
+  query: string;
+  activities: ActivityForSearch[];
 }
 
 export async function POST(request: NextRequest) {
@@ -38,6 +36,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (!ANTHROPIC_API_KEY) {
+    console.error("[AI Search] ANTHROPIC_API_KEY is not set");
     return NextResponse.json(
       { error: "Search AI not configured" },
       { status: 503 }
@@ -54,48 +53,80 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Build a compact activity summary for the LLM
   const today = new Date();
-  const activitySummary = activities
-    .slice(0, 50) // cap to keep prompt small
+  const activityLines = activities
+    .slice(0, 50)
     .map((a) => {
       const date = new Date(a.scheduled_at);
       const daysAway = Math.ceil(
         (date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
       );
-      const dayLabel =
-        daysAway === 0
-          ? "today"
-          : daysAway === 1
-            ? "tomorrow"
-            : `in ${daysAway} days`;
-      return `[${a.id}] "${a.title}" | ${a.sport_type} | ${a.skill_level} | ${a.location_name}${a.trail_name ? ` | trail: ${a.trail_name}` : ""} | ${dayLabel}`;
+      const hoursAway = Math.ceil(
+        (date.getTime() - today.getTime()) / (1000 * 60 * 60)
+      );
+      const timeLabel =
+        hoursAway <= 0
+          ? "happening now"
+          : hoursAway <= 6
+            ? `in ${hoursAway}h`
+            : daysAway === 0
+              ? "today"
+              : daysAway === 1
+                ? "tomorrow"
+                : `in ${daysAway} days`;
+
+      const parts = [
+        `[${a.id}]`,
+        `"${a.title}"`,
+        a.sport_type,
+        a.skill_level,
+        a.location_name,
+        a.trail_name ? `trail: ${a.trail_name}` : null,
+        timeLabel,
+        `${a.spots_left} spots left`,
+        a.creator_name ? `by ${a.creator_name}` : null,
+        a.participant_names.length > 0
+          ? `going: ${a.participant_names.join(", ")}`
+          : null,
+        a.has_friends_going ? "FRIENDS GOING" : null,
+        a.distance_label,
+      ]
+        .filter(Boolean)
+        .join(" | ");
+
+      return parts;
     })
     .join("\n");
 
-  const systemPrompt = `You are a search assistant for Groute, an outdoor activity discovery app. Users search for activities like hikes, trail runs, etc.
+  console.log(
+    `[AI Search] query="${query.trim()}" activities=${activities.length} key=${ANTHROPIC_API_KEY.slice(0, 10)}...`
+  );
 
-Given a user's natural language search query and a list of available activities, extract structured filters and rank the most relevant activity IDs.
+  const systemPrompt = `You are the search engine for Groute, an outdoor activity app for young adults. Given the user's search and a list of activities, return the most relevant ones ranked by relevance.
+
+Context about the user:
+- Activities marked "FRIENDS GOING" are highly relevant (social signal)
+- Activities marked "happening now" or "in Xh" are time-sensitive
+- "spots left" indicates urgency — fewer spots = more urgent
+- Distance labels indicate proximity — closer is better unless user asks for something specific
 
 Available sport types: hiking, trail_running
 Available skill levels: beginner, intermediate, advanced
 
 Respond ONLY with valid JSON (no markdown, no explanation):
 {
+  "rankedIds": [<activity IDs sorted by relevance, most relevant first, include ALL that match, max 20>],
   "sport": "hiking" | "trail_running" | null,
   "skill": "beginner" | "intermediate" | "advanced" | null,
-  "timeframeDays": <number of days from today, 0=today, 1=tomorrow, 7=this week, null if not specified>,
-  "locationKeyword": <extracted location/place name if mentioned, or null>,
-  "trailKeyword": <extracted trail name if mentioned, or null>,
-  "rankedIds": [<array of activity IDs sorted by relevance to the query, most relevant first, max 20>]
+  "timeframeDays": <number 0=today 1=tomorrow 7=week, or null>,
+  "reasoning": "<one short sentence explaining why you ranked them this way>"
 }`;
 
-  const userMessage = `Search query: "${query.trim()}"
+  const userMessage = `Search: "${query.trim()}"
+Today: ${today.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
 
-Today is ${today.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}.
-
-Available activities:
-${activitySummary || "(none)"}`;
+Activities:
+${activityLines || "(none available)"}`;
 
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -111,35 +142,53 @@ ${activitySummary || "(none)"}`;
         system: systemPrompt,
         messages: [{ role: "user", content: userMessage }],
       }),
-      signal: AbortSignal.timeout(8_000),
+      signal: AbortSignal.timeout(10_000),
     });
 
     if (!response.ok) {
-      console.error("Anthropic API error:", response.status, await response.text());
+      const errBody = await response.text();
+      console.error(
+        `[AI Search] Anthropic API error ${response.status}:`,
+        errBody
+      );
       return NextResponse.json(
-        { error: "Search failed" },
+        {
+          error: "Search failed",
+          debug: { status: response.status, body: errBody.slice(0, 200) },
+        },
         { status: 502 }
       );
     }
 
     const data = await response.json();
     const text = data.content?.[0]?.text ?? "";
+    console.log(`[AI Search] Raw: ${text.slice(0, 300)}`);
 
-    // Parse the JSON response — strip any markdown fences if present
-    const jsonStr = text.replace(/```json?\n?/g, "").replace(/```/g, "").trim();
-    const parsed: ParsedFilters = JSON.parse(jsonStr);
+    const jsonStr = text
+      .replace(/```json?\n?/g, "")
+      .replace(/```/g, "")
+      .trim();
+    const parsed = JSON.parse(jsonStr);
 
-    // Validate rankedIds against actual activity IDs
     const validIds = new Set(activities.map((a) => a.id));
-    parsed.rankedIds = (parsed.rankedIds ?? []).filter((id) =>
+    parsed.rankedIds = (parsed.rankedIds ?? []).filter((id: string) =>
       validIds.has(id)
+    );
+
+    console.log(
+      `[AI Search] Result: ${parsed.rankedIds.length} ranked, sport=${parsed.sport}, reasoning="${parsed.reasoning}"`
     );
 
     return NextResponse.json({ data: parsed });
   } catch (err) {
-    console.error("Search AI error:", err);
+    console.error("[AI Search] Error:", err);
     return NextResponse.json(
-      { error: "Search failed" },
+      {
+        error: "Search failed",
+        debug: {
+          message: err instanceof Error ? err.message : String(err),
+        },
+      },
       { status: 500 }
     );
   }

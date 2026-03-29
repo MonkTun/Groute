@@ -15,7 +15,7 @@ export default async function RightNowPage() {
   const now = new Date()
   const in48h = new Date(now.getTime() + 48 * 60 * 60 * 1000)
 
-  const [activitiesResult, userSportsResult, participantsResult, allParticipantsResult] = await Promise.all([
+  const [activitiesResult, userSportsResult, participantsResult, allParticipantsResult, friendsResult] = await Promise.all([
     supabase
       .from('activities')
       .select(`
@@ -47,6 +47,17 @@ export default async function RightNowPage() {
         user:users!user_id ( id, display_name, first_name, last_name, avatar_url )
       `)
       .eq('status', 'accepted'),
+
+    // Mutual friends (for "friends going" signal)
+    (async () => {
+      const [fwing, fwers] = await Promise.all([
+        supabase.from('follows').select('following_id').eq('follower_id', user.id),
+        supabase.from('follows').select('follower_id').eq('following_id', user.id),
+      ])
+      const followingSet = new Set((fwing.data ?? []).map((f) => f.following_id))
+      const followerSet = new Set((fwers.data ?? []).map((f) => f.follower_id))
+      return [...followingSet].filter((id) => followerSet.has(id))
+    })(),
   ])
 
   const userSports = (userSportsResult.data ?? []).map((s) => s.sport_type)
@@ -74,11 +85,14 @@ export default async function RightNowPage() {
     }
   })
 
+  const friendIds = new Set(friendsResult ?? [])
+
   return (
     <RightNowView
       activities={activities}
       userSports={userSports}
       userId={user.id}
+      friendIds={Array.from(friendIds)}
     />
   )
 }

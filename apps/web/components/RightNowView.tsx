@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { MapPin, Clock, ArrowRight, Sparkles, Search, X } from 'lucide-react'
 
 import { SPORT_LABELS, SKILL_LABELS } from '@groute/shared'
+import { parseSearchQuery } from '@/lib/searchParser'
 import { UserAvatar } from '@/components/UserAvatar'
 
 const SPORT_EMOJIS: Record<string, string> = {
@@ -33,10 +34,13 @@ interface RightNowViewProps {
   activities: ActivityData[]
   userSports: string[]
   userId: string
+  friendIds?: string[]
 }
 
-export function RightNowView({ activities, userSports, userId }: RightNowViewProps) {
+export function RightNowView({ activities, userSports, userId, friendIds = [] }: RightNowViewProps) {
   const [searchQuery, setSearchQuery] = useState('')
+  const [isSearching, setIsSearching] = useState(false)
+  const [aiRankedIds, setAiRankedIds] = useState<string[] | null>(null)
 
   const userSportsSet = new Set(userSports)
   const now = new Date()
@@ -44,21 +48,93 @@ export function RightNowView({ activities, userSports, userId }: RightNowViewPro
   const hour = now.getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
 
-  // Filter by search
-  const filtered = searchQuery.trim()
-    ? activities.filter((a) => {
-        const q = searchQuery.toLowerCase()
-        return (
-          a.title.toLowerCase().includes(q) ||
-          a.location_name.toLowerCase().includes(q) ||
-          (SPORT_LABELS[a.sport_type] ?? a.sport_type).toLowerCase().includes(q)
-        )
-      })
-    : activities
+  const friendIdSet = new Set(friendIds)
 
-  const happeningSoon = filtered.filter((a) => new Date(a.scheduled_at) <= in6h)
-  const upcoming = filtered.filter((a) => new Date(a.scheduled_at) > in6h)
-  const forYou = filtered.filter((a) => userSportsSet.has(a.sport_type)).slice(0, 6)
+  function buildSearchActivities() {
+    return activities.slice(0, 50).map((a) => {
+      const creatorName = a.creator
+        ? a.creator.first_name && a.creator.last_name
+          ? `${a.creator.first_name} ${a.creator.last_name}`
+          : a.creator.display_name
+        : null
+
+      const participantNames = a.participants.map((p) =>
+        p.first_name && p.last_name ? `${p.first_name} ${p.last_name}` : p.display_name
+      )
+
+      const allPeopleIds = [a.creator?.id, ...a.participants.map((p) => p.id)].filter(Boolean) as string[]
+      const hasFriendsGoing = allPeopleIds.some((id) => friendIdSet.has(id))
+      const spotsLeft = a.max_participants - (a.participants.length + 1)
+
+      return {
+        id: a.id,
+        title: a.title,
+        sport_type: a.sport_type,
+        skill_level: a.skill_level,
+        location_name: a.location_name,
+        scheduled_at: a.scheduled_at,
+        trail_name: null as string | null,
+        creator_name: creatorName,
+        participant_names: participantNames,
+        has_friends_going: hasFriendsGoing,
+        spots_left: Math.max(0, spotsLeft),
+        distance_label: null as string | null,
+      }
+    })
+  }
+
+  async function handleSearch() {
+    if (!searchQuery.trim()) return
+    setIsSearching(true)
+    setAiRankedIds(null)
+    try {
+      const res = await fetch('/api/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: searchQuery.trim(),
+          activities: buildSearchActivities(),
+        }),
+      })
+      const json = await res.json()
+      console.log('[AI Search] status:', res.status, 'response:', json)
+      if (res.ok && json.data?.rankedIds?.length) {
+        setAiRankedIds(json.data.rankedIds)
+      }
+    } catch (err) {
+      console.error('[AI Search] Error:', err)
+    }
+    finally { setIsSearching(false) }
+  }
+
+  function clearSearch() {
+    setSearchQuery('')
+    setAiRankedIds(null)
+  }
+
+  // When AI ranked, show only those results
+  const filtered = (() => {
+    if (aiRankedIds && aiRankedIds.length > 0) {
+      const activityMap = new Map(activities.map((a) => [a.id, a]))
+      return aiRankedIds
+        .map((id) => activityMap.get(id))
+        .filter((a): a is ActivityData => a != null)
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      return activities.filter((a) =>
+        a.title.toLowerCase().includes(q) ||
+        a.location_name.toLowerCase().includes(q) ||
+        (SPORT_LABELS[a.sport_type] ?? a.sport_type).toLowerCase().includes(q)
+      )
+    }
+    return activities
+  })()
+
+  const isAiActive = aiRankedIds != null && aiRankedIds.length > 0
+  const happeningSoon = isAiActive ? [] : filtered.filter((a) => new Date(a.scheduled_at) <= in6h)
+  const upcoming = isAiActive ? filtered : filtered.filter((a) => new Date(a.scheduled_at) > in6h)
+  const forYou = isAiActive ? [] : filtered.filter((a) => userSportsSet.has(a.sport_type)).slice(0, 6)
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:py-8">
@@ -73,17 +149,23 @@ export function RightNowView({ activities, userSports, userId }: RightNowViewPro
       {/* Search */}
       <div className="mb-8">
         <div className="relative">
-          <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/50" />
+          {isSearching ? (
+            <div className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+          ) : (
+            <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/50" />
+          )}
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search activities, locations, sports..."
-            className="h-10 w-full rounded-xl border border-border/50 bg-muted/30 pl-10 pr-9 text-sm outline-none placeholder:text-muted-foreground/40 focus-visible:border-primary/50 focus-visible:ring-2 focus-visible:ring-primary/20 transition-all"
+            onKeyDown={(e) => { if (e.key === 'Enter') handleSearch() }}
+            placeholder='Try "easy hike tomorrow"...'
+            disabled={isSearching}
+            className="h-10 w-full rounded-xl border border-border/50 bg-muted/30 pl-10 pr-9 text-sm outline-none placeholder:text-muted-foreground/40 focus-visible:border-primary/50 focus-visible:ring-2 focus-visible:ring-primary/20 transition-all disabled:opacity-60"
           />
-          {searchQuery && (
+          {searchQuery && !isSearching && (
             <button
-              onClick={() => setSearchQuery('')}
+              onClick={clearSearch}
               className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-muted-foreground hover:text-foreground transition-colors"
             >
               <X className="size-3.5" />

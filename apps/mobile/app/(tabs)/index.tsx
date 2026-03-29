@@ -13,7 +13,7 @@ import { useRouter } from 'expo-router'
 
 import { SPORT_LABELS, SKILL_LABELS } from '@groute/shared'
 import { useSession } from '../../lib/AuthProvider'
-import { apiFetch } from '../../lib/api'
+import { apiFetch, apiPost } from '../../lib/api'
 import FloatingActionButton from '../../components/FloatingActionButton'
 import SearchBar from '../../components/SearchBar'
 
@@ -61,6 +61,8 @@ export default function RightNowScreen() {
   const [activities, setActivities] = useState<Activity[]>([])
   const [userSports, setUserSports] = useState<Set<string>>(new Set())
   const [searchQuery, setSearchQuery] = useState('')
+  const [isSearching, setIsSearching] = useState(false)
+  const [aiRankedIds, setAiRankedIds] = useState<string[] | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
@@ -134,21 +136,61 @@ export default function RightNowScreen() {
   const now = new Date()
   const in6h = new Date(now.getTime() + 6 * 60 * 60 * 1000)
 
-  // Filter by search
-  const filtered = searchQuery.trim()
-    ? activities.filter((a) => {
-        const q = searchQuery.toLowerCase()
-        return (
-          a.title.toLowerCase().includes(q) ||
-          a.location_name.toLowerCase().includes(q) ||
-          (SPORT_LABELS[a.sport_type] ?? a.sport_type).toLowerCase().includes(q)
-        )
+  async function handleSearchSubmit() {
+    if (!searchQuery.trim()) return
+    setIsSearching(true)
+    setAiRankedIds(null)
+    try {
+      const { data } = await apiPost<{ rankedIds: string[] }>('/api/search', {
+        query: searchQuery.trim(),
+        activities: activities.slice(0, 50).map((a) => {
+          const creatorName = a.creator
+            ? a.creator.first_name && a.creator.last_name
+              ? `${a.creator.first_name} ${a.creator.last_name}`
+              : a.creator.display_name
+            : null
+          const spotsLeft = a.max_participants - a.participantCount
+          return {
+            id: a.id, title: a.title, sport_type: a.sport_type,
+            skill_level: a.skill_level, location_name: a.location_name,
+            scheduled_at: a.scheduled_at, trail_name: null,
+            creator_name: creatorName, participant_names: [],
+            has_friends_going: false, spots_left: Math.max(0, spotsLeft),
+            distance_label: null,
+          }
+        }),
       })
-    : activities
+      if (data?.rankedIds?.length) setAiRankedIds(data.rankedIds)
+    } catch { /* fallback to substring */ }
+    finally { setIsSearching(false) }
+  }
 
-  const happeningSoon = filtered.filter((a) => new Date(a.scheduled_at) <= in6h)
-  const upcoming = filtered.filter((a) => new Date(a.scheduled_at) > in6h)
-  const forYou = searchQuery ? [] : filtered.filter((a) => userSports.has(a.sport_type)).slice(0, 6)
+  function handleSearchClear() {
+    setSearchQuery('')
+    setAiRankedIds(null)
+  }
+
+  // Filter by search
+  const filtered = (() => {
+    if (aiRankedIds && aiRankedIds.length > 0) {
+      const activityMap = new Map(activities.map((a) => [a.id, a]))
+      return aiRankedIds.map((id) => activityMap.get(id)).filter((a): a is Activity => a != null)
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      return activities.filter((a) =>
+        a.title.toLowerCase().includes(q) ||
+        a.location_name.toLowerCase().includes(q) ||
+        (SPORT_LABELS[a.sport_type] ?? a.sport_type).toLowerCase().includes(q)
+      )
+    }
+    return activities
+  })()
+
+  const isAiActive = aiRankedIds != null && aiRankedIds.length > 0
+  const happeningSoon = isAiActive ? [] : filtered.filter((a) => new Date(a.scheduled_at) <= in6h)
+  const upcoming = isAiActive ? filtered : filtered.filter((a) => new Date(a.scheduled_at) > in6h)
+  const forYou = (searchQuery || isAiActive) ? [] : filtered.filter((a) => userSports.has(a.sport_type)).slice(0, 6)
 
   const hour = now.getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
@@ -199,7 +241,9 @@ export default function RightNowScreen() {
           return (
             <SearchBar
               value={searchQuery}
-              onChangeText={setSearchQuery}
+              onChangeText={(text) => { setSearchQuery(text); if (!text.trim()) handleSearchClear() }}
+              onSubmit={handleSearchSubmit}
+              placeholder='Try "easy hike tomorrow"...'
             />
           )
         }
