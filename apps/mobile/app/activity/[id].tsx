@@ -299,7 +299,7 @@ export default function ActivityDetailScreen() {
         </View>
 
         {/* Host */}
-        <View style={styles.hostCard}>
+        <Pressable style={styles.hostCard} onPress={() => creator && router.push(`/user/${creator.id}`)}>
           {creator?.avatar_url ? (
             <Image source={{ uri: creator.avatar_url }} style={styles.avatar} />
           ) : (
@@ -313,7 +313,7 @@ export default function ActivityDetailScreen() {
             <Text style={styles.hostName}>{creatorName}</Text>
             <Text style={styles.hostLabel}>Organizer</Text>
           </View>
-        </View>
+        </Pressable>
 
         {/* Members */}
         <Text style={styles.sectionTitle}>Going ({goingCount})</Text>
@@ -323,7 +323,7 @@ export default function ActivityDetailScreen() {
             ? `${p.user.first_name} ${p.user.last_name}`
             : p.user.display_name
           return (
-            <View key={p.id} style={styles.memberRow}>
+            <Pressable key={p.id} style={styles.memberRow} onPress={() => router.push(`/user/${p.user!.id}`)}>
               {p.user.avatar_url ? (
                 <Image source={{ uri: p.user.avatar_url }} style={styles.memberAvatar} />
               ) : (
@@ -334,7 +334,7 @@ export default function ActivityDetailScreen() {
                 </View>
               )}
               <Text style={styles.memberName}>{name}</Text>
-            </View>
+            </Pressable>
           )
         })}
 

@@ -172,11 +172,12 @@ export default function EditActivityScreen() {
         <DateTimePicker
           value={scheduledDate}
           mode="datetime"
-          display="spinner"
+          display="inline"
           minimumDate={new Date()}
           minuteInterval={5}
+          themeVariant="light"
           onChange={(_e, date) => { if (date) setScheduledDate(date) }}
-          style={s.picker}
+          style={{ minHeight: 480 }}
         />
 
         <Text style={s.label}>Max participants</Text>
@@ -216,7 +217,6 @@ const s = StyleSheet.create({
   label: { fontSize: 13, fontWeight: '600', color: C.textSecondary, marginTop: 16, marginBottom: 6 },
   input: { backgroundColor: C.card, borderRadius: 12, padding: 14, fontSize: 15, color: C.text, borderWidth: 1, borderColor: C.inputBorder },
   textarea: { minHeight: 80, textAlignVertical: 'top' },
-  picker: { height: 180 },
   counterRow: { flexDirection: 'row', alignItems: 'center', gap: 20 },
   counterBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#f0f0f0', alignItems: 'center', justifyContent: 'center' },
   counterBtnText: { fontSize: 20, fontWeight: '600', color: C.text },

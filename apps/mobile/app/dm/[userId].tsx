@@ -1,29 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import {
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native'
+import { useCallback, useEffect, useState } from 'react'
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 
 import { useSession } from '../../lib/AuthProvider'
 import { supabase } from '../../lib/supabase'
+import ChatView from '../../components/ChatView'
 
 const C = {
-  bg: '#fafafa',
   primary: '#0f8a6e',
   primaryMuted: 'rgba(15,138,110,0.1)',
   text: '#1a1a2e',
-  textSecondary: '#6b7280',
   textMuted: '#9ca3af',
 }
 
-// Invite messages contain "[invite:activityId]" tag
 const INVITE_REGEX = /\[invite:([a-f0-9-]+)\]\s*(.*)/
 
 interface Message {
@@ -38,15 +27,14 @@ export default function DMScreen() {
   const { user } = useSession()
   const router = useRouter()
   const [messages, setMessages] = useState<Message[]>([])
-  const [newMessage, setNewMessage] = useState('')
   const [partnerName, setPartnerName] = useState('Chat')
-  const flatListRef = useRef<FlatList>(null)
+  const [partnerAvatar, setPartnerAvatar] = useState<string | null>(null)
 
   const fetchMessages = useCallback(async () => {
     if (!user) return
 
     const [partnerResult, msgResult] = await Promise.all([
-      supabase.from('users').select('display_name, first_name, last_name').eq('id', userId).single(),
+      supabase.from('users').select('display_name, first_name, last_name, avatar_url').eq('id', userId).single(),
       supabase
         .from('messages')
         .select('id, content, created_at, sender_id')
@@ -65,6 +53,7 @@ export default function DMScreen() {
           ? `${p.first_name} ${p.last_name}`
           : p.display_name
       )
+      setPartnerAvatar(p.avatar_url)
     }
     setMessages(msgResult.data ?? [])
   }, [userId, user])
@@ -84,7 +73,11 @@ export default function DMScreen() {
             ((msg.sender_id === userId && msg.receiver_id === user?.id) ||
              (msg.sender_id === user?.id && msg.receiver_id === userId))
           ) {
-            fetchMessages()
+            setMessages((prev) => {
+              const withoutPending = prev.filter((m) => !m.id.startsWith('pending-') || m.sender_id !== msg.sender_id)
+              if (withoutPending.some((m) => m.id === msg.id)) return withoutPending
+              return [...withoutPending, msg]
+            })
           }
         }
       )
@@ -93,23 +86,34 @@ export default function DMScreen() {
     return () => { supabase.removeChannel(channel) }
   }, [userId, user, fetchMessages])
 
-  async function handleSend() {
-    const text = newMessage.trim()
-    if (!text || !user) return
+  async function handleSend(text: string) {
+    if (!user) return { error: 'Not signed in' }
 
-    setNewMessage('')
-    await supabase.from('messages').insert({
+    const optimistic: Message = {
+      id: `pending-${Date.now()}`,
+      content: text,
+      created_at: new Date().toISOString(),
+      sender_id: user.id,
+    }
+    setMessages((prev) => [...prev, optimistic])
+
+    const { error } = await supabase.from('messages').insert({
       sender_id: user.id,
       receiver_id: userId,
       content: text,
     })
+    if (error) {
+      console.error('Failed to send DM:', error)
+      setMessages((prev) => prev.filter((m) => m.id !== optimistic.id))
+      return { error: error.message }
+    }
+    return {}
   }
 
-  function renderMessage({ item }: { item: Message }) {
+  function renderMessage(item: Message) {
     const isMe = item.sender_id === user?.id
     const inviteMatch = item.content.match(INVITE_REGEX)
 
-    // Invite card
     if (inviteMatch) {
       const activityId = inviteMatch[1]
       const activityTitle = inviteMatch[2]
@@ -125,57 +129,62 @@ export default function DMScreen() {
       )
     }
 
-    // Regular message
+    if (isMe) {
+      return (
+        <View style={[s.bubble, s.bubbleMe]}>
+          <Text style={[s.messageText, s.messageTextMe]}>{item.content}</Text>
+        </View>
+      )
+    }
+
     return (
-      <View style={[s.bubble, isMe ? s.bubbleMe : s.bubbleOther]}>
-        <Text style={[s.messageText, isMe && s.messageTextMe]}>{item.content}</Text>
+      <View style={s.otherRow}>
+        {partnerAvatar ? (
+          <Pressable onPress={() => router.push(`/user/${userId}`)}>
+            <Image source={{ uri: partnerAvatar }} style={s.msgAvatar} />
+          </Pressable>
+        ) : (
+          <Pressable style={s.msgAvatarFallback} onPress={() => router.push(`/user/${userId}`)}>
+            <Text style={s.msgAvatarInitial}>{partnerName[0]?.toUpperCase()}</Text>
+          </Pressable>
+        )}
+        <View style={[s.bubble, s.bubbleOther]}>
+          <Text style={s.messageText}>{item.content}</Text>
+        </View>
       </View>
     )
   }
 
   return (
-    <KeyboardAvoidingView
-      style={s.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={90}
-    >
-      <Stack.Screen options={{ title: partnerName, headerBackTitle: 'Back' }} />
-
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={s.messageList}
-        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+    <>
+      <Stack.Screen
+        options={{
+          headerBackTitle: 'Back',
+          headerTitle: () => (
+            <Pressable onPress={() => router.push(`/user/${userId}`)}>
+              <Text style={{ fontSize: 17, fontWeight: '600', color: '#1a1a2e' }}>{partnerName}</Text>
+            </Pressable>
+          ),
+        }}
+      />
+      <ChatView
+        messages={messages}
+        onSend={handleSend}
         renderItem={renderMessage}
       />
-
-      <View style={s.inputBar}>
-        <TextInput
-          style={s.input}
-          placeholder="Type a message..."
-          placeholderTextColor="#9ca3af"
-          value={newMessage}
-          onChangeText={setNewMessage}
-          onSubmitEditing={handleSend}
-          returnKeyType="send"
-        />
-        <Pressable style={s.sendButton} onPress={handleSend}>
-          <Text style={s.sendText}>Send</Text>
-        </Pressable>
-      </View>
-    </KeyboardAvoidingView>
+    </>
   )
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fafafa' },
-  messageList: { paddingHorizontal: 16, paddingVertical: 12 },
-
-  // Regular bubbles
-  bubble: { maxWidth: '80%', borderRadius: 16, padding: 10, marginBottom: 8 },
-  bubbleMe: { alignSelf: 'flex-end', backgroundColor: '#0f8a6e' },
-  bubbleOther: { alignSelf: 'flex-start', backgroundColor: '#f0f0f0' },
+  // Messages
+  otherRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginBottom: 8 },
+  msgAvatar: { width: 28, height: 28, borderRadius: 14 },
+  msgAvatarFallback: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#e5e5e5', alignItems: 'center', justifyContent: 'center' },
+  msgAvatarInitial: { fontSize: 11, fontWeight: '700', color: '#1a1a2e' },
+  bubble: { maxWidth: '75%', borderRadius: 16, padding: 10 },
+  bubbleMe: { alignSelf: 'flex-end', backgroundColor: '#0f8a6e', marginBottom: 8 },
+  bubbleOther: { backgroundColor: '#f0f0f0' },
   messageText: { fontSize: 15, color: '#1a1a2e', lineHeight: 20 },
   messageTextMe: { color: '#fff' },
 
@@ -188,10 +197,4 @@ const s = StyleSheet.create({
   inviteTitle: { fontSize: 14, fontWeight: '600', color: C.text, textAlign: 'center', marginBottom: 10 },
   inviteBtn: { backgroundColor: C.primary, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 8 },
   inviteBtnText: { fontSize: 13, fontWeight: '600', color: '#fff' },
-
-  // Input
-  inputBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#e5e5e5', backgroundColor: '#fafafa' },
-  input: { flex: 1, backgroundColor: '#ffffff', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, fontSize: 15, color: '#1a1a2e', borderWidth: 1, borderColor: '#e0e0e0' },
-  sendButton: { backgroundColor: '#0f8a6e', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10 },
-  sendText: { fontSize: 15, fontWeight: '600', color: '#fff' },
 })

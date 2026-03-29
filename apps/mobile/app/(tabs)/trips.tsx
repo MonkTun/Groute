@@ -318,10 +318,10 @@ export default function TripsScreen() {
                 : req.display_name
               return (
                 <View key={req.id} style={styles.requestRow}>
-                  <View style={styles.requestInfo}>
+                  <Pressable style={styles.requestInfo} onPress={() => router.push(`/user/${req.user_id}`)}>
                     <Text style={styles.requestName}>{name}</Text>
                     {req.area && <Text style={styles.requestArea}>{req.area}</Text>}
-                  </View>
+                  </Pressable>
                   <View style={styles.requestActions}>
                     <Pressable
                       style={styles.acceptButton}

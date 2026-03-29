@@ -1,6 +1,6 @@
 # Groute Roadmap — Discovery MVP
 
-> Last updated: 2026-03-27
+> Last updated: 2026-03-28
 > Platform: **Web (Next.js) + Mobile (Expo)**. Shared backend via Next.js API routes + direct Supabase queries.
 
 ---
@@ -101,6 +101,14 @@
 - Light theme matching web's design language
 - WebView-based Mapbox map (works in Expo Go without native build)
 
+### EAS Build & TestFlight
+- EAS production build profile with auto-increment versioning
+- TestFlight distribution working (v0.1.7)
+- Fixed crash-on-launch caused by duplicate React instances in pnpm monorepo bundle (see `docs/eas-build-fixes.md`)
+- Custom `index.js` entry point with global error handler for module-init crashes
+- Error boundary in root layout catches React render errors and displays them on-screen
+- `app.config.ts` env var resolution works for both local `.env` (NEXT_PUBLIC_ prefix) and EAS cloud env vars (no prefix)
+
 ### API Endpoints (28 routes)
 | Method | Endpoint | Purpose |
 |--------|----------|---------|
@@ -174,7 +182,7 @@
 | H.2 | Zod validator tests | NOT STARTED | |
 | H.3 | API route tests (mocked Supabase) | NOT STARTED | |
 | H.4 | Vercel deployment + preview branches | NOT STARTED | |
-| H.5 | EAS Build for iOS/Android | NOT STARTED | Requires dev client for native map |
+| H.5 | EAS Build for iOS/Android | DONE | Production builds on TestFlight (v0.1.7). See `docs/eas-build-fixes.md` |
 | H.6 | GitHub Actions CI (lint + typecheck + test) | NOT STARTED | |
 
 ---

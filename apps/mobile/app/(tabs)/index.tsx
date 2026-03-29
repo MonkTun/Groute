@@ -7,7 +7,6 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native'
 import { useRouter } from 'expo-router'
@@ -15,6 +14,8 @@ import { useRouter } from 'expo-router'
 import { SPORT_LABELS, SKILL_LABELS } from '@groute/shared'
 import { useSession } from '../../lib/AuthProvider'
 import { supabase } from '../../lib/supabase'
+import FloatingActionButton from '../../components/FloatingActionButton'
+import SearchBar from '../../components/SearchBar'
 
 const C = {
   bg: '#fafafa',
@@ -178,8 +179,9 @@ export default function RightNowScreen() {
   sections.push({ type: 'cta' })
 
   return (
+    <View style={s.container}>
     <FlatList
-      style={s.container}
+      style={s.list}
       data={sections}
       keyExtractor={(_, i) => String(i)}
       refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor={C.primary} />}
@@ -195,20 +197,10 @@ export default function RightNowScreen() {
 
         if (item.type === 'search') {
           return (
-            <View style={s.searchContainer}>
-              <TextInput
-                style={s.searchInput}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                placeholder="Search activities, locations..."
-                placeholderTextColor={C.textMuted}
-              />
-              {searchQuery ? (
-                <Pressable style={s.searchClear} onPress={() => setSearchQuery('')}>
-                  <Text style={s.searchClearText}>{'\u2715'}</Text>
-                </Pressable>
-              ) : null}
-            </View>
+            <SearchBar
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
           )
         }
 
@@ -247,6 +239,8 @@ export default function RightNowScreen() {
         return null
       }}
     />
+    <FloatingActionButton />
+    </View>
   )
 
   function renderCard(activity: Activity, featured?: boolean) {
@@ -315,21 +309,8 @@ export default function RightNowScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
+  list: { flex: 1 },
   loading: { flex: 1, backgroundColor: C.bg, justifyContent: 'center', alignItems: 'center' },
-
-  searchContainer: { paddingHorizontal: 20, paddingBottom: 8, position: 'relative' },
-  searchInput: {
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 15,
-    color: C.text,
-  },
-  searchClear: { position: 'absolute', right: 32, top: 12 },
-  searchClearText: { fontSize: 14, color: C.textMuted },
 
   header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },
   greeting: { fontSize: 26, fontWeight: '700', color: C.text },

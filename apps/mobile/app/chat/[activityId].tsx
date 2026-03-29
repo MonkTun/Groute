@@ -1,18 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import {
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native'
-import { useLocalSearchParams, Stack } from 'expo-router'
+import { useCallback, useEffect, useState } from 'react'
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native'
+import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 
 import { useSession } from '../../lib/AuthProvider'
 import { supabase } from '../../lib/supabase'
+import ChatView from '../../components/ChatView'
 
 interface Message {
   id: string
@@ -20,18 +12,19 @@ interface Message {
   created_at: string
   sender_id: string
   sender: {
+    id: string
     display_name: string
     first_name: string | null
+    avatar_url: string | null
   } | null
 }
 
 export default function GroupChatScreen() {
   const { activityId } = useLocalSearchParams<{ activityId: string }>()
   const { user } = useSession()
+  const router = useRouter()
   const [messages, setMessages] = useState<Message[]>([])
-  const [newMessage, setNewMessage] = useState('')
   const [title, setTitle] = useState('Group Chat')
-  const flatListRef = useRef<FlatList>(null)
 
   const fetchMessages = useCallback(async () => {
     const [actResult, msgResult] = await Promise.all([
@@ -40,7 +33,7 @@ export default function GroupChatScreen() {
         .from('messages')
         .select(`
           id, content, created_at, sender_id,
-          sender:users!sender_id ( display_name, first_name )
+          sender:users!sender_id ( id, display_name, first_name, avatar_url )
         `)
         .eq('activity_id', activityId)
         .order('created_at', { ascending: true })
@@ -59,86 +52,102 @@ export default function GroupChatScreen() {
   useEffect(() => {
     fetchMessages()
 
-    // Subscribe to realtime
     const channel = supabase
       .channel(`group-${activityId}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages', filter: `activity_id=eq.${activityId}` },
-        () => fetchMessages()
+        (payload) => {
+          const msg = payload.new as Message & { activity_id: string }
+          setMessages((prev) => {
+            const withoutPending = prev.filter((m) => !m.id.startsWith('pending-') || m.sender_id !== msg.sender_id)
+            if (withoutPending.some((m) => m.id === msg.id)) return withoutPending
+            return [...withoutPending, { ...msg, sender: null }]
+          })
+        }
       )
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
   }, [activityId, fetchMessages])
 
-  async function handleSend() {
-    const text = newMessage.trim()
-    if (!text || !user) return
+  async function handleSend(text: string) {
+    if (!user) return { error: 'Not signed in' }
 
-    setNewMessage('')
-    await supabase.from('messages').insert({
+    const optimistic: Message = {
+      id: `pending-${Date.now()}`,
+      content: text,
+      created_at: new Date().toISOString(),
+      sender_id: user.id,
+      sender: null,
+    }
+    setMessages((prev) => [...prev, optimistic])
+
+    const { error } = await supabase.from('messages').insert({
       activity_id: activityId,
       sender_id: user.id,
       content: text,
     })
+    if (error) {
+      console.error('Failed to send group message:', error)
+      setMessages((prev) => prev.filter((m) => m.id !== optimistic.id))
+      return { error: error.message }
+    }
+    return {}
+  }
+
+  function renderMessage(item: Message) {
+    const isMe = item.sender_id === user?.id
+    const senderName = item.sender?.first_name ?? item.sender?.display_name ?? 'Unknown'
+
+    if (isMe) {
+      return (
+        <View style={[s.bubble, s.bubbleMe]}>
+          <Text style={[s.messageText, s.messageTextMe]}>{item.content}</Text>
+        </View>
+      )
+    }
+
+    return (
+      <View style={s.otherRow}>
+        <Pressable onPress={() => item.sender?.id && router.push(`/user/${item.sender.id}`)}>
+          {item.sender?.avatar_url ? (
+            <Image source={{ uri: item.sender.avatar_url }} style={s.msgAvatar} />
+          ) : (
+            <View style={s.msgAvatarFallback}>
+              <Text style={s.msgAvatarInitial}>{senderName[0]?.toUpperCase()}</Text>
+            </View>
+          )}
+        </Pressable>
+        <View style={[s.bubble, s.bubbleOther]}>
+          <Text style={s.senderName}>{senderName}</Text>
+          <Text style={s.messageText}>{item.content}</Text>
+        </View>
+      </View>
+    )
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={90}
-    >
+    <>
       <Stack.Screen options={{ title, headerBackTitle: 'Back' }} />
-
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.messageList}
-        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
-        renderItem={({ item }) => {
-          const isMe = item.sender_id === user?.id
-          const senderName = item.sender?.first_name ?? item.sender?.display_name ?? 'Unknown'
-          return (
-            <View style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleOther]}>
-              {!isMe && <Text style={styles.senderName}>{senderName}</Text>}
-              <Text style={[styles.messageText, isMe && styles.messageTextMe]}>{item.content}</Text>
-            </View>
-          )
-        }}
+      <ChatView
+        messages={messages}
+        onSend={handleSend}
+        renderItem={renderMessage}
       />
-
-      <View style={styles.inputBar}>
-        <TextInput
-          style={styles.input}
-          placeholder="Type a message..."
-          placeholderTextColor="#9ca3af"
-          value={newMessage}
-          onChangeText={setNewMessage}
-          onSubmitEditing={handleSend}
-          returnKeyType="send"
-        />
-        <Pressable style={styles.sendButton} onPress={handleSend}>
-          <Text style={styles.sendText}>Send</Text>
-        </Pressable>
-      </View>
-    </KeyboardAvoidingView>
+    </>
   )
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fafafa' },
-  messageList: { paddingHorizontal: 16, paddingVertical: 12 },
-  bubble: { maxWidth: '80%', borderRadius: 16, padding: 10, marginBottom: 8 },
-  bubbleMe: { alignSelf: 'flex-end', backgroundColor: '#0f8a6e' },
-  bubbleOther: { alignSelf: 'flex-start', backgroundColor: '#f0f0f0' },
+const s = StyleSheet.create({
+  otherRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginBottom: 8 },
+  msgAvatar: { width: 28, height: 28, borderRadius: 14 },
+  msgAvatarFallback: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#e5e5e5', alignItems: 'center', justifyContent: 'center' },
+  msgAvatarInitial: { fontSize: 11, fontWeight: '700', color: '#1a1a2e' },
+  bubble: { maxWidth: '75%', borderRadius: 16, padding: 10 },
+  bubbleMe: { alignSelf: 'flex-end', backgroundColor: '#0f8a6e', marginBottom: 8 },
+  bubbleOther: { backgroundColor: '#f0f0f0' },
   senderName: { fontSize: 11, fontWeight: '600', color: '#6b7280', marginBottom: 2 },
   messageText: { fontSize: 15, color: '#1a1a2e', lineHeight: 20 },
   messageTextMe: { color: '#fff' },
-  inputBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#e5e5e5', backgroundColor: '#fafafa' },
-  input: { flex: 1, backgroundColor: '#ffffff', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, fontSize: 15, color: '#1a1a2e', borderWidth: 1, borderColor: '#e0e0e0' },
-  sendButton: { backgroundColor: '#0f8a6e', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10 },
-  sendText: { fontSize: 15, fontWeight: '600', color: '#fff' },
 })

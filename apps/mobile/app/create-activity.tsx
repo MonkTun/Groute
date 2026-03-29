@@ -416,7 +416,7 @@ export default function CreateActivityScreen() {
       {/* ── Step 2: Date & Time ── */}
       {step === 2 && (
         <View style={s.flex}>
-          <View style={s.pickerSection}>
+          <ScrollView contentContainerStyle={s.pickerSection}>
             <Text style={s.sectionTitle}>When is your activity?</Text>
             <Text style={s.pickerSummary}>
               {scheduledDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}{' '}
@@ -426,13 +426,14 @@ export default function CreateActivityScreen() {
             <DateTimePicker
               value={scheduledDate}
               mode="datetime"
-              display="spinner"
+              display="inline"
               minimumDate={new Date()}
               minuteInterval={5}
+              themeVariant="light"
               onChange={(_event, date) => { if (date) setScheduledDate(date) }}
               style={s.picker}
             />
-          </View>
+          </ScrollView>
 
           <View style={[s.bottomBtns, { paddingBottom: Math.max(insets.bottom, 14) }]}>
             <Pressable style={s.backBtn} onPress={() => setStep(1)}>
@@ -609,20 +610,21 @@ const s = StyleSheet.create({
   progressFill: { height: 4, backgroundColor: C.primary, borderRadius: 2 },
 
   // Step 1
-  searchWrap: { paddingHorizontal: 14, paddingTop: 6, zIndex: 10 },
+  searchWrap: { paddingHorizontal: 14, paddingTop: 24, zIndex: 10 },
   searchInput: { backgroundColor: C.card, borderRadius: 12, padding: 14, fontSize: 15, color: C.text, borderWidth: 1, borderColor: C.inputBorder },
   dropdown: { position: 'absolute', top: 58, left: 14, right: 14, backgroundColor: C.card, borderRadius: 12, borderWidth: 1, borderColor: C.border, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 12, elevation: 8, zIndex: 20 },
   dropdownItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f5f5f5' },
   dropdownIcon: { fontSize: 16 },
   dropdownText: { fontSize: 14, color: C.text, flex: 1 },
   map: { flex: 1, backgroundColor: '#e8e0d8' },
-  bottomBar: { padding: 14, borderTopWidth: 1, borderTopColor: C.border, backgroundColor: C.card },
+  bottomBar: { padding: 14, paddingBottom: 34, borderTopWidth: 1, borderTopColor: C.border, backgroundColor: C.card },
 
   // Step 2
-  pickerSection: { flex: 1, padding: 20 },
+  pickerSection: { padding: 20, paddingBottom: 40 },
+  picker: { minHeight: 480 },
   sectionTitle: { fontSize: 18, fontWeight: '600', color: C.text, marginBottom: 8 },
   pickerSummary: { fontSize: 15, color: C.primary, fontWeight: '500', marginBottom: 16 },
-  picker: { height: 200 },
+
 
   // Step 3
   detailScroll: { padding: 20, paddingBottom: 20 },

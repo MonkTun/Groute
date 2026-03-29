@@ -225,13 +225,15 @@ export default function SocialScreen() {
             : item.display_name
           return (
             <Pressable style={s.friendRow} onPress={() => router.push(`/dm/${item.id}`)}>
-              {item.avatar_url ? (
-                <Image source={{ uri: item.avatar_url }} style={s.friendAvatar} />
-              ) : (
-                <View style={s.friendAvatarFallback}>
-                  <Text style={s.friendInitial}>{(item.first_name?.[0] ?? item.display_name[0]).toUpperCase()}</Text>
-                </View>
-              )}
+              <Pressable onPress={() => router.push(`/user/${item.id}`)}>
+                {item.avatar_url ? (
+                  <Image source={{ uri: item.avatar_url }} style={s.friendAvatar} />
+                ) : (
+                  <View style={s.friendAvatarFallback}>
+                    <Text style={s.friendInitial}>{(item.first_name?.[0] ?? item.display_name[0]).toUpperCase()}</Text>
+                  </View>
+                )}
+              </Pressable>
               <View style={s.friendInfo}>
                 <Text style={s.friendName}>{name}</Text>
                 {item.lastMessage ? (
@@ -286,7 +288,7 @@ export default function SocialScreen() {
                 ? `${item.first_name} ${item.last_name}`
                 : item.display_name
               return (
-                <View style={s.searchRow}>
+                <Pressable style={s.searchRow} onPress={() => { setShowAddFriend(false); router.push(`/user/${item.id}`) }}>
                   {item.avatar_url ? (
                     <Image source={{ uri: item.avatar_url }} style={s.searchAvatar} />
                   ) : (
@@ -307,7 +309,7 @@ export default function SocialScreen() {
                       <Text style={s.followBtnText}>Follow</Text>
                     </Pressable>
                   )}
-                </View>
+                </Pressable>
               )
             }}
             ListEmptyComponent={

@@ -60,6 +60,7 @@ export default function RootLayout() {
           <Stack.Screen name="create-activity" options={{ title: 'New Activity', presentation: 'modal' }} />
           <Stack.Screen name="chat/[activityId]" options={{ title: 'Group Chat' }} />
           <Stack.Screen name="dm/[userId]" options={{ title: 'Chat' }} />
+          <Stack.Screen name="user/[id]" options={{ title: 'Profile' }} />
         </Stack>
       </AuthProvider>
     </ErrorBoundary>

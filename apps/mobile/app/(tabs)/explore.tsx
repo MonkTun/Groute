@@ -18,6 +18,8 @@ import * as Location from 'expo-location'
 import { SPORT_LABELS } from '@groute/shared'
 import { useSession } from '../../lib/AuthProvider'
 import { supabase } from '../../lib/supabase'
+import FloatingActionButton from '../../components/FloatingActionButton'
+import SearchBar from '../../components/SearchBar'
 
 const mapboxToken = Constants.expoConfig?.extra?.mapboxToken as string
 
@@ -101,6 +103,7 @@ function buildMapHtml(activities: Activity[], friends: FriendPin[], userLocation
 body{margin:0}
 #map{width:100%;height:100vh}
 .mapboxgl-ctrl-bottom-left,.mapboxgl-ctrl-bottom-right .mapboxgl-ctrl-attrib{display:none}
+.mapboxgl-ctrl-top-right{top:60px}
 .activity-pin{width:28px;height:28px;border-radius:50%;border:2.5px solid white;display:flex;align-items:center;justify-content:center;font-size:13px;box-shadow:0 2px 6px rgba(0,0,0,0.3);cursor:pointer}
 .activity-pin.beginner{background:#f59e0b}
 .activity-pin.intermediate{background:#3b82f6}
@@ -260,6 +263,7 @@ export default function ExploreScreen() {
   const [activities, setActivities] = useState<Activity[]>([])
   const [friends, setFriends] = useState<FriendPin[]>([])
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
   const [selectedSport, setSelectedSport] = useState<string | null>(null)
   const [timeframeDays, setTimeframeDays] = useState(7)
   const [showTimePicker, setShowTimePicker] = useState(false)
@@ -389,6 +393,14 @@ export default function ExploreScreen() {
     endDate.setDate(endDate.getDate() + timeframeDays)
     endDate.setHours(23, 59, 59)
     if (scheduled > endDate) return false
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      if (
+        !a.title.toLowerCase().includes(q) &&
+        !a.location_name.toLowerCase().includes(q) &&
+        !(SPORT_LABELS[a.sport_type] ?? a.sport_type).toLowerCase().includes(q)
+      ) return false
+    }
     return true
   })
 
@@ -432,6 +444,55 @@ export default function ExploreScreen() {
           javaScriptEnabled
         />
 
+        {/* Search bar + results */}
+        <View style={s.searchOverlay}>
+          <SearchBar
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search activities, locations..."
+            overlay
+          />
+          {searchQuery.trim().length > 0 && (
+            <View style={s.searchResults}>
+              {filtered.length === 0 ? (
+                <View style={s.searchEmpty}>
+                  <Text style={s.searchEmptyText}>No activities found</Text>
+                </View>
+              ) : (
+                <ScrollView keyboardShouldPersistTaps="handled" style={s.searchScroll}>
+                  {filtered.slice(0, 8).map((a) => {
+                    const scheduled = new Date(a.scheduled_at)
+                    const dateStr = scheduled.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+                    return (
+                      <Pressable
+                        key={a.id}
+                        style={s.searchItem}
+                        onPress={() => {
+                          if (a.location_lat && a.location_lng) {
+                            webViewRef.current?.injectJavaScript(
+                              `window.flyTo(${a.location_lng},${a.location_lat});true;`
+                            )
+                          }
+                          setSearchQuery('')
+                        }}
+                      >
+                        <Text style={s.searchEmoji}>{SPORT_EMOJI[a.sport_type] ?? '\u{1F3DE}'}</Text>
+                        <View style={s.searchItemText}>
+                          <Text style={s.searchTitle} numberOfLines={1}>{a.title}</Text>
+                          <Text style={s.searchMeta} numberOfLines={1}>{a.location_name} · {dateStr}</Text>
+                        </View>
+                      </Pressable>
+                    )
+                  })}
+                  {filtered.length > 8 && (
+                    <Text style={s.searchMore}>{filtered.length - 8} more results</Text>
+                  )}
+                </ScrollView>
+              )}
+            </View>
+          )}
+        </View>
+
         {/* Filter bar at bottom */}
         <View style={s.filterOverlay}>
           <BlurView intensity={80} tint="light" style={s.filterBar}>
@@ -467,10 +528,7 @@ export default function ExploreScreen() {
         </View>
       </View>
 
-      {/* FAB */}
-      <Pressable style={s.fab} onPress={() => router.push(`/create-activity?lat=${mapCenterRef.current.lat}&lng=${mapCenterRef.current.lng}`)}>
-        <Text style={s.fabText}>+</Text>
-      </Pressable>
+      <FloatingActionButton lat={mapCenterRef.current.lat} lng={mapCenterRef.current.lng} />
 
       {/* Time picker modal */}
       <Modal visible={showTimePicker} transparent animationType="fade">
@@ -503,6 +561,39 @@ const s = StyleSheet.create({
   mapContainer: { flex: 1, position: 'relative' },
   map: { flex: 1, backgroundColor: '#e8e0d8' },
 
+  searchOverlay: { position: 'absolute', top: 8, left: 0, right: 0, zIndex: 10 },
+  searchResults: {
+    marginHorizontal: 12,
+    marginTop: 4,
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#e5e5e5',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 6,
+    overflow: 'hidden',
+  },
+  searchScroll: { maxHeight: 280 },
+  searchItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#f0f0f0',
+  },
+  searchEmoji: { fontSize: 20, width: 28, textAlign: 'center' },
+  searchItemText: { flex: 1 },
+  searchTitle: { fontSize: 14, fontWeight: '600', color: '#1a1a2e' },
+  searchMeta: { fontSize: 12, color: '#6b7280', marginTop: 2 },
+  searchEmpty: { paddingVertical: 20, alignItems: 'center' },
+  searchEmptyText: { fontSize: 14, color: '#9ca3af' },
+  searchMore: { fontSize: 12, color: '#9ca3af', textAlign: 'center', paddingVertical: 10 },
+
   filterOverlay: { position: 'absolute', bottom: 16, left: 0, right: 0, paddingHorizontal: 8 },
   filterBar: { borderRadius: 16, overflow: 'hidden' },
   filterContent: { paddingHorizontal: 10, paddingVertical: 8, gap: 6, flexDirection: 'row', alignItems: 'center' },
@@ -514,13 +605,6 @@ const s = StyleSheet.create({
   calendarPill: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   calendarIcon: { fontSize: 14 },
   calendarLabel: { fontSize: 13, fontWeight: '600', color: '#6b7280' },
-
-  fab: {
-    position: 'absolute', right: 16, bottom: 76, width: 52, height: 52, borderRadius: 26,
-    backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8,
-  },
-  fabText: { fontSize: 26, fontWeight: '300', color: '#fff', marginTop: -2 },
 
   // Time picker modal
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' },
