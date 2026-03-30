@@ -11,12 +11,23 @@ export default async function ProfilePage() {
 
   if (!user) redirect('/login')
 
-  const [profileResult, sportsResult, followingResult, followersResult, notificationsResult, createdActivitiesResult, participantResult] = await Promise.all([
+  const [profileResult, sportsResult, experienceResult, preferencesResult, followingResult, followersResult, notificationsResult, createdActivitiesResult, participantResult] = await Promise.all([
     supabase.from('users').select('*').eq('id', user.id).single(),
     supabase
       .from('user_sports')
       .select('sport_type, self_reported_level, strava_verified_level')
       .eq('user_id', user.id),
+
+    supabase
+      .from('user_experience')
+      .select('*')
+      .eq('user_id', user.id),
+
+    supabase
+      .from('user_preferences')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle(),
 
     supabase
       .from('follows')
@@ -119,6 +130,8 @@ export default async function ProfilePage() {
     <ProfileView
       profile={profile}
       sports={sports}
+      experience={experienceResult.data ?? []}
+      preferences={preferencesResult.data ?? null}
       friends={friends}
       incomingFollows={incomingFollows}
       notifications={notifications}

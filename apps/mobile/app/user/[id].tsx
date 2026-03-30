@@ -11,7 +11,20 @@ import {
 } from 'react-native'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 
-import { SPORT_LABELS, SKILL_LABELS } from '@groute/shared'
+import {
+  SPORT_LABELS,
+  SKILL_LABELS,
+  CERTIFICATION_LABELS,
+  TERRAIN_COMFORT_LABELS,
+  WATER_COMFORT_LABELS,
+  FITNESS_LEVEL_LABELS,
+  GEAR_LEVEL_LABELS,
+  OVERNIGHT_COMFORT_LABELS,
+  PREFERRED_GROUP_SIZE_LABELS,
+  HAS_CAR_LABELS,
+  WILLING_TO_CARPOOL_LABELS,
+  COMFORT_WITH_STRANGERS_LABELS,
+} from '@groute/shared'
 import { useSession } from '../../lib/AuthProvider'
 import { apiFetch, apiPost, apiDelete } from '../../lib/api'
 
@@ -32,11 +45,16 @@ interface UserProfile {
   first_name: string | null
   last_name: string | null
   avatar_url: string | null
+  bio: string | null
   area: string | null
   preferred_language: string | null
   edu_email: string | null
+  edu_verified: boolean
+  strava_connected: boolean
   created_at: string
   sports: UserSport[]
+  experience: ExperienceData[]
+  preferences: PreferencesData | null
   isFollowing: boolean
   mutualFriendCount: number
 }
@@ -44,6 +62,29 @@ interface UserProfile {
 interface UserSport {
   sport_type: string
   self_reported_level: string
+  strava_verified_level: string | null
+}
+
+interface ExperienceData {
+  sport_type: string
+  highest_altitude_ft: number | null
+  longest_distance_mi: number | null
+  trips_last_12_months: number | null
+  years_experience: number | null
+  certifications: string[] | null
+  terrain_comfort: string[] | null
+  water_comfort: string | null
+}
+
+interface PreferencesData {
+  has_car: string | null
+  willing_to_carpool: string | null
+  max_drive_distance_mi: number | null
+  preferred_group_size: string | null
+  fitness_level: string | null
+  gear_level: string | null
+  overnight_comfort: string | null
+  comfort_with_strangers: string | null
 }
 
 interface PastActivity {
@@ -190,24 +231,79 @@ export default function UserProfileScreen() {
         </View>
       )}
 
+      {/* Bio */}
+      {profile.bio ? (
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>About</Text>
+          <View style={s.infoCard}>
+            <View style={{ paddingHorizontal: 14, paddingVertical: 12 }}>
+              <Text style={{ fontSize: 14, color: C.text, lineHeight: 20 }}>{profile.bio}</Text>
+            </View>
+          </View>
+        </View>
+      ) : null}
+
       {/* Sports */}
       {sports.length > 0 && (
         <View style={s.section}>
-          <Text style={s.sectionTitle}>Activities</Text>
-          <View style={s.sportsGrid}>
-            {sports.map((sp) => (
-              <View key={sp.sport_type} style={s.sportCard}>
-                <Text style={s.sportName}>{SPORT_LABELS[sp.sport_type] ?? sp.sport_type}</Text>
-                <Text style={s.sportLevel}>{SKILL_LABELS[sp.self_reported_level] ?? sp.self_reported_level}</Text>
+          <Text style={s.sectionTitle}>Activities & Experience</Text>
+          {sports.map((sp) => {
+            const exp = (profile.experience ?? []).find((e) => e.sport_type === sp.sport_type)
+            return (
+              <View key={sp.sport_type} style={s.sportDetailCard}>
+                <View style={s.sportDetailHeader}>
+                  <Text style={s.sportName}>{SPORT_LABELS[sp.sport_type] ?? sp.sport_type}</Text>
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    <View style={s.levelBadge}>
+                      <Text style={s.levelBadgeText}>{SKILL_LABELS[sp.self_reported_level] ?? sp.self_reported_level}</Text>
+                    </View>
+                    {sp.strava_verified_level && (
+                      <View style={s.stravaLevelBadge}>
+                        <Text style={s.stravaLevelText}>Strava: {SKILL_LABELS[sp.strava_verified_level]}</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+                {exp && (
+                  <View style={s.expDetails}>
+                    {exp.years_experience != null && (
+                      <Text style={s.expText}>{exp.years_experience} yr{exp.years_experience !== 1 ? 's' : ''} experience</Text>
+                    )}
+                    {exp.trips_last_12_months != null && (
+                      <Text style={s.expText}>{exp.trips_last_12_months} trips last year</Text>
+                    )}
+                    {exp.longest_distance_mi != null && (
+                      <Text style={s.expText}>{exp.longest_distance_mi} mi longest</Text>
+                    )}
+                    {exp.highest_altitude_ft != null && (
+                      <Text style={s.expText}>{exp.highest_altitude_ft.toLocaleString()} ft highest</Text>
+                    )}
+                    {exp.terrain_comfort && exp.terrain_comfort.length > 0 && (
+                      <Text style={s.expText}>Terrain: {exp.terrain_comfort.map((t) => TERRAIN_COMFORT_LABELS[t] ?? t).join(', ')}</Text>
+                    )}
+                    {exp.water_comfort && (
+                      <Text style={s.expText}>Water: {WATER_COMFORT_LABELS[exp.water_comfort] ?? exp.water_comfort}</Text>
+                    )}
+                  </View>
+                )}
+                {exp?.certifications && exp.certifications.length > 0 && (
+                  <View style={s.certRow}>
+                    {exp.certifications.map((cert) => (
+                      <View key={cert} style={s.certBadge}>
+                        <Text style={s.certText}>{CERTIFICATION_LABELS[cert] ?? cert}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
               </View>
-            ))}
-          </View>
+            )
+          })}
         </View>
       )}
 
       {/* Info */}
       <View style={s.section}>
-        <Text style={s.sectionTitle}>About</Text>
+        <Text style={s.sectionTitle}>Details</Text>
         <View style={s.infoCard}>
           {profile.area && (
             <View style={s.infoRow}>
@@ -221,8 +317,68 @@ export default function UserProfileScreen() {
               <Text style={s.infoValue}>{profile.preferred_language}</Text>
             </View>
           )}
+          {profile.strava_connected && (
+            <View style={s.infoRow}>
+              <Text style={s.infoLabel}>Strava</Text>
+              <Text style={[s.infoValue, { color: '#fc4c02' }]}>Connected</Text>
+            </View>
+          )}
         </View>
       </View>
+
+      {/* Preferences */}
+      {profile.preferences && (
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Preferences</Text>
+          <View style={s.infoCard}>
+            {profile.preferences.fitness_level && (
+              <View style={s.infoRow}>
+                <Text style={s.infoLabel}>Fitness</Text>
+                <Text style={s.infoValue}>{FITNESS_LEVEL_LABELS[profile.preferences.fitness_level] ?? profile.preferences.fitness_level}</Text>
+              </View>
+            )}
+            {profile.preferences.gear_level && (
+              <View style={s.infoRow}>
+                <Text style={s.infoLabel}>Gear</Text>
+                <Text style={s.infoValue}>{GEAR_LEVEL_LABELS[profile.preferences.gear_level] ?? profile.preferences.gear_level}</Text>
+              </View>
+            )}
+            {profile.preferences.overnight_comfort && (
+              <View style={s.infoRow}>
+                <Text style={s.infoLabel}>Overnight</Text>
+                <Text style={s.infoValue}>{OVERNIGHT_COMFORT_LABELS[profile.preferences.overnight_comfort] ?? profile.preferences.overnight_comfort}</Text>
+              </View>
+            )}
+            {profile.preferences.preferred_group_size && (
+              <View style={s.infoRow}>
+                <Text style={s.infoLabel}>Group size</Text>
+                <Text style={s.infoValue}>{PREFERRED_GROUP_SIZE_LABELS[profile.preferences.preferred_group_size] ?? profile.preferences.preferred_group_size}</Text>
+              </View>
+            )}
+            {profile.preferences.comfort_with_strangers && (
+              <View style={s.infoRow}>
+                <Text style={s.infoLabel}>New people</Text>
+                <Text style={s.infoValue}>{COMFORT_WITH_STRANGERS_LABELS[profile.preferences.comfort_with_strangers] ?? profile.preferences.comfort_with_strangers}</Text>
+              </View>
+            )}
+            {profile.preferences.has_car && (
+              <View style={s.infoRow}>
+                <Text style={s.infoLabel}>Has car</Text>
+                <Text style={s.infoValue}>{HAS_CAR_LABELS[profile.preferences.has_car] ?? profile.preferences.has_car}</Text>
+              </View>
+            )}
+            {profile.preferences.willing_to_carpool && (
+              <View style={s.infoRow}>
+                <Text style={s.infoLabel}>Carpool</Text>
+                <Text style={s.infoValue}>
+                  {WILLING_TO_CARPOOL_LABELS[profile.preferences.willing_to_carpool] ?? profile.preferences.willing_to_carpool}
+                  {profile.preferences.max_drive_distance_mi ? ` (${profile.preferences.max_drive_distance_mi} mi)` : ''}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+      )}
 
       {/* Activity History */}
       {activityHistory && activityHistory.stats && activityHistory.stats.totalTrips > 0 && (
@@ -319,6 +475,18 @@ const s = StyleSheet.create({
   sportCard: { backgroundColor: C.card, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: C.border },
   sportName: { fontSize: 14, fontWeight: '600', color: C.text },
   sportLevel: { fontSize: 12, color: C.textMuted, marginTop: 2 },
+
+  sportDetailCard: { backgroundColor: C.card, borderRadius: 12, borderWidth: 1, borderColor: C.border, padding: 14, marginBottom: 8 },
+  sportDetailHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  levelBadge: { backgroundColor: '#f0f0f0', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  levelBadgeText: { fontSize: 11, fontWeight: '500', color: C.textSecondary },
+  stravaLevelBadge: { backgroundColor: '#dcfce7', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  stravaLevelText: { fontSize: 11, fontWeight: '500', color: '#16a34a' },
+  expDetails: { marginTop: 8, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#f0f0f0', flexDirection: 'row', flexWrap: 'wrap', gap: 4, columnGap: 12 },
+  expText: { fontSize: 12, color: C.textMuted },
+  certRow: { marginTop: 8, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  certBadge: { backgroundColor: '#eff6ff', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
+  certText: { fontSize: 10, fontWeight: '600', color: '#2563eb' },
 
   infoCard: { backgroundColor: C.card, borderRadius: 12, borderWidth: 1, borderColor: C.border, overflow: 'hidden' },
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#f0f0f0' },

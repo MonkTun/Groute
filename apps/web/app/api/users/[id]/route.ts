@@ -17,13 +17,13 @@ export async function GET(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Fetch profile, sports, follow status, and mutual friend count in parallel
-  const [profileResult, sportsResult, followResult, mutualCountResult] =
+  // Fetch profile, sports, experience, preferences, follow status, and mutual friend count in parallel
+  const [profileResult, sportsResult, experienceResult, preferencesResult, followResult, mutualCountResult] =
     await Promise.all([
       supabase
         .from('users')
         .select(
-          'id, display_name, first_name, last_name, avatar_url, area, bio, edu_email, date_of_birth, last_location_lat, last_location_lng, last_location_at'
+          'id, display_name, first_name, last_name, avatar_url, area, bio, edu_email, edu_verified, date_of_birth, preferred_language, strava_connected, created_at, last_location_lat, last_location_lng, last_location_at'
         )
         .eq('id', userId)
         .single(),
@@ -32,6 +32,17 @@ export async function GET(
         .from('user_sports')
         .select('sport_type, self_reported_level, strava_verified_level')
         .eq('user_id', userId),
+
+      supabase
+        .from('user_experience')
+        .select('*')
+        .eq('user_id', userId),
+
+      supabase
+        .from('user_preferences')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle(),
 
       supabase
         .from('follows')
@@ -90,6 +101,8 @@ export async function GET(
     data: {
       ...profileResult.data,
       sports: sportsResult.data ?? [],
+      experience: experienceResult.data ?? [],
+      preferences: preferencesResult.data ?? null,
       isFollowing: !!followResult.data,
       mutualFriendCount: mutualCountResult,
     },

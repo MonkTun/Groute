@@ -10,6 +10,17 @@ import {
   COUNTRIES,
   REGIONS,
   PREFERRED_LANGUAGES,
+  CERTIFICATION_LABELS,
+  TERRAIN_COMFORT_LABELS,
+  WATER_COMFORT_LABELS,
+  FITNESS_LEVEL_LABELS,
+  GEAR_LEVEL_LABELS,
+  OVERNIGHT_COMFORT_LABELS,
+  PREFERRED_GROUP_SIZE_LABELS,
+  PREFERRED_TIME_OF_DAY_LABELS,
+  HAS_CAR_LABELS,
+  WILLING_TO_CARPOOL_LABELS,
+  COMFORT_WITH_STRANGERS_LABELS,
   type UserSportInput,
 } from '@groute/shared'
 
@@ -32,12 +43,40 @@ interface ProfileData {
   last_name: string | null
   email: string
   avatar_url: string | null
+  bio: string | null
   date_of_birth: string | null
   area: string | null
   preferred_language: string | null
   edu_email: string | null
   edu_verified: boolean
   strava_connected: boolean
+  created_at: string
+}
+
+interface ExperienceData {
+  sport_type: string
+  highest_altitude_ft: number | null
+  longest_distance_mi: number | null
+  trips_last_12_months: number | null
+  years_experience: number | null
+  certifications: string[] | null
+  terrain_comfort: string[] | null
+  water_comfort: string | null
+}
+
+interface PreferencesData {
+  has_car: string | null
+  willing_to_carpool: string | null
+  max_drive_distance_mi: number | null
+  preferred_group_size: string | null
+  preferred_time_of_day: string[] | null
+  weekday_availability: boolean | null
+  weekend_availability: boolean | null
+  gear_level: string | null
+  overnight_comfort: string | null
+  fitness_level: string | null
+  comfort_with_strangers: string | null
+  accessibility_notes: string | null
 }
 
 interface SportData {
@@ -77,6 +116,8 @@ interface NotificationData {
 interface ProfileViewProps {
   profile: ProfileData
   sports: SportData[]
+  experience?: ExperienceData[]
+  preferences?: PreferencesData | null
   friends?: UserInfo[]
   incomingFollows?: UserInfo[]
   notifications?: NotificationData[]
@@ -84,7 +125,7 @@ interface ProfileViewProps {
   pastActivities?: PastActivity[]
 }
 
-export function ProfileView({ profile, sports: initialSports, friends = [], incomingFollows = [], notifications = [], currentUserId, pastActivities = [] }: ProfileViewProps) {
+export function ProfileView({ profile, sports: initialSports, experience = [], preferences = null, friends = [], incomingFollows = [], notifications = [], currentUserId, pastActivities = [] }: ProfileViewProps) {
   const router = useRouter()
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -118,6 +159,7 @@ export function ProfileView({ profile, sports: initialSports, friends = [], inco
   // Edit state
   const [firstName, setFirstName] = useState(profile.first_name ?? '')
   const [lastName, setLastName] = useState(profile.last_name ?? '')
+  const [bio, setBio] = useState(profile.bio ?? '')
   const [dateOfBirth, setDateOfBirth] = useState(profile.date_of_birth ?? '')
   const [country, setCountry] = useState(profile.area?.split(', ')[1] ?? '')
   const [region, setRegion] = useState(profile.area?.split(', ')[0] ?? '')
@@ -133,6 +175,7 @@ export function ProfileView({ profile, sports: initialSports, friends = [], inco
   function handleCancel() {
     setFirstName(profile.first_name ?? '')
     setLastName(profile.last_name ?? '')
+    setBio(profile.bio ?? '')
     setDateOfBirth(profile.date_of_birth ?? '')
     setCountry(profile.area?.split(', ')[1] ?? '')
     setRegion(profile.area?.split(', ')[0] ?? '')
@@ -154,11 +197,12 @@ export function ProfileView({ profile, sports: initialSports, friends = [], inco
 
     try {
       const res = await fetch('/api/profile', {
-        method: 'POST',
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           firstName,
           lastName,
+          bio: bio || null,
           dateOfBirth,
           area: region && country ? `${region}, ${country}` : region || country,
           preferredLanguage: preferredLanguage || undefined,
@@ -268,6 +312,18 @@ export function ProfileView({ profile, sports: initialSports, friends = [], inco
         </div>
 
         <div className="space-y-4">
+          {/* Bio */}
+          {profile.bio && (
+            <Card>
+              <CardHeader>
+                <CardTitle>About</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm leading-relaxed">{profile.bio}</p>
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle>Personal Info</CardTitle>
@@ -308,6 +364,12 @@ export function ProfileView({ profile, sports: initialSports, friends = [], inco
                     <dd className="font-medium text-green-600">Connected</dd>
                   </div>
                 )}
+                <div>
+                  <dt className="text-muted-foreground">Member since</dt>
+                  <dd className="font-medium">
+                    {new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  </dd>
+                </div>
               </dl>
             </CardContent>
           </Card>
@@ -319,32 +381,151 @@ export function ProfileView({ profile, sports: initialSports, friends = [], inco
             <CardContent>
               {initialSports.length > 0 ? (
                 <div className="space-y-2 sm:space-y-3">
-                  {initialSports.map((sport) => (
-                    <div
-                      key={sport.sport_type}
-                      className="flex flex-col gap-2 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between sm:px-4 sm:py-3"
-                    >
-                      <span className="text-sm font-medium">
-                        {SPORT_LABELS[sport.sport_type] ?? sport.sport_type}
-                      </span>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded-md bg-muted px-2 py-1 text-xs">
-                          {SKILL_LABELS[sport.self_reported_level] ?? sport.self_reported_level}
-                        </span>
-                        {sport.strava_verified_level && (
-                          <span className="rounded-md bg-green-100 px-2 py-1 text-xs text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                            Strava: {SKILL_LABELS[sport.strava_verified_level]}
+                  {initialSports.map((sport) => {
+                    const exp = experience.find((e) => e.sport_type === sport.sport_type)
+                    return (
+                      <div
+                        key={sport.sport_type}
+                        className="rounded-lg border border-border p-3 sm:px-4 sm:py-3"
+                      >
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <span className="text-sm font-medium">
+                            {SPORT_LABELS[sport.sport_type] ?? sport.sport_type}
                           </span>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="rounded-md bg-muted px-2 py-1 text-xs">
+                              {SKILL_LABELS[sport.self_reported_level] ?? sport.self_reported_level}
+                            </span>
+                            {sport.strava_verified_level && (
+                              <span className="rounded-md bg-green-100 px-2 py-1 text-xs text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                Strava: {SKILL_LABELS[sport.strava_verified_level]}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {exp && (
+                          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 border-t border-border pt-2 text-xs text-muted-foreground">
+                            {exp.years_experience != null && (
+                              <span>{exp.years_experience} yr{exp.years_experience !== 1 ? 's' : ''} experience</span>
+                            )}
+                            {exp.trips_last_12_months != null && (
+                              <span>{exp.trips_last_12_months} trips last year</span>
+                            )}
+                            {exp.longest_distance_mi != null && (
+                              <span>{exp.longest_distance_mi} mi longest</span>
+                            )}
+                            {exp.highest_altitude_ft != null && (
+                              <span>{exp.highest_altitude_ft.toLocaleString()} ft highest</span>
+                            )}
+                            {exp.terrain_comfort && exp.terrain_comfort.length > 0 && (
+                              <span>Terrain: {exp.terrain_comfort.map((t) => TERRAIN_COMFORT_LABELS[t] ?? t).join(', ')}</span>
+                            )}
+                            {exp.water_comfort && (
+                              <span>Water: {WATER_COMFORT_LABELS[exp.water_comfort] ?? exp.water_comfort}</span>
+                            )}
+                          </div>
+                        )}
+                        {exp?.certifications && exp.certifications.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {exp.certifications.map((cert) => (
+                              <span key={cert} className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                                {CERTIFICATION_LABELS[cert] ?? cert}
+                              </span>
+                            ))}
+                          </div>
                         )}
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">No activities added yet.</p>
               )}
             </CardContent>
           </Card>
+
+          {/* Preferences */}
+          {preferences && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Preferences</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <dl className="grid grid-cols-1 gap-x-4 gap-y-3 text-sm sm:grid-cols-2">
+                  {preferences.fitness_level && (
+                    <div>
+                      <dt className="text-muted-foreground">Fitness level</dt>
+                      <dd className="font-medium">{FITNESS_LEVEL_LABELS[preferences.fitness_level] ?? preferences.fitness_level}</dd>
+                    </div>
+                  )}
+                  {preferences.gear_level && (
+                    <div>
+                      <dt className="text-muted-foreground">Gear</dt>
+                      <dd className="font-medium">{GEAR_LEVEL_LABELS[preferences.gear_level] ?? preferences.gear_level}</dd>
+                    </div>
+                  )}
+                  {preferences.overnight_comfort && (
+                    <div>
+                      <dt className="text-muted-foreground">Overnight</dt>
+                      <dd className="font-medium">{OVERNIGHT_COMFORT_LABELS[preferences.overnight_comfort] ?? preferences.overnight_comfort}</dd>
+                    </div>
+                  )}
+                  {preferences.preferred_group_size && (
+                    <div>
+                      <dt className="text-muted-foreground">Group size</dt>
+                      <dd className="font-medium">{PREFERRED_GROUP_SIZE_LABELS[preferences.preferred_group_size] ?? preferences.preferred_group_size}</dd>
+                    </div>
+                  )}
+                  {preferences.comfort_with_strangers && (
+                    <div>
+                      <dt className="text-muted-foreground">Meeting new people</dt>
+                      <dd className="font-medium">{COMFORT_WITH_STRANGERS_LABELS[preferences.comfort_with_strangers] ?? preferences.comfort_with_strangers}</dd>
+                    </div>
+                  )}
+                  {preferences.has_car && (
+                    <div>
+                      <dt className="text-muted-foreground">Has car</dt>
+                      <dd className="font-medium">{HAS_CAR_LABELS[preferences.has_car] ?? preferences.has_car}</dd>
+                    </div>
+                  )}
+                  {preferences.willing_to_carpool && (
+                    <div>
+                      <dt className="text-muted-foreground">Carpool</dt>
+                      <dd className="font-medium">
+                        {WILLING_TO_CARPOOL_LABELS[preferences.willing_to_carpool] ?? preferences.willing_to_carpool}
+                        {preferences.max_drive_distance_mi && ` (up to ${preferences.max_drive_distance_mi} mi)`}
+                      </dd>
+                    </div>
+                  )}
+                  {(preferences.weekday_availability || preferences.weekend_availability) && (
+                    <div>
+                      <dt className="text-muted-foreground">Availability</dt>
+                      <dd className="font-medium">
+                        {[
+                          preferences.weekday_availability && 'Weekdays',
+                          preferences.weekend_availability && 'Weekends',
+                        ].filter(Boolean).join(' & ')}
+                      </dd>
+                    </div>
+                  )}
+                  {preferences.preferred_time_of_day && preferences.preferred_time_of_day.length > 0 && (
+                    <div className="sm:col-span-2">
+                      <dt className="text-muted-foreground">Preferred times</dt>
+                      <dd className="font-medium">
+                        {preferences.preferred_time_of_day.map((t) => PREFERRED_TIME_OF_DAY_LABELS[t] ?? t).join(', ')}
+                      </dd>
+                    </div>
+                  )}
+                  {preferences.accessibility_notes && (
+                    <div className="sm:col-span-2">
+                      <dt className="text-muted-foreground">Accessibility</dt>
+                      <dd className="font-medium">{preferences.accessibility_notes}</dd>
+                    </div>
+                  )}
+                </dl>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Past Activities */}
           {pastActivities.length > 0 && (
@@ -588,6 +769,20 @@ export function ProfileView({ profile, sports: initialSports, friends = [], inco
                 <Label htmlFor="edit-ln">Last name</Label>
                 <Input id="edit-ln" value={lastName} onChange={(e) => setLastName(e.target.value)} />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-bio">Bio</Label>
+              <textarea
+                id="edit-bio"
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                maxLength={300}
+                rows={3}
+                placeholder="Tell others about yourself..."
+                className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              />
+              <p className="text-xs text-muted-foreground">{bio.length}/300</p>
             </div>
 
             <div className="space-y-2">
