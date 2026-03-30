@@ -10,6 +10,7 @@ import {
 } from 'react-native'
 import { Stack, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import DateTimePicker from '@react-native-community/datetimepicker'
 
 import {
   SPORT_LABELS,
@@ -110,7 +111,8 @@ export default function OnboardingScreen() {
   // Basics
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
-  const [dateOfBirth, setDateOfBirth] = useState('')
+  const [dateOfBirth, setDateOfBirth] = useState<Date | null>(null)
+  const [showDatePicker, setShowDatePicker] = useState(false)
   const [country, setCountry] = useState('')
   const [region, setRegion] = useState('')
   const [showCountryPicker, setShowCountryPicker] = useState(false)
@@ -141,7 +143,10 @@ export default function OnboardingScreen() {
       if (!firstName.trim() || !lastName.trim()) {
         Alert.alert('Required', 'First and last name are required.'); return
       }
-      if (!dateOfBirth) { Alert.alert('Required', 'Date of birth is required.'); return }
+      if (!dateOfBirth) { Alert.alert('Required', 'Date of birth is required. Tap to select.'); return }
+      const age = new Date().getFullYear() - dateOfBirth.getFullYear()
+      if (age < 18) { Alert.alert('Invalid', 'You must be at least 18 years old.'); return }
+      if (age > 100) { Alert.alert('Invalid', 'Please enter a valid date of birth.'); return }
       if (!country || !region) { Alert.alert('Required', 'Country and region are required.'); return }
     }
     if (step === 'activities' && sports.length === 0) {
@@ -199,10 +204,12 @@ export default function OnboardingScreen() {
       ...getExp(sp.sportType),
     }))
 
+    const dobString = dateOfBirth ? dateOfBirth.toISOString().split('T')[0] : ''
+
     const res = await apiPost<{ success: boolean }>('/api/profile', {
       firstName: firstName.trim(),
       lastName: lastName.trim(),
-      dateOfBirth,
+      dateOfBirth: dobString,
       area: `${region}, ${country}`,
       sports,
       experience: expData,
@@ -256,7 +263,26 @@ export default function OnboardingScreen() {
 
             <View style={s.fieldFull}>
               <Text style={s.label}>Date of birth</Text>
-              <TextInput style={s.input} value={dateOfBirth} onChangeText={setDateOfBirth} placeholder="YYYY-MM-DD" placeholderTextColor={C.textMuted} keyboardType="numbers-and-punctuation" />
+              <Pressable style={s.select} onPress={() => setShowDatePicker(!showDatePicker)}>
+                <Text style={dateOfBirth ? s.selectText : s.selectPlaceholder}>
+                  {dateOfBirth
+                    ? dateOfBirth.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+                    : 'Select date of birth'}
+                </Text>
+              </Pressable>
+              {showDatePicker && (
+                <DateTimePicker
+                  value={dateOfBirth ?? new Date(2000, 0, 1)}
+                  mode="date"
+                  display="spinner"
+                  maximumDate={new Date(new Date().getFullYear() - 18, new Date().getMonth(), new Date().getDate())}
+                  minimumDate={new Date(1920, 0, 1)}
+                  themeVariant="light"
+                  onChange={(_event, date) => {
+                    if (date) setDateOfBirth(date)
+                  }}
+                />
+              )}
             </View>
 
             <View style={s.row}>

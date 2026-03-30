@@ -14,6 +14,7 @@ import {
 } from 'react-native'
 import { Stack, useRouter } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
+import DateTimePicker from '@react-native-community/datetimepicker'
 
 import Constants from 'expo-constants'
 
@@ -59,7 +60,8 @@ export default function EditProfileScreen() {
 
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
-  const [dateOfBirth, setDateOfBirth] = useState('')
+  const [dateOfBirth, setDateOfBirth] = useState<Date | null>(null)
+  const [showDatePicker, setShowDatePicker] = useState(false)
   const [country, setCountry] = useState('')
   const [region, setRegion] = useState('')
   const [preferredLanguage, setPreferredLanguage] = useState('')
@@ -95,7 +97,7 @@ export default function EditProfileScreen() {
     if (data) {
       setFirstName(data.first_name ?? '')
       setLastName(data.last_name ?? '')
-      setDateOfBirth(data.date_of_birth ?? '')
+      setDateOfBirth(data.date_of_birth ? new Date(data.date_of_birth + 'T00:00:00') : null)
       setBio(data.bio ?? '')
       setAvatarUrl(data.avatar_url)
       setPreferredLanguage(data.preferred_language ?? '')
@@ -184,7 +186,7 @@ export default function EditProfileScreen() {
       const { error } = await apiPatch('/api/profile', {
         firstName: firstName.trim() || null,
         lastName: lastName.trim() || null,
-        dateOfBirth: dateOfBirth || null,
+        dateOfBirth: dateOfBirth ? dateOfBirth.toISOString().split('T')[0] : null,
         area: area || null,
         bio: bio.trim() || null,
         preferredLanguage: preferredLanguage || null,
@@ -279,14 +281,27 @@ export default function EditProfileScreen() {
 
           <View style={s.fieldFull}>
             <Text style={s.label}>Date of birth</Text>
-            <TextInput
-              style={s.input}
-              value={dateOfBirth}
-              onChangeText={setDateOfBirth}
-              placeholderTextColor={C.textMuted}
-              placeholder="YYYY-MM-DD"
-              keyboardType="numbers-and-punctuation"
-            />
+            <Pressable style={s.select} onPress={() => setShowDatePicker(!showDatePicker)}>
+              <Text style={dateOfBirth ? s.selectText : s.selectPlaceholder}>
+                {dateOfBirth
+                  ? dateOfBirth.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+                  : 'Select date of birth'}
+              </Text>
+              <Text style={s.selectChevron}>{showDatePicker ? '\u25B2' : '\u25BC'}</Text>
+            </Pressable>
+            {showDatePicker && (
+              <DateTimePicker
+                value={dateOfBirth ?? new Date(2000, 0, 1)}
+                mode="date"
+                display="spinner"
+                maximumDate={new Date(new Date().getFullYear() - 18, new Date().getMonth(), new Date().getDate())}
+                minimumDate={new Date(1920, 0, 1)}
+                themeVariant="light"
+                onChange={(_event, date) => {
+                  if (date) setDateOfBirth(date)
+                }}
+              />
+            )}
           </View>
 
           <View style={s.row}>
