@@ -134,20 +134,82 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    // Return updated profile
-    const { data: profile } = await supabase
-      .from("users")
-      .select("*")
-      .eq("id", user.id)
-      .single();
+    // Update experience if provided
+    if (body.experience !== undefined) {
+      await supabase.from("user_experience").delete().eq("user_id", user.id);
 
-    const { data: sports } = await supabase
-      .from("user_sports")
-      .select("sport_type, self_reported_level, strava_verified_level")
-      .eq("user_id", user.id);
+      if (body.experience.length > 0) {
+        const { error: expError } = await supabase
+          .from("user_experience")
+          .insert(
+            body.experience.map((e: {
+              sportType: string;
+              highestAltitudeFt?: number | null;
+              longestDistanceMi?: number | null;
+              tripsLast12Months?: number | null;
+              yearsExperience?: number | null;
+              certifications?: string[];
+              terrainComfort?: string[];
+              waterComfort?: string | null;
+            }) => ({
+              user_id: user.id,
+              sport_type: e.sportType,
+              highest_altitude_ft: e.highestAltitudeFt ?? null,
+              longest_distance_mi: e.longestDistanceMi ?? null,
+              trips_last_12_months: e.tripsLast12Months ?? null,
+              years_experience: e.yearsExperience ?? null,
+              certifications: e.certifications ?? [],
+              terrain_comfort: e.terrainComfort ?? [],
+              water_comfort: e.waterComfort ?? null,
+            }))
+          );
+
+        if (expError) {
+          console.error("Failed to update experience:", expError);
+        }
+      }
+    }
+
+    // Update preferences if provided
+    if (body.preferences !== undefined) {
+      await supabase.from("user_preferences").delete().eq("user_id", user.id);
+
+      if (body.preferences) {
+        const p = body.preferences;
+        const { error: prefError } = await supabase
+          .from("user_preferences")
+          .insert({
+            user_id: user.id,
+            has_car: p.hasCar ?? null,
+            willing_to_carpool: p.willingToCarpool ?? null,
+            max_drive_distance_mi: p.maxDriveDistanceMi ?? null,
+            preferred_group_size: p.preferredGroupSize ?? null,
+            preferred_time_of_day: p.preferredTimeOfDay ?? [],
+            weekday_availability: p.weekdayAvailability ?? false,
+            weekend_availability: p.weekendAvailability ?? true,
+            gear_level: p.gearLevel ?? null,
+            overnight_comfort: p.overnightComfort ?? null,
+            fitness_level: p.fitnessLevel ?? null,
+            comfort_with_strangers: p.comfortWithStrangers ?? null,
+            accessibility_notes: p.accessibilityNotes ?? null,
+          });
+
+        if (prefError) {
+          console.error("Failed to update preferences:", prefError);
+        }
+      }
+    }
+
+    // Return updated profile
+    const [{ data: profile }, { data: sports }, { data: experience }, { data: preferences }] = await Promise.all([
+      supabase.from("users").select("*").eq("id", user.id).single(),
+      supabase.from("user_sports").select("sport_type, self_reported_level, strava_verified_level").eq("user_id", user.id),
+      supabase.from("user_experience").select("*").eq("user_id", user.id),
+      supabase.from("user_preferences").select("*").eq("user_id", user.id).maybeSingle(),
+    ]);
 
     return NextResponse.json({
-      data: { ...profile, sports: sports ?? [] },
+      data: { ...profile, sports: sports ?? [], experience: experience ?? [], preferences: preferences ?? null },
     });
   } catch (err) {
     console.error("Profile PATCH error:", err);

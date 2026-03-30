@@ -24,6 +24,29 @@ import {
   COUNTRIES,
   REGIONS,
   PREFERRED_LANGUAGES,
+  TERRAIN_COMFORT_OPTIONS,
+  TERRAIN_COMFORT_LABELS,
+  WATER_COMFORT_OPTIONS,
+  WATER_COMFORT_LABELS,
+  CERTIFICATION_OPTIONS,
+  CERTIFICATION_LABELS,
+  FITNESS_LEVEL_OPTIONS,
+  FITNESS_LEVEL_LABELS,
+  GEAR_LEVEL_OPTIONS,
+  GEAR_LEVEL_LABELS,
+  OVERNIGHT_COMFORT_OPTIONS,
+  OVERNIGHT_COMFORT_LABELS,
+  PREFERRED_GROUP_SIZE_OPTIONS,
+  PREFERRED_GROUP_SIZE_LABELS,
+  PREFERRED_TIME_OF_DAY_OPTIONS,
+  PREFERRED_TIME_OF_DAY_LABELS,
+  HAS_CAR_OPTIONS,
+  HAS_CAR_LABELS,
+  WILLING_TO_CARPOOL_OPTIONS,
+  WILLING_TO_CARPOOL_LABELS,
+  MAX_DRIVE_DISTANCE_OPTIONS,
+  COMFORT_WITH_STRANGERS_OPTIONS,
+  COMFORT_WITH_STRANGERS_LABELS,
 } from '@groute/shared'
 import { useSession } from '../lib/AuthProvider'
 import { supabase } from '../lib/supabase'
@@ -54,6 +77,32 @@ interface UserSportEntry {
   selfReportedLevel: string
 }
 
+interface ExperienceEntry {
+  sportType: string
+  yearsExperience: number | null
+  tripsLast12Months: number | null
+  longestDistanceMi: number | null
+  highestAltitudeFt: number | null
+  terrainComfort: string[]
+  waterComfort: string | null
+  certifications: string[]
+}
+
+interface PreferencesEntry {
+  fitnessLevel: string | null
+  gearLevel: string | null
+  overnightComfort: string | null
+  preferredGroupSize: string | null
+  comfortWithStrangers: string | null
+  hasCar: string | null
+  willingToCarpool: string | null
+  maxDriveDistanceMi: number | null
+  weekdayAvailability: boolean
+  weekendAvailability: boolean
+  preferredTimeOfDay: string[]
+  accessibilityNotes: string | null
+}
+
 export default function EditProfileScreen() {
   const { user } = useSession()
   const router = useRouter()
@@ -69,6 +118,14 @@ export default function EditProfileScreen() {
   const [bio, setBio] = useState('')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [sports, setSports] = useState<UserSportEntry[]>([])
+  const [experienceEntries, setExperienceEntries] = useState<ExperienceEntry[]>([])
+  const [prefs, setPrefs] = useState<PreferencesEntry>({
+    fitnessLevel: null, gearLevel: null, overnightComfort: null,
+    preferredGroupSize: null, comfortWithStrangers: null,
+    hasCar: null, willingToCarpool: null, maxDriveDistanceMi: null,
+    weekdayAvailability: false, weekendAvailability: true,
+    preferredTimeOfDay: [], accessibilityNotes: null,
+  })
 
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
@@ -92,6 +149,30 @@ export default function EditProfileScreen() {
       preferred_language: string | null
       edu_email: string | null
       sports: { sport_type: string; self_reported_level: string }[]
+      experience: Array<{
+        sport_type: string
+        years_experience: number | null
+        trips_last_12_months: number | null
+        longest_distance_mi: number | null
+        highest_altitude_ft: number | null
+        terrain_comfort: string[] | null
+        water_comfort: string | null
+        certifications: string[] | null
+      }>
+      preferences: {
+        fitness_level: string | null
+        gear_level: string | null
+        overnight_comfort: string | null
+        preferred_group_size: string | null
+        comfort_with_strangers: string | null
+        has_car: string | null
+        willing_to_carpool: string | null
+        max_drive_distance_mi: number | null
+        weekday_availability: boolean | null
+        weekend_availability: boolean | null
+        preferred_time_of_day: string[] | null
+        accessibility_notes: string | null
+      } | null
     }>('/api/profile')
 
     if (data) {
@@ -116,6 +197,33 @@ export default function EditProfileScreen() {
         sportType: s.sport_type,
         selfReportedLevel: s.self_reported_level,
       })))
+      setExperienceEntries((data.experience ?? []).map((e) => ({
+        sportType: e.sport_type,
+        yearsExperience: e.years_experience,
+        tripsLast12Months: e.trips_last_12_months,
+        longestDistanceMi: e.longest_distance_mi,
+        highestAltitudeFt: e.highest_altitude_ft,
+        terrainComfort: e.terrain_comfort ?? [],
+        waterComfort: e.water_comfort,
+        certifications: e.certifications ?? [],
+      })))
+      if (data.preferences) {
+        const p = data.preferences
+        setPrefs({
+          fitnessLevel: p.fitness_level,
+          gearLevel: p.gear_level,
+          overnightComfort: p.overnight_comfort,
+          preferredGroupSize: p.preferred_group_size,
+          comfortWithStrangers: p.comfort_with_strangers,
+          hasCar: p.has_car,
+          willingToCarpool: p.willing_to_carpool,
+          maxDriveDistanceMi: p.max_drive_distance_mi,
+          weekdayAvailability: p.weekday_availability ?? false,
+          weekendAvailability: p.weekend_availability ?? true,
+          preferredTimeOfDay: p.preferred_time_of_day ?? [],
+          accessibilityNotes: p.accessibility_notes,
+        })
+      }
     }
   }, [user])
 
@@ -167,7 +275,16 @@ export default function EditProfileScreen() {
   function toggleSport(sportType: string) {
     setSports((prev) => {
       const exists = prev.find((s) => s.sportType === sportType)
-      if (exists) return prev.filter((s) => s.sportType !== sportType)
+      if (exists) {
+        setExperienceEntries((exp) => exp.filter((e) => e.sportType !== sportType))
+        return prev.filter((s) => s.sportType !== sportType)
+      }
+      setExperienceEntries((exp) => [...exp, {
+        sportType,
+        yearsExperience: null, tripsLast12Months: null,
+        longestDistanceMi: null, highestAltitudeFt: null,
+        terrainComfort: [], waterComfort: null, certifications: [],
+      }])
       return [...prev, { sportType, selfReportedLevel: 'beginner' }]
     })
   }
@@ -195,6 +312,8 @@ export default function EditProfileScreen() {
           sportType: s.sportType,
           selfReportedLevel: s.selfReportedLevel,
         })),
+        experience: experienceEntries,
+        preferences: prefs,
       })
 
       if (error) {
@@ -470,13 +589,227 @@ export default function EditProfileScreen() {
           )}
         </View>
 
+        {/* ── Card: Experience Details ── */}
+        {sports.length > 0 && (
+          <View style={s.card}>
+            <Text style={s.cardTitle}>Experience Details</Text>
+            {sports.map((sport, idx) => {
+              const exp = experienceEntries.find((e) => e.sportType === sport.sportType) ?? {
+                sportType: sport.sportType,
+                yearsExperience: null, tripsLast12Months: null,
+                longestDistanceMi: null, highestAltitudeFt: null,
+                terrainComfort: [] as string[], waterComfort: null as string | null, certifications: [] as string[],
+              }
+              function updateExp(field: string, value: unknown) {
+                setExperienceEntries((prev) => {
+                  const exists = prev.find((e) => e.sportType === sport.sportType)
+                  if (exists) return prev.map((e) => e.sportType === sport.sportType ? { ...e, [field]: value } : e)
+                  return [...prev, { ...exp, [field]: value }]
+                })
+              }
+              return (
+                <View key={sport.sportType} style={{ marginBottom: idx < sports.length - 1 ? 20 : 0 }}>
+                  <Text style={[s.label, { fontSize: 15, fontWeight: '600', color: C.text, marginBottom: 12 }]}>{SPORT_LABELS[sport.sportType]}</Text>
+
+                  <View style={s.row}>
+                    <View style={s.field}>
+                      <Text style={s.label}>Years exp</Text>
+                      <TextInput style={s.input} value={exp.yearsExperience?.toString() ?? ''} onChangeText={(v) => updateExp('yearsExperience', v ? Number(v) : null)} keyboardType="number-pad" placeholderTextColor={C.textMuted} placeholder="0" />
+                    </View>
+                    <View style={s.field}>
+                      <Text style={s.label}>Trips/12mo</Text>
+                      <TextInput style={s.input} value={exp.tripsLast12Months?.toString() ?? ''} onChangeText={(v) => updateExp('tripsLast12Months', v ? Number(v) : null)} keyboardType="number-pad" placeholderTextColor={C.textMuted} placeholder="0" />
+                    </View>
+                  </View>
+                  <View style={s.row}>
+                    <View style={s.field}>
+                      <Text style={s.label}>Longest (mi)</Text>
+                      <TextInput style={s.input} value={exp.longestDistanceMi?.toString() ?? ''} onChangeText={(v) => updateExp('longestDistanceMi', v ? Number(v) : null)} keyboardType="number-pad" placeholderTextColor={C.textMuted} placeholder="0" />
+                    </View>
+                    <View style={s.field}>
+                      <Text style={s.label}>Highest (ft)</Text>
+                      <TextInput style={s.input} value={exp.highestAltitudeFt?.toString() ?? ''} onChangeText={(v) => updateExp('highestAltitudeFt', v ? Number(v) : null)} keyboardType="number-pad" placeholderTextColor={C.textMuted} placeholder="0" />
+                    </View>
+                  </View>
+
+                  <Text style={[s.label, { marginTop: 4 }]}>Terrain comfort</Text>
+                  <View style={s.sportGrid}>
+                    {TERRAIN_COMFORT_OPTIONS.map((opt) => {
+                      const isActive = exp.terrainComfort.includes(opt)
+                      return (
+                        <Pressable key={opt} style={[s.sportButton, isActive && s.sportButtonActive]}
+                          onPress={() => updateExp('terrainComfort', isActive ? exp.terrainComfort.filter((t) => t !== opt) : [...exp.terrainComfort, opt])}>
+                          <Text style={[s.sportButtonText, isActive && s.sportButtonTextActive]}>{TERRAIN_COMFORT_LABELS[opt]}</Text>
+                        </Pressable>
+                      )
+                    })}
+                  </View>
+
+                  <Text style={[s.label, { marginTop: 12 }]}>Water comfort</Text>
+                  <View style={s.sportGrid}>
+                    {WATER_COMFORT_OPTIONS.map((opt) => {
+                      const isActive = exp.waterComfort === opt
+                      return (
+                        <Pressable key={opt} style={[s.sportButton, isActive && s.sportButtonActive]}
+                          onPress={() => updateExp('waterComfort', isActive ? null : opt)}>
+                          <Text style={[s.sportButtonText, isActive && s.sportButtonTextActive]}>{WATER_COMFORT_LABELS[opt]}</Text>
+                        </Pressable>
+                      )
+                    })}
+                  </View>
+
+                  <Text style={[s.label, { marginTop: 12 }]}>Certifications</Text>
+                  <View style={s.sportGrid}>
+                    {CERTIFICATION_OPTIONS.map((opt) => {
+                      const isActive = exp.certifications.includes(opt)
+                      return (
+                        <Pressable key={opt} style={[s.sportButton, isActive && s.sportButtonActive]}
+                          onPress={() => updateExp('certifications', isActive ? exp.certifications.filter((c) => c !== opt) : [...exp.certifications, opt])}>
+                          <Text style={[s.sportButtonText, isActive && s.sportButtonTextActive, { fontSize: 12 }]}>{CERTIFICATION_LABELS[opt]}</Text>
+                        </Pressable>
+                      )
+                    })}
+                  </View>
+                </View>
+              )
+            })}
+          </View>
+        )}
+
+        {/* ── Card: Preferences ── */}
+        <View style={s.card}>
+          <Text style={s.cardTitle}>Preferences</Text>
+
+          <Text style={s.label}>Fitness level</Text>
+          <View style={s.sportGrid}>
+            {FITNESS_LEVEL_OPTIONS.map((opt) => (
+              <Pressable key={opt} style={[s.sportButton, prefs.fitnessLevel === opt && s.sportButtonActive]}
+                onPress={() => setPrefs((p) => ({ ...p, fitnessLevel: p.fitnessLevel === opt ? null : opt }))}>
+                <Text style={[s.sportButtonText, prefs.fitnessLevel === opt && s.sportButtonTextActive]}>{FITNESS_LEVEL_LABELS[opt]}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Text style={[s.label, { marginTop: 14 }]}>Gear level</Text>
+          <View style={s.sportGrid}>
+            {GEAR_LEVEL_OPTIONS.map((opt) => (
+              <Pressable key={opt} style={[s.sportButton, prefs.gearLevel === opt && s.sportButtonActive]}
+                onPress={() => setPrefs((p) => ({ ...p, gearLevel: p.gearLevel === opt ? null : opt }))}>
+                <Text style={[s.sportButtonText, prefs.gearLevel === opt && s.sportButtonTextActive]}>{GEAR_LEVEL_LABELS[opt]}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Text style={[s.label, { marginTop: 14 }]}>Overnight comfort</Text>
+          <View style={s.sportGrid}>
+            {OVERNIGHT_COMFORT_OPTIONS.map((opt) => (
+              <Pressable key={opt} style={[s.sportButton, prefs.overnightComfort === opt && s.sportButtonActive]}
+                onPress={() => setPrefs((p) => ({ ...p, overnightComfort: p.overnightComfort === opt ? null : opt }))}>
+                <Text style={[s.sportButtonText, prefs.overnightComfort === opt && s.sportButtonTextActive]}>{OVERNIGHT_COMFORT_LABELS[opt]}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Text style={[s.label, { marginTop: 14 }]}>Group size</Text>
+          <View style={s.sportGrid}>
+            {PREFERRED_GROUP_SIZE_OPTIONS.map((opt) => (
+              <Pressable key={opt} style={[s.sportButton, prefs.preferredGroupSize === opt && s.sportButtonActive]}
+                onPress={() => setPrefs((p) => ({ ...p, preferredGroupSize: p.preferredGroupSize === opt ? null : opt }))}>
+                <Text style={[s.sportButtonText, prefs.preferredGroupSize === opt && s.sportButtonTextActive]}>{PREFERRED_GROUP_SIZE_LABELS[opt]}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Text style={[s.label, { marginTop: 14 }]}>Meeting new people</Text>
+          <View style={s.sportGrid}>
+            {COMFORT_WITH_STRANGERS_OPTIONS.map((opt) => (
+              <Pressable key={opt} style={[s.sportButton, prefs.comfortWithStrangers === opt && s.sportButtonActive]}
+                onPress={() => setPrefs((p) => ({ ...p, comfortWithStrangers: p.comfortWithStrangers === opt ? null : opt }))}>
+                <Text style={[s.sportButtonText, prefs.comfortWithStrangers === opt && s.sportButtonTextActive]}>{COMFORT_WITH_STRANGERS_LABELS[opt]}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Text style={[s.label, { marginTop: 14 }]}>Has car</Text>
+          <View style={s.sportGrid}>
+            {HAS_CAR_OPTIONS.map((opt) => (
+              <Pressable key={opt} style={[s.sportButton, prefs.hasCar === opt && s.sportButtonActive]}
+                onPress={() => setPrefs((p) => ({ ...p, hasCar: p.hasCar === opt ? null : opt }))}>
+                <Text style={[s.sportButtonText, prefs.hasCar === opt && s.sportButtonTextActive]}>{HAS_CAR_LABELS[opt]}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Text style={[s.label, { marginTop: 14 }]}>Willing to carpool</Text>
+          <View style={s.sportGrid}>
+            {WILLING_TO_CARPOOL_OPTIONS.map((opt) => (
+              <Pressable key={opt} style={[s.sportButton, prefs.willingToCarpool === opt && s.sportButtonActive]}
+                onPress={() => setPrefs((p) => ({ ...p, willingToCarpool: p.willingToCarpool === opt ? null : opt }))}>
+                <Text style={[s.sportButtonText, prefs.willingToCarpool === opt && s.sportButtonTextActive]}>{WILLING_TO_CARPOOL_LABELS[opt]}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Text style={[s.label, { marginTop: 14 }]}>Max drive distance</Text>
+          <View style={s.sportGrid}>
+            {MAX_DRIVE_DISTANCE_OPTIONS.map((opt) => (
+              <Pressable key={opt} style={[s.sportButton, prefs.maxDriveDistanceMi === opt && s.sportButtonActive]}
+                onPress={() => setPrefs((p) => ({ ...p, maxDriveDistanceMi: p.maxDriveDistanceMi === opt ? null : opt }))}>
+                <Text style={[s.sportButtonText, prefs.maxDriveDistanceMi === opt && s.sportButtonTextActive]}>{opt} mi</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Text style={[s.label, { marginTop: 14 }]}>Preferred times</Text>
+          <View style={s.sportGrid}>
+            {PREFERRED_TIME_OF_DAY_OPTIONS.map((opt) => {
+              const isActive = prefs.preferredTimeOfDay.includes(opt)
+              return (
+                <Pressable key={opt} style={[s.sportButton, isActive && s.sportButtonActive]}
+                  onPress={() => setPrefs((p) => ({
+                    ...p, preferredTimeOfDay: isActive ? p.preferredTimeOfDay.filter((t) => t !== opt) : [...p.preferredTimeOfDay, opt],
+                  }))}>
+                  <Text style={[s.sportButtonText, isActive && s.sportButtonTextActive, { fontSize: 12 }]}>{PREFERRED_TIME_OF_DAY_LABELS[opt]}</Text>
+                </Pressable>
+              )
+            })}
+          </View>
+
+          <View style={{ flexDirection: 'row', gap: 20, marginTop: 14 }}>
+            <Pressable style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
+              onPress={() => setPrefs((p) => ({ ...p, weekdayAvailability: !p.weekdayAvailability }))}>
+              <View style={[s.checkbox, prefs.weekdayAvailability && s.checkboxActive]} />
+              <Text style={{ fontSize: 14, color: C.text }}>Weekdays</Text>
+            </Pressable>
+            <Pressable style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
+              onPress={() => setPrefs((p) => ({ ...p, weekendAvailability: !p.weekendAvailability }))}>
+              <View style={[s.checkbox, prefs.weekendAvailability && s.checkboxActive]} />
+              <Text style={{ fontSize: 14, color: C.text }}>Weekends</Text>
+            </Pressable>
+          </View>
+
+          <View style={[s.fieldFull, { marginTop: 14 }]}>
+            <Text style={s.label}>Accessibility notes</Text>
+            <TextInput
+              style={[s.input, s.textarea]}
+              value={prefs.accessibilityNotes ?? ''}
+              onChangeText={(v) => setPrefs((p) => ({ ...p, accessibilityNotes: v || null }))}
+              placeholderTextColor={C.textMuted}
+              placeholder="Physical limitations or accessibility needs..."
+              multiline
+              numberOfLines={2}
+              maxLength={500}
+            />
+          </View>
+        </View>
+
         {/* Restart Onboarding */}
         <Pressable
           style={s.restartBtn}
           onPress={() => {
             Alert.alert(
               'Restart Onboarding',
-              'This will take you through the onboarding flow to update your experience and preferences.',
+              'This will take you through the onboarding flow again.',
               [
                 { text: 'Cancel', style: 'cancel' },
                 {
@@ -623,6 +956,9 @@ const s = StyleSheet.create({
   // Restart onboarding
   restartBtn: { alignItems: 'center', paddingVertical: 14, marginTop: 24, borderWidth: 1, borderColor: C.border, borderRadius: 12 },
   restartText: { fontSize: 15, fontWeight: '500', color: C.textSecondary },
+
+  checkbox: { width: 20, height: 20, borderRadius: 4, borderWidth: 2, borderColor: C.inputBorder },
+  checkboxActive: { backgroundColor: C.primary, borderColor: C.primary },
 
   // Sign out
   signOutBtn: { alignItems: 'center', paddingVertical: 16, marginTop: 16 },

@@ -10,16 +10,28 @@ import {
   COUNTRIES,
   REGIONS,
   PREFERRED_LANGUAGES,
+  CERTIFICATION_OPTIONS,
   CERTIFICATION_LABELS,
+  TERRAIN_COMFORT_OPTIONS,
   TERRAIN_COMFORT_LABELS,
+  WATER_COMFORT_OPTIONS,
   WATER_COMFORT_LABELS,
+  FITNESS_LEVEL_OPTIONS,
   FITNESS_LEVEL_LABELS,
+  GEAR_LEVEL_OPTIONS,
   GEAR_LEVEL_LABELS,
+  OVERNIGHT_COMFORT_OPTIONS,
   OVERNIGHT_COMFORT_LABELS,
+  PREFERRED_GROUP_SIZE_OPTIONS,
   PREFERRED_GROUP_SIZE_LABELS,
+  PREFERRED_TIME_OF_DAY_OPTIONS,
   PREFERRED_TIME_OF_DAY_LABELS,
+  HAS_CAR_OPTIONS,
   HAS_CAR_LABELS,
+  WILLING_TO_CARPOOL_OPTIONS,
   WILLING_TO_CARPOOL_LABELS,
+  MAX_DRIVE_DISTANCE_OPTIONS,
+  COMFORT_WITH_STRANGERS_OPTIONS,
   COMFORT_WITH_STRANGERS_LABELS,
   type UserSportInput,
 } from '@groute/shared'
@@ -172,6 +184,60 @@ export function ProfileView({ profile, sports: initialSports, experience = [], p
     }))
   )
 
+  interface EditExperience {
+    sportType: string
+    yearsExperience: number | null
+    tripsLast12Months: number | null
+    longestDistanceMi: number | null
+    highestAltitudeFt: number | null
+    terrainComfort: string[]
+    waterComfort: string | null
+    certifications: string[]
+  }
+
+  interface EditPreferences {
+    fitnessLevel: string | null
+    gearLevel: string | null
+    overnightComfort: string | null
+    preferredGroupSize: string | null
+    comfortWithStrangers: string | null
+    hasCar: string | null
+    willingToCarpool: string | null
+    maxDriveDistanceMi: number | null
+    weekdayAvailability: boolean
+    weekendAvailability: boolean
+    preferredTimeOfDay: string[]
+    accessibilityNotes: string | null
+  }
+
+  const [editExperience, setEditExperience] = useState<EditExperience[]>(
+    experience.map((e) => ({
+      sportType: e.sport_type,
+      yearsExperience: e.years_experience,
+      tripsLast12Months: e.trips_last_12_months,
+      longestDistanceMi: e.longest_distance_mi,
+      highestAltitudeFt: e.highest_altitude_ft,
+      terrainComfort: e.terrain_comfort ?? [],
+      waterComfort: e.water_comfort,
+      certifications: e.certifications ?? [],
+    }))
+  )
+
+  const [editPreferences, setEditPreferences] = useState<EditPreferences>({
+    fitnessLevel: preferences?.fitness_level ?? null,
+    gearLevel: preferences?.gear_level ?? null,
+    overnightComfort: preferences?.overnight_comfort ?? null,
+    preferredGroupSize: preferences?.preferred_group_size ?? null,
+    comfortWithStrangers: preferences?.comfort_with_strangers ?? null,
+    hasCar: preferences?.has_car ?? null,
+    willingToCarpool: preferences?.willing_to_carpool ?? null,
+    maxDriveDistanceMi: preferences?.max_drive_distance_mi ?? null,
+    weekdayAvailability: preferences?.weekday_availability ?? false,
+    weekendAvailability: preferences?.weekend_availability ?? true,
+    preferredTimeOfDay: preferences?.preferred_time_of_day ?? [],
+    accessibilityNotes: preferences?.accessibility_notes ?? null,
+  })
+
   function handleCancel() {
     setFirstName(profile.first_name ?? '')
     setLastName(profile.last_name ?? '')
@@ -187,6 +253,32 @@ export function ProfileView({ profile, sports: initialSports, experience = [], p
         selfReportedLevel: s.self_reported_level as UserSportInput['selfReportedLevel'],
       }))
     )
+    setEditExperience(
+      experience.map((e) => ({
+        sportType: e.sport_type,
+        yearsExperience: e.years_experience,
+        tripsLast12Months: e.trips_last_12_months,
+        longestDistanceMi: e.longest_distance_mi,
+        highestAltitudeFt: e.highest_altitude_ft,
+        terrainComfort: e.terrain_comfort ?? [],
+        waterComfort: e.water_comfort,
+        certifications: e.certifications ?? [],
+      }))
+    )
+    setEditPreferences({
+      fitnessLevel: preferences?.fitness_level ?? null,
+      gearLevel: preferences?.gear_level ?? null,
+      overnightComfort: preferences?.overnight_comfort ?? null,
+      preferredGroupSize: preferences?.preferred_group_size ?? null,
+      comfortWithStrangers: preferences?.comfort_with_strangers ?? null,
+      hasCar: preferences?.has_car ?? null,
+      willingToCarpool: preferences?.willing_to_carpool ?? null,
+      maxDriveDistanceMi: preferences?.max_drive_distance_mi ?? null,
+      weekdayAvailability: preferences?.weekday_availability ?? false,
+      weekendAvailability: preferences?.weekend_availability ?? true,
+      preferredTimeOfDay: preferences?.preferred_time_of_day ?? [],
+      accessibilityNotes: preferences?.accessibility_notes ?? null,
+    })
     setError(null)
     setIsEditing(false)
   }
@@ -208,6 +300,8 @@ export function ProfileView({ profile, sports: initialSports, experience = [], p
           preferredLanguage: preferredLanguage || undefined,
           eduEmail: eduEmail || undefined,
           sports,
+          experience: editExperience,
+          preferences: editPreferences,
         }),
       })
 
@@ -230,7 +324,20 @@ export function ProfileView({ profile, sports: initialSports, experience = [], p
   function toggleSport(sportType: string) {
     setSports((prev) => {
       const exists = prev.find((s) => s.sportType === sportType)
-      if (exists) return prev.filter((s) => s.sportType !== sportType)
+      if (exists) {
+        setEditExperience((exp) => exp.filter((e) => e.sportType !== sportType))
+        return prev.filter((s) => s.sportType !== sportType)
+      }
+      setEditExperience((exp) => [...exp, {
+        sportType,
+        yearsExperience: null,
+        tripsLast12Months: null,
+        longestDistanceMi: null,
+        highestAltitudeFt: null,
+        terrainComfort: [],
+        waterComfort: null,
+        certifications: [],
+      }])
       return [...prev, { sportType, selfReportedLevel: 'beginner' } as UserSportInput]
     })
   }
@@ -922,6 +1029,386 @@ export function ProfileView({ profile, sports: initialSports, experience = [], p
                 ))}
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Experience per sport */}
+        {sports.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Experience Details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {sports.map((sport) => {
+                const exp = editExperience.find((e) => e.sportType === sport.sportType) ?? {
+                  sportType: sport.sportType,
+                  yearsExperience: null,
+                  tripsLast12Months: null,
+                  longestDistanceMi: null,
+                  highestAltitudeFt: null,
+                  terrainComfort: [] as string[],
+                  waterComfort: null as string | null,
+                  certifications: [] as string[],
+                }
+
+                function updateExp(field: string, value: unknown) {
+                  setEditExperience((prev) => {
+                    const exists = prev.find((e) => e.sportType === sport.sportType)
+                    if (exists) {
+                      return prev.map((e) => e.sportType === sport.sportType ? { ...e, [field]: value } : e)
+                    }
+                    return [...prev, { ...exp, [field]: value }]
+                  })
+                }
+
+                return (
+                  <div key={sport.sportType} className="space-y-3">
+                    <p className="text-sm font-medium">{SPORT_LABELS[sport.sportType]}</p>
+
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Years experience</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={80}
+                          value={exp.yearsExperience ?? ''}
+                          onChange={(e) => updateExp('yearsExperience', e.target.value ? Number(e.target.value) : null)}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Trips last 12 mo</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={365}
+                          value={exp.tripsLast12Months ?? ''}
+                          onChange={(e) => updateExp('tripsLast12Months', e.target.value ? Number(e.target.value) : null)}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Longest dist (mi)</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={500}
+                          value={exp.longestDistanceMi ?? ''}
+                          onChange={(e) => updateExp('longestDistanceMi', e.target.value ? Number(e.target.value) : null)}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Highest alt (ft)</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={30000}
+                          value={exp.highestAltitudeFt ?? ''}
+                          onChange={(e) => updateExp('highestAltitudeFt', e.target.value ? Number(e.target.value) : null)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-xs">Terrain comfort</Label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {TERRAIN_COMFORT_OPTIONS.map((opt) => (
+                          <button
+                            key={opt}
+                            type="button"
+                            onClick={() => {
+                              const current = exp.terrainComfort
+                              updateExp('terrainComfort', current.includes(opt) ? current.filter((t) => t !== opt) : [...current, opt])
+                            }}
+                            className={`rounded-md px-2.5 py-1 text-xs transition-colors ${
+                              exp.terrainComfort.includes(opt)
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-muted hover:bg-muted/80'
+                            }`}
+                          >
+                            {TERRAIN_COMFORT_LABELS[opt]}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-xs">Water comfort</Label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {WATER_COMFORT_OPTIONS.map((opt) => (
+                          <button
+                            key={opt}
+                            type="button"
+                            onClick={() => updateExp('waterComfort', exp.waterComfort === opt ? null : opt)}
+                            className={`rounded-md px-2.5 py-1 text-xs transition-colors ${
+                              exp.waterComfort === opt
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-muted hover:bg-muted/80'
+                            }`}
+                          >
+                            {WATER_COMFORT_LABELS[opt]}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-xs">Certifications</Label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {CERTIFICATION_OPTIONS.map((opt) => (
+                          <button
+                            key={opt}
+                            type="button"
+                            onClick={() => {
+                              const current = exp.certifications
+                              updateExp('certifications', current.includes(opt) ? current.filter((c) => c !== opt) : [...current, opt])
+                            }}
+                            className={`rounded-md px-2.5 py-1 text-xs transition-colors ${
+                              exp.certifications.includes(opt)
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-muted hover:bg-muted/80'
+                            }`}
+                          >
+                            {CERTIFICATION_LABELS[opt]}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {sports.indexOf(sport) < sports.length - 1 && <hr className="border-border" />}
+                  </div>
+                )
+              })}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Preferences */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Preferences</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Fitness level</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {FITNESS_LEVEL_OPTIONS.map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => setEditPreferences((p) => ({ ...p, fitnessLevel: p.fitnessLevel === opt ? null : opt }))}
+                      className={`rounded-md px-2.5 py-1.5 text-xs transition-colors ${
+                        editPreferences.fitnessLevel === opt
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted hover:bg-muted/80'
+                      }`}
+                    >
+                      {FITNESS_LEVEL_LABELS[opt]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Gear level</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {GEAR_LEVEL_OPTIONS.map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => setEditPreferences((p) => ({ ...p, gearLevel: p.gearLevel === opt ? null : opt }))}
+                      className={`rounded-md px-2.5 py-1.5 text-xs transition-colors ${
+                        editPreferences.gearLevel === opt
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted hover:bg-muted/80'
+                      }`}
+                    >
+                      {GEAR_LEVEL_LABELS[opt]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Overnight comfort</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {OVERNIGHT_COMFORT_OPTIONS.map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => setEditPreferences((p) => ({ ...p, overnightComfort: p.overnightComfort === opt ? null : opt }))}
+                      className={`rounded-md px-2.5 py-1.5 text-xs transition-colors ${
+                        editPreferences.overnightComfort === opt
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted hover:bg-muted/80'
+                      }`}
+                    >
+                      {OVERNIGHT_COMFORT_LABELS[opt]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Preferred group size</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {PREFERRED_GROUP_SIZE_OPTIONS.map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => setEditPreferences((p) => ({ ...p, preferredGroupSize: p.preferredGroupSize === opt ? null : opt }))}
+                      className={`rounded-md px-2.5 py-1.5 text-xs transition-colors ${
+                        editPreferences.preferredGroupSize === opt
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted hover:bg-muted/80'
+                      }`}
+                    >
+                      {PREFERRED_GROUP_SIZE_LABELS[opt]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Meeting new people</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {COMFORT_WITH_STRANGERS_OPTIONS.map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => setEditPreferences((p) => ({ ...p, comfortWithStrangers: p.comfortWithStrangers === opt ? null : opt }))}
+                      className={`rounded-md px-2.5 py-1.5 text-xs transition-colors ${
+                        editPreferences.comfortWithStrangers === opt
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted hover:bg-muted/80'
+                      }`}
+                    >
+                      {COMFORT_WITH_STRANGERS_LABELS[opt]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Has car</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {HAS_CAR_OPTIONS.map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => setEditPreferences((p) => ({ ...p, hasCar: p.hasCar === opt ? null : opt }))}
+                      className={`rounded-md px-2.5 py-1.5 text-xs transition-colors ${
+                        editPreferences.hasCar === opt
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted hover:bg-muted/80'
+                      }`}
+                    >
+                      {HAS_CAR_LABELS[opt]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Willing to carpool</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {WILLING_TO_CARPOOL_OPTIONS.map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => setEditPreferences((p) => ({ ...p, willingToCarpool: p.willingToCarpool === opt ? null : opt }))}
+                      className={`rounded-md px-2.5 py-1.5 text-xs transition-colors ${
+                        editPreferences.willingToCarpool === opt
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted hover:bg-muted/80'
+                      }`}
+                    >
+                      {WILLING_TO_CARPOOL_LABELS[opt]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Max drive distance</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {MAX_DRIVE_DISTANCE_OPTIONS.map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => setEditPreferences((p) => ({ ...p, maxDriveDistanceMi: p.maxDriveDistanceMi === opt ? null : opt }))}
+                      className={`rounded-md px-2.5 py-1.5 text-xs transition-colors ${
+                        editPreferences.maxDriveDistanceMi === opt
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted hover:bg-muted/80'
+                      }`}
+                    >
+                      {opt} mi
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Preferred times</Label>
+              <div className="flex flex-wrap gap-1.5">
+                {PREFERRED_TIME_OF_DAY_OPTIONS.map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() =>
+                      setEditPreferences((p) => ({
+                        ...p,
+                        preferredTimeOfDay: p.preferredTimeOfDay.includes(opt)
+                          ? p.preferredTimeOfDay.filter((t) => t !== opt)
+                          : [...p.preferredTimeOfDay, opt],
+                      }))
+                    }
+                    className={`rounded-md px-2.5 py-1.5 text-xs transition-colors ${
+                      editPreferences.preferredTimeOfDay.includes(opt)
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted hover:bg-muted/80'
+                    }`}
+                  >
+                    {PREFERRED_TIME_OF_DAY_LABELS[opt]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={editPreferences.weekdayAvailability}
+                  onChange={(e) => setEditPreferences((p) => ({ ...p, weekdayAvailability: e.target.checked }))}
+                  className="rounded"
+                />
+                Weekdays
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={editPreferences.weekendAvailability}
+                  onChange={(e) => setEditPreferences((p) => ({ ...p, weekendAvailability: e.target.checked }))}
+                  className="rounded"
+                />
+                Weekends
+              </label>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Accessibility notes</Label>
+              <textarea
+                value={editPreferences.accessibilityNotes ?? ''}
+                onChange={(e) => setEditPreferences((p) => ({ ...p, accessibilityNotes: e.target.value || null }))}
+                maxLength={500}
+                rows={2}
+                placeholder="Any physical limitations or accessibility needs..."
+                className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              />
+            </div>
           </CardContent>
         </Card>
 

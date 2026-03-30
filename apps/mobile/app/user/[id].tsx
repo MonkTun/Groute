@@ -21,6 +21,7 @@ import {
   GEAR_LEVEL_LABELS,
   OVERNIGHT_COMFORT_LABELS,
   PREFERRED_GROUP_SIZE_LABELS,
+  PREFERRED_TIME_OF_DAY_LABELS,
   HAS_CAR_LABELS,
   WILLING_TO_CARPOOL_LABELS,
   COMFORT_WITH_STRANGERS_LABELS,
@@ -49,6 +50,7 @@ interface UserProfile {
   area: string | null
   preferred_language: string | null
   edu_email: string | null
+  date_of_birth: string | null
   edu_verified: boolean
   strava_connected: boolean
   created_at: string
@@ -81,10 +83,14 @@ interface PreferencesData {
   willing_to_carpool: string | null
   max_drive_distance_mi: number | null
   preferred_group_size: string | null
+  preferred_time_of_day: string[] | null
+  weekday_availability: boolean | null
+  weekend_availability: boolean | null
   fitness_level: string | null
   gear_level: string | null
   overnight_comfort: string | null
   comfort_with_strangers: string | null
+  accessibility_notes: string | null
 }
 
 interface PastActivity {
@@ -200,6 +206,11 @@ export default function UserProfileScreen() {
           )}
         </View>
 
+        {profile.date_of_birth && (
+          <Text style={s.joined}>
+            {Math.floor((Date.now() - new Date(profile.date_of_birth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))} years old
+          </Text>
+        )}
         <Text style={s.joined}>Joined {joinedDate}</Text>
       </View>
 
@@ -317,6 +328,12 @@ export default function UserProfileScreen() {
               <Text style={s.infoValue}>{profile.preferred_language}</Text>
             </View>
           )}
+          {profile.edu_email && (
+            <View style={s.infoRow}>
+              <Text style={s.infoLabel}>School</Text>
+              <Text style={s.infoValue}>{profile.edu_email}</Text>
+            </View>
+          )}
           {profile.strava_connected && (
             <View style={s.infoRow}>
               <Text style={s.infoLabel}>Strava</Text>
@@ -374,6 +391,31 @@ export default function UserProfileScreen() {
                   {WILLING_TO_CARPOOL_LABELS[profile.preferences.willing_to_carpool] ?? profile.preferences.willing_to_carpool}
                   {profile.preferences.max_drive_distance_mi ? ` (${profile.preferences.max_drive_distance_mi} mi)` : ''}
                 </Text>
+              </View>
+            )}
+            {(profile.preferences.weekday_availability || profile.preferences.weekend_availability) && (
+              <View style={s.infoRow}>
+                <Text style={s.infoLabel}>Availability</Text>
+                <Text style={s.infoValue}>
+                  {[
+                    profile.preferences.weekday_availability && 'Weekdays',
+                    profile.preferences.weekend_availability && 'Weekends',
+                  ].filter(Boolean).join(' & ')}
+                </Text>
+              </View>
+            )}
+            {profile.preferences.preferred_time_of_day && profile.preferences.preferred_time_of_day.length > 0 && (
+              <View style={s.infoRow}>
+                <Text style={s.infoLabel}>Preferred times</Text>
+                <Text style={[s.infoValue, { flex: 1, textAlign: 'right' }]}>
+                  {profile.preferences.preferred_time_of_day.map((t) => PREFERRED_TIME_OF_DAY_LABELS[t] ?? t).join(', ')}
+                </Text>
+              </View>
+            )}
+            {profile.preferences.accessibility_notes && (
+              <View style={s.infoRow}>
+                <Text style={s.infoLabel}>Accessibility</Text>
+                <Text style={[s.infoValue, { flex: 1, textAlign: 'right' }]}>{profile.preferences.accessibility_notes}</Text>
               </View>
             )}
           </View>
