@@ -53,6 +53,60 @@ export function useAuth() {
     router.refresh()
   }
 
+  async function signInWithGoogle() {
+    setIsLoading(true)
+    setError(null)
+
+    const { error: authError } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/api/auth/callback`,
+      },
+    })
+
+    if (authError) {
+      setError(authError.message)
+      setIsLoading(false)
+    }
+    // Browser will redirect to Google — no need to handle success here
+  }
+
+  async function resetPassword(email: string) {
+    setIsLoading(true)
+    setError(null)
+
+    const { error: authError } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    })
+
+    if (authError) {
+      setError(authError.message)
+      setIsLoading(false)
+      return false
+    }
+
+    setIsLoading(false)
+    return true
+  }
+
+  async function updatePassword(newPassword: string) {
+    setIsLoading(true)
+    setError(null)
+
+    const { error: authError } = await supabase.auth.updateUser({
+      password: newPassword,
+    })
+
+    if (authError) {
+      setError(authError.message)
+      setIsLoading(false)
+      return false
+    }
+
+    setIsLoading(false)
+    return true
+  }
+
   async function signOut() {
     setIsLoading(true)
     await supabase.auth.signOut()
@@ -60,5 +114,5 @@ export function useAuth() {
     router.refresh()
   }
 
-  return { login, signup, signOut, isLoading, error }
+  return { login, signup, signInWithGoogle, resetPassword, updatePassword, signOut, isLoading, error }
 }

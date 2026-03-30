@@ -31,11 +31,17 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
+  // Public auth pages accessible without login
+  const isPublicAuthPage =
+    pathname.startsWith('/login') ||
+    pathname.startsWith('/signup') ||
+    pathname.startsWith('/forgot-password') ||
+    pathname.startsWith('/reset-password')
+
   // Redirect unauthenticated users away from protected routes
   if (
     !user &&
-    !pathname.startsWith('/login') &&
-    !pathname.startsWith('/signup') &&
+    !isPublicAuthPage &&
     !pathname.startsWith('/api') &&
     pathname !== '/'
   ) {
@@ -44,8 +50,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Redirect authenticated users away from auth pages
-  if (user && (pathname.startsWith('/login') || pathname.startsWith('/signup'))) {
+  // Redirect authenticated users away from login/signup (but NOT reset-password)
+  if (user && (pathname.startsWith('/login') || pathname.startsWith('/signup') || pathname.startsWith('/forgot-password'))) {
     const url = request.nextUrl.clone()
     url.pathname = '/rightnow'
     return NextResponse.redirect(url)
@@ -56,8 +62,7 @@ export async function middleware(request: NextRequest) {
     user &&
     !pathname.startsWith('/onboarding') &&
     !pathname.startsWith('/api') &&
-    !pathname.startsWith('/login') &&
-    !pathname.startsWith('/signup') &&
+    !isPublicAuthPage &&
     pathname !== '/'
   ) {
     const profileCookie = request.cookies.get('profile_completed')

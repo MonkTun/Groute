@@ -11,8 +11,12 @@ import {
   View,
 } from 'react-native'
 import { Link, useRouter } from 'expo-router'
+import * as WebBrowser from 'expo-web-browser'
+import Constants from 'expo-constants'
 
 import { supabase } from '../../lib/supabase'
+
+const apiUrl = Constants.expoConfig?.extra?.apiUrl as string
 
 export default function LoginScreen() {
   const router = useRouter()
@@ -37,6 +41,68 @@ export default function LoginScreen() {
     router.replace('/(tabs)')
   }
 
+  async function handleGoogleSignIn() {
+    setIsLoading(true)
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${apiUrl}/api/auth/callback`,
+        skipBrowserRedirect: true,
+      },
+    })
+
+    if (error) {
+      Alert.alert('Error', error.message)
+      setIsLoading(false)
+      return
+    }
+
+    if (data?.url) {
+      const result = await WebBrowser.openAuthSessionAsync(
+        data.url,
+        'groute://'
+      )
+
+      if (result.type === 'success' && result.url) {
+        // Extract tokens from the redirect URL
+        const url = new URL(result.url)
+        const params = new URLSearchParams(url.hash.substring(1))
+        const accessToken = params.get('access_token')
+        const refreshToken = params.get('refresh_token')
+
+        if (accessToken && refreshToken) {
+          await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          })
+          router.replace('/(tabs)')
+          return
+        }
+      }
+    }
+
+    setIsLoading(false)
+  }
+
+  async function handleForgotPassword() {
+    if (!email.trim()) {
+      Alert.alert('Enter email', 'Please enter your email address first, then tap "Forgot password?"')
+      return
+    }
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${apiUrl}/reset-password`,
+    })
+
+    if (error) {
+      Alert.alert('Error', error.message)
+      return
+    }
+
+    Alert.alert('Check your email', `We sent a password reset link to ${email}`)
+  }
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -51,6 +117,20 @@ export default function LoginScreen() {
       <View style={styles.form}>
         <Text style={styles.title}>Welcome back</Text>
         <Text style={styles.subtitle}>Sign in to your Groute account</Text>
+
+        <Pressable
+          style={styles.googleButton}
+          onPress={handleGoogleSignIn}
+          disabled={isLoading}
+        >
+          <Text style={styles.googleButtonText}>Continue with Google</Text>
+        </Pressable>
+
+        <View style={styles.divider}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>or</Text>
+          <View style={styles.dividerLine} />
+        </View>
 
         <TextInput
           style={styles.input}
@@ -75,6 +155,10 @@ export default function LoginScreen() {
           autoCorrect={false}
           textContentType="none"
         />
+
+        <Pressable onPress={handleForgotPassword}>
+          <Text style={styles.forgotText}>Forgot password?</Text>
+        </Pressable>
 
         <Pressable
           style={[styles.button, isLoading && styles.buttonDisabled]}
@@ -121,6 +205,34 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 8,
   },
+  googleButton: {
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+  },
+  googleButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1a1a2e',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#e0e0e0',
+  },
+  dividerText: {
+    fontSize: 12,
+    color: '#9ca3af',
+    textTransform: 'uppercase',
+  },
   input: {
     backgroundColor: '#ffffff',
     borderRadius: 12,
@@ -129,6 +241,12 @@ const styles = StyleSheet.create({
     color: '#1a1a2e',
     borderWidth: 1,
     borderColor: '#e0e0e0',
+  },
+  forgotText: {
+    fontSize: 13,
+    color: '#6b7280',
+    textAlign: 'right',
+    marginTop: -8,
   },
   button: {
     backgroundColor: '#0f8a6e',
