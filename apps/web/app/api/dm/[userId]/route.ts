@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { createApiClient } from "@/lib/supabase/api";
+import { sendPushToUser } from "@/lib/pushNotifications";
 
 // GET DMs with a specific user
 export async function GET(
@@ -92,6 +93,20 @@ export async function POST(
       { status: 500 }
     );
   }
+
+  // Send push notification to the recipient
+  const { data: sender } = await supabase
+    .from("users")
+    .select("first_name, display_name")
+    .eq("id", user.id)
+    .single();
+
+  const senderName = sender?.first_name ?? sender?.display_name ?? "Someone";
+  const preview = content.length > 80 ? content.slice(0, 80) + "..." : content;
+  sendPushToUser(otherUserId, senderName, preview, {
+    type: "dm",
+    userId: user.id,
+  });
 
   return NextResponse.json({ data: message }, { status: 201 });
 }

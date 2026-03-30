@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { createApiClient } from "@/lib/supabase/api";
+import { sendPushToUser } from "@/lib/pushNotifications";
 
 // POST: follow a user
 export async function POST(request: NextRequest) {
@@ -42,6 +43,19 @@ export async function POST(request: NextRequest) {
     user_id: followingId,
     from_user_id: user.id,
     type: "follow",
+  });
+
+  // Send push notification
+  const { data: fromUser } = await supabase
+    .from("users")
+    .select("first_name, display_name")
+    .eq("id", user.id)
+    .single();
+
+  const senderName = fromUser?.first_name ?? fromUser?.display_name ?? "Someone";
+  sendPushToUser(followingId, "New Follower", `${senderName} started following you`, {
+    type: "follow",
+    userId: user.id,
   });
 
   return NextResponse.json({ data: { success: true } }, { status: 201 });

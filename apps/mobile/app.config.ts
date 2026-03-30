@@ -52,6 +52,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
           "Allow Groute to use your location to find nearby activities and show you on the map.",
       },
     ],
+    [
+      "expo-notifications",
+      {
+        icon: "./assets/notification-icon.png",
+        color: "#0f8a6e",
+      },
+    ],
     "expo-image-picker",
     "@react-native-community/datetimepicker",
   ],

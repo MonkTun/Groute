@@ -3,7 +3,8 @@ import { Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { Text, View, ScrollView, StyleSheet } from 'react-native'
 
-import { AuthProvider } from '../lib/AuthProvider'
+import { AuthProvider, useSession } from '../lib/AuthProvider'
+import { usePushNotifications } from '../lib/usePushNotifications'
 
 class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -39,10 +40,17 @@ const eb = StyleSheet.create({
   stack: { fontSize: 11, color: '#7f1d1d', fontFamily: 'Courier' },
 })
 
+function PushNotificationRegistrar() {
+  const { user } = useSession()
+  usePushNotifications(!!user)
+  return null
+}
+
 export default function RootLayout() {
   return (
     <ErrorBoundary>
       <AuthProvider>
+        <PushNotificationRegistrar />
         <StatusBar style="dark" />
         <Stack
           screenOptions={{
