@@ -1,23 +1,34 @@
 import { useEffect, useRef } from "react";
 import { Platform } from "react-native";
-import * as Notifications from "expo-notifications";
-import * as Device from "expo-device";
 import { useRouter } from "expo-router";
 
 import { apiPost, apiDelete } from "./api";
 
-// Configure how notifications are displayed when the app is in the foreground
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+// Lazy-load expo-notifications to avoid crashing in Expo Go / simulators
+// where the native module (ExpoPushTokenManager) is not available.
+let Notifications: typeof import("expo-notifications") | null = null;
+let Device: typeof import("expo-device") | null = null;
+
+try {
+  Notifications = require("expo-notifications") as typeof import("expo-notifications");
+  Device = require("expo-device") as typeof import("expo-device");
+
+  Notifications!.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+} catch {
+  // Native module not available (Expo Go, simulator) — push notifications disabled
+}
 
 async function registerForPushNotifications(): Promise<string | null> {
+  if (!Notifications || !Device) return null;
+
   if (!Device.isDevice) {
     // Push notifications don't work on simulators
     return null;
@@ -48,6 +59,9 @@ async function registerForPushNotifications(): Promise<string | null> {
 /**
  * Hook to register for push notifications and handle incoming notifications.
  * Call this once in the root layout when the user is authenticated.
+ *
+ * Gracefully no-ops when expo-notifications native module is not available
+ * (e.g., running in Expo Go or iOS Simulator without a dev client).
  */
 export function usePushNotifications(isAuthenticated: boolean) {
   const router = useRouter();
@@ -55,7 +69,7 @@ export function usePushNotifications(isAuthenticated: boolean) {
 
   // Register push token when authenticated
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !Notifications) return;
 
     registerForPushNotifications().then((token) => {
       if (token) {
@@ -70,6 +84,8 @@ export function usePushNotifications(isAuthenticated: boolean) {
 
   // Handle notification taps (when user taps on a notification)
   useEffect(() => {
+    if (!Notifications) return;
+
     const subscription = Notifications.addNotificationResponseReceivedListener(
       (response) => {
         const data = response.notification.request.content.data;
