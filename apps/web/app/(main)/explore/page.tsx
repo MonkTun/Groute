@@ -18,7 +18,7 @@ export default async function DiscoverPage() {
         scheduled_at, max_participants, status,
         trail_osm_id, trail_name, trail_distance_meters, trail_surface, trail_sac_scale,
         trailhead_lat, trailhead_lng, trail_approach_distance_m, trail_approach_duration_s,
-        trail_geometry, approach_geometry,
+        trail_geometry, approach_geometry, unsplash_image_url,
         creator:users!creator_id (
           id, display_name, first_name, last_name, avatar_url, area
         )

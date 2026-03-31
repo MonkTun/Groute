@@ -19,7 +19,7 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const [activityResult, participantsResult, myStatusResult] =
+  const [activityResult, participantsResult, myStatusResult, logisticsResult, ridesResult] =
     await Promise.all([
       supabase
         .from("activities")
@@ -52,6 +52,26 @@ export async function GET(
         .eq("activity_id", activityId)
         .eq("user_id", user.id)
         .maybeSingle(),
+
+      supabase
+        .from("activity_logistics")
+        .select("*")
+        .eq("activity_id", activityId)
+        .maybeSingle(),
+
+      supabase
+        .from("activity_rides")
+        .select(
+          `id, activity_id, user_id, type, available_seats, pickup_location_name,
+           pickup_lat, pickup_lng, departure_time, note, status, created_at,
+           user:users!user_id ( id, display_name, first_name, last_name, avatar_url ),
+           passengers:ride_passengers (
+             id, passenger_id, status, created_at,
+             user:users!passenger_id ( id, display_name, first_name, last_name, avatar_url )
+           )`
+        )
+        .eq("activity_id", activityId)
+        .order("created_at", { ascending: true }),
     ]);
 
   if (activityResult.error || !activityResult.data) {
@@ -132,6 +152,8 @@ export async function GET(
       participants,
       myStatus: myStatusResult.data?.status ?? null,
       isOwner: activity.creator_id === user.id,
+      logistics: logisticsResult.data ?? null,
+      rides: ridesResult.data ?? [],
     },
   });
 }

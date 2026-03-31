@@ -67,7 +67,7 @@ export const searchTrailsSchema = z.object({
 
 export const createActivitySchema = z.object({
   title: z.string().min(1).max(200),
-  description: z.string().max(2000).optional(),
+  description: z.string().max(2000).nullable().optional(),
   sportType: sportTypeSchema,
   skillLevel: skillLevelSchema,
   visibility: activityVisibilitySchema.default("public"),
@@ -205,3 +205,95 @@ export type UserSportInput = z.infer<typeof userSportSchema>;
 export type UserExperienceInput = z.infer<typeof userExperienceSchema>;
 export type UserPreferencesInput = z.infer<typeof userPreferencesSchema>;
 export type StravaAiAnalysisInput = z.infer<typeof stravaAiAnalysisSchema>;
+
+// ── Logistics schemas ──
+
+export const rideTypeSchema = z.enum(["offer", "request"]);
+export const rideStatusSchema = z.enum(["open", "matched", "cancelled"]);
+export const ridePassengerStatusSchema = z.enum(["pending", "confirmed", "declined"]);
+
+export const createRideSchema = z.object({
+  type: rideTypeSchema,
+  availableSeats: z.number().int().min(1).max(10).optional(),
+  pickupLocationName: z.string().max(200).optional(),
+  pickupLat: z.number().min(-90).max(90).optional(),
+  pickupLng: z.number().min(-180).max(180).optional(),
+  pickupAddress: z.string().max(500).optional(),
+  departureTime: z.string().datetime().optional(),
+  note: z.string().max(500).optional(),
+});
+
+export const updateRidePassengerStatusSchema = z.object({
+  status: ridePassengerStatusSchema,
+});
+
+export const upsertActivityLogisticsSchema = z.object({
+  meetingPointName: z.string().max(200).optional(),
+  meetingPointLat: z.number().min(-90).max(90).optional(),
+  meetingPointLng: z.number().min(-180).max(180).optional(),
+  meetingTime: z.string().datetime().optional(),
+  estimatedReturnTime: z.string().datetime().optional(),
+  parkingName: z.string().max(200).optional(),
+  parkingLat: z.number().min(-90).max(90).optional(),
+  parkingLng: z.number().min(-180).max(180).optional(),
+  parkingPaid: z.boolean().optional(),
+  parkingCost: z.string().max(50).optional(),
+  parkingNotes: z.string().max(500).optional(),
+  transportNotes: z.string().max(2000).optional(),
+  checklistItems: z.array(z.string().max(100)).max(20).optional(),
+  notes: z.string().max(2000).optional(),
+});
+
+export const drivingDirectionsQuerySchema = z.object({
+  fromLat: z.number().min(-90).max(90),
+  fromLng: z.number().min(-180).max(180),
+  toLat: z.number().min(-90).max(90),
+  toLng: z.number().min(-180).max(180),
+});
+
+// ── Transport planning schemas ──
+
+export const transportModeSchema = z.enum([
+  "driving",
+  "transit",
+  "rideshare",
+  "carpool_driver",
+  "carpool_passenger",
+  "walking",
+]);
+
+export const transitDirectionsQuerySchema = z.object({
+  fromLat: z.number().min(-90).max(90),
+  fromLng: z.number().min(-180).max(180),
+  toLat: z.number().min(-90).max(90),
+  toLng: z.number().min(-180).max(180),
+  arrivalTime: z.string().datetime().optional(),
+});
+
+export const multiStopRouteQuerySchema = z.object({
+  waypoints: z
+    .array(
+      z.object({
+        lat: z.number().min(-90).max(90),
+        lng: z.number().min(-180).max(180),
+        name: z.string().max(200).optional(),
+      })
+    )
+    .min(2)
+    .max(10),
+});
+
+export const createTransitPlanSchema = z.object({
+  transportMode: transportModeSchema,
+  rideId: z.string().uuid().optional(),
+  originLat: z.number().min(-90).max(90),
+  originLng: z.number().min(-180).max(180),
+  originName: z.string().max(200).optional(),
+  estimatedTravelSeconds: z.number().int().min(0).optional(),
+  leaveAt: z.string().datetime().optional(),
+  routeSummary: z.any().optional(),
+});
+
+export type CreateRideInput = z.infer<typeof createRideSchema>;
+export type UpsertActivityLogisticsInput = z.infer<typeof upsertActivityLogisticsSchema>;
+export type CreateTransitPlanInput = z.infer<typeof createTransitPlanSchema>;

@@ -9,7 +9,7 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-heading: var(--font-heading);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -46,76 +46,97 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  --color-nature-leaf: var(--nature-leaf);
+  --color-nature-bark: var(--nature-bark);
+  --color-nature-sky: var(--nature-sky);
+  --color-nature-sunset: var(--nature-sunset);
+  --color-nature-moss: var(--nature-moss);
+  --color-nature-stone: var(--nature-stone);
 }
 
 :root {
-  /* Warm teal/emerald primary — outdoor adventure feel */
-  --background: oklch(0.985 0.002 200);
-  --foreground: oklch(0.17 0.02 260);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.17 0.02 260);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.17 0.02 260);
-  --primary: oklch(0.52 0.14 160);
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.95 0.015 160);
-  --secondary-foreground: oklch(0.35 0.06 160);
-  --muted: oklch(0.955 0.008 220);
-  --muted-foreground: oklch(0.50 0.02 260);
-  --accent: oklch(0.70 0.16 50);
-  --accent-foreground: oklch(0.25 0.05 50);
+  /* Natural Whimsy — earthy warmth with forest green primary */
+  --background: oklch(0.975 0.008 90);
+  --foreground: oklch(0.20 0.03 60);
+  --card: oklch(0.99 0.004 90);
+  --card-foreground: oklch(0.20 0.03 60);
+  --popover: oklch(0.99 0.004 90);
+  --popover-foreground: oklch(0.20 0.03 60);
+  --primary: oklch(0.45 0.12 155);
+  --primary-foreground: oklch(0.98 0.005 90);
+  --secondary: oklch(0.92 0.02 75);
+  --secondary-foreground: oklch(0.35 0.04 60);
+  --muted: oklch(0.945 0.01 85);
+  --muted-foreground: oklch(0.50 0.02 60);
+  --accent: oklch(0.68 0.18 40);
+  --accent-foreground: oklch(0.25 0.06 40);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.91 0.01 220);
-  --input: oklch(0.91 0.01 220);
-  --ring: oklch(0.52 0.14 160);
-  --chart-1: oklch(0.52 0.14 160);
-  --chart-2: oklch(0.70 0.16 50);
-  --chart-3: oklch(0.60 0.12 280);
-  --chart-4: oklch(0.65 0.15 330);
-  --chart-5: oklch(0.55 0.12 200);
-  --radius: 0.75rem;
-  --sidebar: oklch(0.97 0.005 200);
-  --sidebar-foreground: oklch(0.17 0.02 260);
-  --sidebar-primary: oklch(0.52 0.14 160);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.94 0.015 160);
-  --sidebar-accent-foreground: oklch(0.25 0.04 160);
-  --sidebar-border: oklch(0.91 0.01 220);
-  --sidebar-ring: oklch(0.52 0.14 160);
+  --border: oklch(0.90 0.012 75);
+  --input: oklch(0.90 0.012 75);
+  --ring: oklch(0.45 0.12 155);
+  --chart-1: oklch(0.45 0.12 155);
+  --chart-2: oklch(0.68 0.18 40);
+  --chart-3: oklch(0.55 0.10 250);
+  --chart-4: oklch(0.50 0.08 30);
+  --chart-5: oklch(0.60 0.14 130);
+  --radius: 1rem;
+  --sidebar: oklch(0.96 0.008 85);
+  --sidebar-foreground: oklch(0.20 0.03 60);
+  --sidebar-primary: oklch(0.45 0.12 155);
+  --sidebar-primary-foreground: oklch(0.98 0.005 90);
+  --sidebar-accent: oklch(0.93 0.015 80);
+  --sidebar-accent-foreground: oklch(0.30 0.04 60);
+  --sidebar-border: oklch(0.90 0.012 75);
+  --sidebar-ring: oklch(0.45 0.12 155);
+
+  /* Nature accent palette */
+  --nature-leaf: oklch(0.55 0.15 140);
+  --nature-bark: oklch(0.40 0.06 55);
+  --nature-sky: oklch(0.72 0.10 230);
+  --nature-sunset: oklch(0.75 0.16 55);
+  --nature-moss: oklch(0.58 0.13 135);
+  --nature-stone: oklch(0.70 0.02 80);
 }
 
 .dark {
-  --background: oklch(0.14 0.015 260);
-  --foreground: oklch(0.95 0.005 200);
-  --card: oklch(0.19 0.015 260);
-  --card-foreground: oklch(0.95 0.005 200);
-  --popover: oklch(0.19 0.015 260);
-  --popover-foreground: oklch(0.95 0.005 200);
-  --primary: oklch(0.65 0.16 160);
-  --primary-foreground: oklch(0.12 0.02 160);
-  --secondary: oklch(0.24 0.02 260);
-  --secondary-foreground: oklch(0.90 0.01 200);
-  --muted: oklch(0.22 0.015 260);
-  --muted-foreground: oklch(0.65 0.02 220);
-  --accent: oklch(0.72 0.16 50);
-  --accent-foreground: oklch(0.15 0.04 50);
+  --background: oklch(0.16 0.015 60);
+  --foreground: oklch(0.93 0.008 80);
+  --card: oklch(0.20 0.015 55);
+  --card-foreground: oklch(0.93 0.008 80);
+  --popover: oklch(0.20 0.015 55);
+  --popover-foreground: oklch(0.93 0.008 80);
+  --primary: oklch(0.62 0.14 155);
+  --primary-foreground: oklch(0.14 0.02 155);
+  --secondary: oklch(0.25 0.02 60);
+  --secondary-foreground: oklch(0.88 0.01 80);
+  --muted: oklch(0.23 0.015 55);
+  --muted-foreground: oklch(0.63 0.02 70);
+  --accent: oklch(0.72 0.18 40);
+  --accent-foreground: oklch(0.16 0.04 40);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.65 0.16 160);
-  --chart-1: oklch(0.65 0.16 160);
-  --chart-2: oklch(0.72 0.16 50);
-  --chart-3: oklch(0.60 0.12 280);
-  --chart-4: oklch(0.65 0.15 330);
-  --chart-5: oklch(0.55 0.12 200);
-  --sidebar: oklch(0.17 0.015 260);
-  --sidebar-foreground: oklch(0.95 0.005 200);
-  --sidebar-primary: oklch(0.65 0.16 160);
-  --sidebar-primary-foreground: oklch(0.12 0.02 160);
-  --sidebar-accent: oklch(0.24 0.02 260);
-  --sidebar-accent-foreground: oklch(0.90 0.01 200);
+  --ring: oklch(0.62 0.14 155);
+  --chart-1: oklch(0.62 0.14 155);
+  --chart-2: oklch(0.72 0.18 40);
+  --chart-3: oklch(0.55 0.10 250);
+  --chart-4: oklch(0.50 0.08 30);
+  --chart-5: oklch(0.60 0.14 130);
+  --sidebar: oklch(0.18 0.015 55);
+  --sidebar-foreground: oklch(0.93 0.008 80);
+  --sidebar-primary: oklch(0.62 0.14 155);
+  --sidebar-primary-foreground: oklch(0.14 0.02 155);
+  --sidebar-accent: oklch(0.25 0.02 60);
+  --sidebar-accent-foreground: oklch(0.88 0.01 80);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.65 0.16 160);
+  --sidebar-ring: oklch(0.62 0.14 155);
+
+  --nature-leaf: oklch(0.60 0.15 140);
+  --nature-bark: oklch(0.55 0.06 55);
+  --nature-sky: oklch(0.65 0.10 230);
+  --nature-sunset: oklch(0.70 0.16 55);
+  --nature-moss: oklch(0.55 0.13 135);
+  --nature-stone: oklch(0.55 0.02 80);
 }
 
 @layer base {
@@ -144,5 +165,55 @@
   }
   .scrollbar-none::-webkit-scrollbar {
     display: none;
+  }
+
+  /* Nature-inspired gradient backgrounds */
+  .bg-nature-dawn {
+    background: linear-gradient(
+      135deg,
+      oklch(0.92 0.03 80) 0%,
+      oklch(0.88 0.06 60) 40%,
+      oklch(0.85 0.08 40) 70%,
+      oklch(0.80 0.06 155) 100%
+    );
+  }
+
+  .bg-nature-forest {
+    background: linear-gradient(
+      180deg,
+      oklch(0.95 0.015 140) 0%,
+      oklch(0.975 0.008 90) 100%
+    );
+  }
+
+  .bg-nature-sunset {
+    background: linear-gradient(
+      135deg,
+      oklch(0.80 0.12 55) 0%,
+      oklch(0.70 0.18 35) 50%,
+      oklch(0.60 0.12 340) 100%
+    );
+  }
+
+  /* Organic section dividers */
+  .clip-wave-bottom {
+    clip-path: polygon(
+      0% 0%, 100% 0%, 100% 85%,
+      75% 95%, 50% 85%, 25% 92%, 0% 85%
+    );
+  }
+
+  .clip-wave-top {
+    clip-path: polygon(
+      0% 15%, 25% 8%, 50% 15%, 75% 5%, 100% 15%,
+      100% 100%, 0% 100%
+    );
+  }
+
+  .divider-mountain {
+    height: 24px;
+    background: var(--muted);
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 120' preserveAspectRatio='none'%3E%3Cpath d='M0,60 L150,20 L300,50 L450,10 L600,40 L750,15 L900,45 L1050,5 L1200,35 L1200,120 L0,120Z'/%3E%3C/svg%3E");
+    mask-size: cover;
   }
 }

@@ -12,15 +12,15 @@ import { UserAvatar } from '@/components/UserAvatar'
 import { TrailMapView } from '@/components/TrailMapView'
 
 const SPORT_COLORS: Record<string, string> = {
-  hiking: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-  climbing: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
-  trail_running: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400',
-  surfing: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',
-  cycling: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400',
-  mountain_biking: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-  skiing: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  kayaking: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
-  yoga: 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400',
+  hiking: 'bg-emerald-100/80 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400',
+  climbing: 'bg-orange-100/80 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
+  trail_running: 'bg-lime-100/80 text-lime-800 dark:bg-lime-900/30 dark:text-lime-400',
+  surfing: 'bg-cyan-100/80 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-400',
+  cycling: 'bg-violet-100/80 text-violet-800 dark:bg-violet-900/30 dark:text-violet-400',
+  mountain_biking: 'bg-amber-100/80 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
+  skiing: 'bg-sky-100/80 text-sky-800 dark:bg-sky-900/30 dark:text-sky-400',
+  kayaking: 'bg-teal-100/80 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400',
+  yoga: 'bg-rose-100/80 text-rose-800 dark:bg-rose-900/30 dark:text-rose-400',
 }
 import type { ActivityData } from '@/components/DiscoverView'
 

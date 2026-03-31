@@ -103,6 +103,7 @@ export function LocationTrailStep({
   // Search state
   const [query, setQuery] = useState(location?.name ?? '')
   const [results, setResults] = useState<GeocodingResult[]>([])
+  const [trailNameResults, setTrailNameResults] = useState<Array<{ osmId: number; name: string; location: string; lat: number; lng: number }>>([])
   const [isSearching, setIsSearching] = useState(false)
   const [showResults, setShowResults] = useState(false)
 
@@ -143,28 +144,68 @@ export function LocationTrailStep({
   // ── Geocoding ────────────────────────────────────────────────────────────
 
   const search = useCallback(async (q: string) => {
-    if (q.length < 2) { setResults([]); return }
+    if (q.length < 2) { setResults([]); setTrailNameResults([]); return }
     setIsSearching(true)
     try {
       const proximity = initialMapCenter
         ? `${initialMapCenter.lng},${initialMapCenter.lat}`
         : `${LA_CENTER[0]},${LA_CENTER[1]}`
-      const params = new URLSearchParams({
-        access_token: MAPBOX_TOKEN,
-        proximity,
-        types: 'address,poi,place,neighborhood,locality',
-        limit: '5',
-        language: 'en',
-      })
-      const res = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?${params}`
+
+      // Geocoding first (fast) — show results immediately
+      const geocodeRes = await fetch(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?${new URLSearchParams({
+          access_token: MAPBOX_TOKEN,
+          proximity,
+          types: 'address,poi,place,neighborhood,locality',
+          limit: '4',
+          language: 'en',
+        })}`
       )
-      if (res.ok) {
-        const data = await res.json()
+
+      if (geocodeRes.ok) {
+        const data = await geocodeRes.json()
         setResults(data.features ?? [])
         setShowResults(true)
       }
-    } catch { /* silent */ } finally {
+
+      setIsSearching(false)
+
+      // Trail name search via Nominatim (direct, no auth needed)
+      if (q.length >= 3) {
+        const hasTrailKeyword = /trail|hike|path|peak|canyon|falls|landing/i.test(q)
+        const nominatimQuery = hasTrailKeyword ? q : q + ' trail'
+        fetch(
+          `https://nominatim.openstreetmap.org/search?${new URLSearchParams({
+            q: nominatimQuery,
+            format: 'json',
+            limit: '4',
+          })}`,
+          { headers: { 'User-Agent': 'Groute/1.0' } }
+        )
+          .then(async (res) => {
+            if (res.ok) {
+              const data = await res.json()
+              const trails = data
+                .filter((r: { lat: string; lon: string }) => r.lat && r.lon)
+                .map((r: { place_id: number; lat: string; lon: string; display_name: string; name?: string }) => {
+                  const parts = r.display_name.split(',').map((s: string) => s.trim())
+                  return {
+                    osmId: r.place_id,
+                    name: r.name || parts[0],
+                    location: parts.slice(1, 3).join(', '), // e.g. "Washington County, Utah"
+                    lat: parseFloat(r.lat),
+                    lng: parseFloat(r.lon),
+                  }
+                })
+              setTrailNameResults(trails)
+              if (trails.length > 0) setShowResults(true)
+            }
+          })
+          .catch(() => setTrailNameResults([]))
+      } else {
+        setTrailNameResults([])
+      }
+    } catch {
       setIsSearching(false)
     }
   }, [initialMapCenter])
@@ -509,7 +550,7 @@ export function LocationTrailStep({
           value={query}
           onChange={(e) => handleInputChange(e.target.value)}
           onFocus={() => results.length > 0 && setShowResults(true)}
-          placeholder="Search for a place or address..."
+          placeholder="Search for a trail, park, or address..."
           className="h-8 w-full rounded-lg border border-input bg-transparent pl-8 pr-8 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         />
         {(query || isSearching) && (
@@ -526,19 +567,62 @@ export function LocationTrailStep({
           </button>
         )}
 
-        {showResults && results.length > 0 && (
-          <div className="absolute inset-x-0 top-full z-50 mt-1 overflow-hidden rounded-lg border border-border bg-popover shadow-lg">
-            {results.map((result) => (
-              <button
-                key={result.id}
-                type="button"
-                onClick={() => handleSelectResult(result)}
-                className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm hover:bg-muted transition-colors"
-              >
-                <MapPin className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
-                <span className="line-clamp-2">{result.place_name}</span>
-              </button>
-            ))}
+        {showResults && (results.length > 0 || trailNameResults.length > 0) && (
+          <div className="absolute inset-x-0 top-full z-50 mt-1 max-h-72 overflow-y-auto rounded-lg border border-border bg-popover shadow-lg scrollbar-none">
+            {/* Trail name results (shown first) */}
+            {trailNameResults.length > 0 && (
+              <>
+                <div className="px-3 py-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground bg-muted/30">
+                  Trails
+                </div>
+                {trailNameResults.map((trail) => (
+                  <button
+                    key={trail.osmId}
+                    type="button"
+                    onClick={() => {
+                      // Set location to the trail's center, then let trail search find it
+                      trailSearchOriginRef.current = null
+                      onLocationChange({ name: trail.name, latitude: trail.lat, longitude: trail.lng })
+                      setQuery(trail.name)
+                      setResults([])
+                      setTrailNameResults([])
+                      setShowResults(false)
+                      onTrailSelect(null)
+                    }}
+                    className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm hover:bg-muted transition-colors"
+                  >
+                    <Mountain className="mt-0.5 size-3.5 shrink-0 text-primary" />
+                    <div className="min-w-0">
+                      <span className="line-clamp-1">{trail.name}</span>
+                      {trail.location && (
+                        <span className="block text-xs text-muted-foreground line-clamp-1">{trail.location}</span>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </>
+            )}
+            {/* Location results */}
+            {results.length > 0 && (
+              <>
+                {trailNameResults.length > 0 && (
+                  <div className="px-3 py-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground bg-muted/30">
+                    Locations
+                  </div>
+                )}
+                {results.map((result) => (
+                  <button
+                    key={result.id}
+                    type="button"
+                    onClick={() => handleSelectResult(result)}
+                    className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm hover:bg-muted transition-colors"
+                  >
+                    <MapPin className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                    <span className="line-clamp-2">{result.place_name}</span>
+                  </button>
+                ))}
+              </>
+            )}
           </div>
         )}
       </div>
@@ -623,6 +707,34 @@ export function LocationTrailStep({
                     </button>
                   )
                 })}
+
+                {/* Custom trailhead pin drop */}
+                <div className="border-t border-border/30 px-3 py-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!location) return
+                      const customTrail = {
+                        osmId: -1,
+                        name: 'Custom Trailhead',
+                        surface: 'unknown' as const,
+                        sacScale: null,
+                        distanceMeters: 0,
+                        coordinates: [] as [number, number][],
+                        centerLat: location.latitude,
+                        centerLng: location.longitude,
+                        trailheadLat: location.latitude,
+                        trailheadLng: location.longitude,
+                        distanceFromLocation: 0,
+                      }
+                      onTrailSelect(customTrail)
+                    }}
+                    className="flex w-full items-center gap-1.5 rounded-lg bg-muted/60 px-2.5 py-2 text-left text-xs font-medium text-muted-foreground hover:bg-muted transition-colors"
+                  >
+                    <MapPin className="size-3 text-primary" />
+                    {trails.length === 0 ? "No trails found \u2014 drop a pin" : "Drop a pin for custom spot"}
+                  </button>
+                </div>
               </>
             )}
           </div>

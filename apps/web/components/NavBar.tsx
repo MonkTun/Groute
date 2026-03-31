@@ -21,9 +21,9 @@ export function NavBar({ avatarUrl }: NavBarProps) {
   const isProfileActive = pathname.startsWith('/profile')
 
   return (
-    <header className="fixed inset-x-0 top-0 z-50 border-b border-border/40 bg-background/70 backdrop-blur-xl backdrop-saturate-150">
+    <header className="fixed inset-x-0 top-0 z-50 border-b border-nature-bark/15 bg-background/80 backdrop-blur-xl backdrop-saturate-150">
       <div className="mx-auto flex h-14 w-full items-center justify-between px-4 sm:px-6 lg:max-w-6xl">
-        <Link href="/rightnow" className="text-lg font-bold tracking-tight">
+        <Link href="/rightnow" className="font-heading text-lg font-bold tracking-tight text-primary">
           Groute
         </Link>
         <nav className="flex items-center gap-0.5">

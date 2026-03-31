@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { MapPin, Clock, ArrowRight, Sparkles, Search, X } from 'lucide-react'
+import { MapPin, Clock, ArrowRight, Sparkles, Search, X, Mountain, Plus } from 'lucide-react'
 
 import { SPORT_LABELS, SKILL_LABELS } from '@groute/shared'
 import { parseSearchQuery } from '@/lib/searchParser'
@@ -26,6 +26,8 @@ interface ActivityData {
   creator_id: string
   isOwner: boolean
   participantStatus: string | null
+  trail_name: string | null
+  unsplash_image_url: string | null
   creator: { id: string; display_name: string; first_name: string | null; last_name: string | null; avatar_url: string | null } | null
   participants: Array<{ id: string; display_name: string; first_name: string | null; last_name: string | null; avatar_url: string | null }>
 }
@@ -138,23 +140,10 @@ export function RightNowView({ activities, userSports, userId, friendIds = [] }:
         </p>
       </div>
 
-      {/* AI Search with animated glow border */}
-      <div className="glow-wrap relative mb-8">
-        {/* Soft outer halo */}
-        <div className="glow-border glow-halo pointer-events-none">
-          <div className="glow-dot glow-a" />
-          <div className="glow-dot glow-b" />
-          <div className="glow-dot glow-c" />
-        </div>
-        {/* Crisp border glow */}
-        <div className="glow-border glow-edge pointer-events-none">
-          <div className="glow-dot glow-a" />
-          <div className="glow-dot glow-b" />
-          <div className="glow-dot glow-c" />
-        </div>
-        {/* Input */}
-        <div className="relative rounded-xl bg-background ring-1 ring-primary/8">
-          <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/50 z-10" />
+      {/* Search + New Activity */}
+      <div className="mb-8 flex gap-2">
+        <div className="relative flex-1 rounded-xl border border-border bg-background">
+          <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/50" />
           <input
             type="text"
             value={searchQuery}
@@ -162,65 +151,24 @@ export function RightNowView({ activities, userSports, userId, friendIds = [] }:
             onKeyDown={(e) => { if (e.key === 'Enter') handleSearch() }}
             placeholder='Try "easy hike tomorrow"...'
             disabled={isSearching}
-            className="relative h-10 w-full rounded-xl border-0 bg-background pl-10 pr-9 text-sm outline-none placeholder:text-muted-foreground/40 disabled:opacity-60"
+            className="h-10 w-full rounded-xl border-0 bg-transparent pl-10 pr-9 text-sm outline-none placeholder:text-muted-foreground/40 disabled:opacity-60"
           />
           {searchQuery && !isSearching && (
             <button
               onClick={clearSearch}
-              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-muted-foreground hover:text-foreground transition-colors z-10"
+              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-muted-foreground hover:text-foreground transition-colors"
             >
               <X className="size-3.5" />
             </button>
           )}
         </div>
-        <style dangerouslySetInnerHTML={{ __html: `
-          .glow-border {
-            position: absolute;
-            overflow: hidden;
-          }
-          .glow-halo {
-            inset: -10px;
-            border-radius: 22px;
-            filter: blur(18px);
-            opacity: 0.3;
-          }
-          .glow-edge {
-            inset: -2px;
-            border-radius: 14px;
-            filter: blur(4px);
-            opacity: 0.35;
-          }
-          .glow-dot {
-            position: absolute;
-            border-radius: 50%;
-            background: radial-gradient(circle, #0f8a6e, transparent 50%);
-            offset-path: rect(0% 100% 100% 0% round 12px);
-            animation: glow-run linear infinite;
-          }
-          .glow-a {
-            width: 350px; height: 350px;
-            margin: -175px 0 0 -175px;
-            offset-distance: 0%;
-            animation-duration: 6s;
-          }
-          .glow-b {
-            width: 300px; height: 300px;
-            margin: -150px 0 0 -150px;
-            offset-distance: 37%;
-            animation-duration: 7s;
-            opacity: 0.6;
-          }
-          .glow-c {
-            width: 280px; height: 280px;
-            margin: -140px 0 0 -140px;
-            offset-distance: 68%;
-            animation-duration: 8s;
-            opacity: 0.4;
-          }
-          @keyframes glow-run {
-            to { offset-distance: 100%; }
-          }
-        `}} />
+        <Link
+          href="/explore"
+          className="flex h-10 items-center gap-1.5 rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm shadow-primary/15 hover:bg-primary/90 transition-colors"
+        >
+          <Plus className="size-4" />
+          <span className="hidden sm:inline">New Activity</span>
+        </Link>
       </div>
 
       {/* Loading overlay */}
@@ -324,9 +272,9 @@ function ActivityCard({ activity, featured }: { activity: ActivityData; featured
       href={`/activity/${activity.id}`}
       className="group block overflow-hidden rounded-2xl border border-border/50 bg-card transition-all hover:border-primary/30 hover:shadow-lg"
     >
-      {activity.banner_url ? (
+      {(activity.banner_url || activity.unsplash_image_url) ? (
         <div className={`w-full overflow-hidden bg-muted ${featured ? 'h-40' : 'h-28'}`}>
-          <img src={activity.banner_url} alt="" className="size-full object-cover transition-transform group-hover:scale-105" />
+          <img src={(activity.banner_url || activity.unsplash_image_url)!} alt="" className="size-full object-cover transition-transform group-hover:scale-105" />
         </div>
       ) : (
         <div className={`flex w-full items-center justify-center bg-linear-to-br from-primary/10 via-primary/5 to-accent/10 ${featured ? 'h-40' : 'h-28'}`}>
@@ -357,6 +305,12 @@ function ActivityCard({ activity, featured }: { activity: ActivityData; featured
           <MapPin className="size-3 shrink-0" />
           <span className="line-clamp-1">{activity.location_name}</span>
         </div>
+        {activity.trail_name && (
+          <div className="mt-1 flex items-center gap-1 text-xs text-nature-moss">
+            <Mountain className="size-3 shrink-0" />
+            <span className="line-clamp-1">{activity.trail_name}</span>
+          </div>
+        )}
 
         <div className="mt-3 flex items-center justify-between">
           <div className="flex items-center gap-1.5">

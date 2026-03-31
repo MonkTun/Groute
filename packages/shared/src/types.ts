@@ -78,3 +78,61 @@ export interface ApproachRoute {
   durationSeconds: number;
   coordinates: [number, number][]; // [lng, lat] pairs (GeoJSON order, ready for Mapbox)
 }
+
+export type RideType = "offer" | "request";
+export type RideStatus = "open" | "matched" | "cancelled";
+export type RidePassengerStatus = "pending" | "confirmed" | "declined";
+
+export interface DrivingDirections {
+  distanceMeters: number;
+  durationSeconds: number;
+  coordinates: [number, number][]; // [lng, lat] GeoJSON order
+}
+
+// ── Transport planning types ──
+
+export type TransportMode =
+  | "driving"
+  | "transit"
+  | "rideshare"
+  | "carpool_driver"
+  | "carpool_passenger"
+  | "walking";
+
+export interface TransitStep {
+  mode: string; // WALK | BUS | SUBWAY | RAIL | RIDESHARE
+  lineName?: string;
+  departureStop?: string;
+  arrivalStop?: string;
+  departureTime: string;
+  arrivalTime: string;
+  durationSeconds: number;
+  distanceMeters?: number;
+  numStops?: number;
+  instructions?: string;
+}
+
+export interface TransitRoute {
+  durationSeconds: number;
+  departureTime: string;
+  arrivalTime: string;
+  steps: TransitStep[];
+}
+
+export interface CarpoolRouteDetails {
+  rideId: string;
+  driverName: string;
+  pickupTime?: string;
+  pickupLocation?: string;
+  totalDurationSeconds: number;
+}
+
+export interface TransportOption {
+  mode: TransportMode;
+  durationSeconds: number;
+  distanceMeters?: number;
+  leaveAt: string;
+  arriveBy: string;
+  costEstimate?: string;
+  details: DrivingDirections | TransitRoute | CarpoolRouteDetails;
+}

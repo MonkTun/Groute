@@ -4,6 +4,7 @@ import { createActivitySchema } from "@groute/shared";
 
 import { createApiClient } from "@/lib/supabase/api";
 import { getTrailGeometry, getApproachRoute } from "@/lib/trails";
+import { fetchTrailImage } from "@/lib/unsplash";
 
 export async function GET(request: NextRequest) {
   const supabase = await createApiClient(request);
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
     .from("activities")
     .select(
       `
-      id, title, description, sport_type, skill_level, banner_url, visibility, location_lat, location_lng, location_name, max_participants, scheduled_at, status, created_at, creator_id,
+      id, title, description, sport_type, skill_level, banner_url, unsplash_image_url, visibility, location_lat, location_lng, location_name, max_participants, scheduled_at, status, created_at, creator_id,
       trail_osm_id, trail_name, trail_distance_meters, trail_surface, trail_sac_scale,
       trailhead_lat, trailhead_lng, trail_approach_distance_m, trail_approach_duration_s,
       trail_geometry, approach_geometry,
@@ -131,6 +132,28 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // Backfill missing Unsplash images (awaited so URLs are in the response)
+  const unsplashPromises = activitiesWithCounts
+    .filter((a) => !a.banner_url && !a.unsplash_image_url)
+    .slice(0, 5) // limit to 5 per request to avoid rate limits
+    .map(async (a) => {
+      const query = [a.trail_name, a.sport_type, a.location_name, "trail"]
+        .filter(Boolean)
+        .join(" ");
+      try {
+        const url = await fetchTrailImage(query);
+        if (url) {
+          a.unsplash_image_url = url;
+          await supabase
+            .from("activities")
+            .update({ unsplash_image_url: url })
+            .eq("id", a.id);
+        }
+      } catch {}
+    });
+
+  await Promise.all(unsplashPromises);
+
   return NextResponse.json({ data: activitiesWithCounts });
 }
 
@@ -203,6 +226,22 @@ export async function POST(request: NextRequest) {
         sender_id: user.id,
         content: "created this activity. Welcome to the group!",
       });
+
+      // Fetch Unsplash image for activities without a banner (non-blocking)
+      fetchTrailImage(
+        [trail?.name, parsed.data.sportType, parsed.data.locationName, "trail"]
+          .filter(Boolean)
+          .join(" ")
+      )
+        .then(async (url) => {
+          if (url && activity) {
+            await supabase
+              .from("activities")
+              .update({ unsplash_image_url: url })
+              .eq("id", activity.id);
+          }
+        })
+        .catch(() => {});
 
       // Fetch and store trail + approach geometries (non-blocking)
       if (trail && activity) {

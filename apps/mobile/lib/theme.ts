@@ -1,33 +1,33 @@
-// Light theme tokens matching web's oklch palette
+// Natural Whimsy theme — warm earthy tones matching web's oklch palette
 export const T = {
   // Backgrounds
-  bg: '#fafafa',           // page background
-  card: '#ffffff',          // card background
-  cardBorder: '#e5e5e5',   // card/input borders
-  muted: '#f0f0f0',        // muted backgrounds (badges, pills)
-  inputBg: '#ffffff',       // input background
-  inputBorder: '#e0e0e0',  // input border
+  bg: '#f5f0e8',            // warm cream
+  card: '#fcf9f3',          // off-white cream
+  cardBorder: '#e0d8cc',    // warm tan border
+  muted: '#ede7db',         // light sand
+  inputBg: '#fcf9f3',       // match card
+  inputBorder: '#d9d0c3',   // warm input border
 
-  // Primary (teal)
-  primary: '#0f8a6e',
-  primaryLight: 'rgba(15,138,110,0.1)',
-  primaryText: '#0f8a6e',
+  // Primary (forest green)
+  primary: '#1a7a5a',
+  primaryLight: 'rgba(26,122,90,0.10)',
+  primaryText: '#1a7a5a',
 
   // Text
-  text: '#1a1a2e',          // primary text
-  textSecondary: '#6b7280', // secondary text
-  textMuted: '#9ca3af',     // muted/placeholder text
+  text: '#2d2418',           // dark warm brown
+  textSecondary: '#6b5e4f',  // warm gray-brown
+  textMuted: '#9c8e7e',      // warm muted
 
   // Accent
-  amber: '#b45309',
-  amberBg: '#fef3c7',
-  green: '#047857',
-  greenBg: '#d1fae5',
+  amber: '#c45a20',          // sunset coral-orange
+  amberBg: '#fff3e0',
+  green: '#1a7a5a',          // match primary
+  greenBg: '#daf0e3',
   red: '#dc2626',
   redBg: '#fee2e2',
 
   // Misc
-  border: '#e5e5e5',
-  shadow: '#000',
-  overlay: 'rgba(0,0,0,0.05)',
+  border: '#e0d8cc',
+  shadow: '#2d2418',
+  overlay: 'rgba(45,36,24,0.05)',
 } as const

@@ -9,6 +9,7 @@ import { UserAvatar } from '@/components/UserAvatar'
 import { DeleteActivityButton } from '@/components/DeleteActivityButton'
 import { ActivityBanner } from '@/components/ActivityBanner'
 import { TrailMapView } from '@/components/TrailMapView'
+import { ActivityLogisticsSection } from './LogisticsSection'
 
 export default async function ActivityDetailPage({
   params,
@@ -23,7 +24,7 @@ export default async function ActivityDetailPage({
 
   if (!user) redirect('/login')
 
-  const [activityResult, participantsResult, followsResult] = await Promise.all([
+  const [activityResult, participantsResult, followsResult, logisticsResult, ridesResult, transportPlansResult] = await Promise.all([
     supabase
       .from('activities')
       .select(`
@@ -46,6 +47,31 @@ export default async function ActivityDetailPage({
       .from('follows')
       .select('following_id')
       .eq('follower_id', user.id),
+
+    supabase
+      .from('activity_logistics')
+      .select('*')
+      .eq('activity_id', id)
+      .maybeSingle(),
+
+    supabase
+      .from('activity_rides')
+      .select(`
+        id, activity_id, user_id, type, available_seats, pickup_location_name,
+        pickup_lat, pickup_lng, departure_time, note, status, created_at,
+        user:users!user_id ( id, display_name, first_name, last_name, avatar_url ),
+        passengers:ride_passengers (
+          id, passenger_id, status, created_at,
+          user:users!passenger_id ( id, display_name, first_name, last_name, avatar_url )
+        )
+      `)
+      .eq('activity_id', id)
+      .order('created_at', { ascending: true }),
+
+    supabase
+      .from('user_transit_plans')
+      .select('user_id, transport_mode, leave_at')
+      .eq('activity_id', id),
   ])
 
   const activity = activityResult.data
@@ -62,6 +88,38 @@ export default async function ActivityDetailPage({
   const followingSet = new Set(
     (followsResult.data ?? []).map((f) => f.following_id)
   )
+
+  // Build participant list with transport plans for the logistics timeline
+  const transportPlanMap = new Map(
+    (transportPlansResult.data ?? []).map((tp) => [tp.user_id, tp])
+  )
+
+  const participantList = [
+    // Creator first
+    ...(creator ? [{
+      id: creator.id,
+      displayName: creator.first_name && creator.last_name
+        ? `${creator.first_name} ${creator.last_name[0]}.`
+        : creator.display_name,
+      avatarUrl: creator.avatar_url,
+      area: creator.area,
+      transportMode: transportPlanMap.get(creator.id)?.transport_mode ?? null,
+      leaveAt: transportPlanMap.get(creator.id)?.leave_at ?? null,
+    }] : []),
+    // Then participants
+    ...participants
+      .filter((p) => p.user && p.user.id !== activity.creator_id)
+      .map((p) => ({
+        id: p.user!.id,
+        displayName: p.user!.first_name && p.user!.last_name
+          ? `${p.user!.first_name} ${p.user!.last_name[0]}.`
+          : p.user!.display_name,
+        avatarUrl: p.user!.avatar_url,
+        area: p.user!.area ?? null,
+        transportMode: transportPlanMap.get(p.user!.id)?.transport_mode ?? null,
+        leaveAt: transportPlanMap.get(p.user!.id)?.leave_at ?? null,
+      })),
+  ]
 
   const scheduledDate = new Date(activity.scheduled_at)
   const dateStr = scheduledDate.toLocaleDateString('en-US', {
@@ -193,6 +251,25 @@ export default async function ActivityDetailPage({
           </div>
         </section>
       )}
+
+      {/* Logistics — visible to creator and accepted participants */}
+      <ActivityLogisticsSection
+        activityId={id}
+        currentUserId={user.id}
+        isCreator={isCreator}
+        isParticipant={participants.some((p) => p.user?.id === user.id) || isCreator}
+        scheduledAt={activity.scheduled_at}
+        locationName={activity.location_name}
+        locationLat={activity.location_lat ? parseFloat(activity.location_lat) : 0}
+        locationLng={activity.location_lng ? parseFloat(activity.location_lng) : 0}
+        trailName={activity.trail_name}
+        trailheadLat={activity.trailhead_lat}
+        trailheadLng={activity.trailhead_lng}
+        trailApproachDurationS={activity.trail_approach_duration_s}
+        participantList={participantList}
+        logistics={logisticsResult.data}
+        rides={ridesResult.data ?? []}
+      />
 
       {/* Members */}
       <section>

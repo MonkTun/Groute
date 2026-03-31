@@ -19,8 +19,8 @@ export default async function RightNowPage() {
     supabase
       .from('activities')
       .select(`
-        id, title, description, sport_type, skill_level, banner_url, visibility,
-        creator_id, location_name, scheduled_at, max_participants, status,
+        id, title, description, sport_type, skill_level, banner_url, unsplash_image_url, visibility,
+        creator_id, location_name, scheduled_at, max_participants, status, trail_name,
         creator:users!creator_id ( id, display_name, first_name, last_name, avatar_url, area )
       `)
       .eq('status', 'open')

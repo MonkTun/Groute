@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -23,13 +24,13 @@ const mapboxToken = Constants.expoConfig?.extra?.mapboxToken as string
 const apiUrl = (Constants.expoConfig?.extra?.apiUrl as string) ?? 'http://localhost:3000'
 
 const C = {
-  bg: '#fafafa',
-  card: '#ffffff',
-  primary: '#0f8a6e',
-  text: '#1a1a2e',
-  textSecondary: '#6b7280',
-  textMuted: '#9ca3af',
-  border: '#e5e5e5',
+  bg: '#f5f0e8',
+  card: '#fcf9f3',
+  primary: '#1a7a5a',
+  text: '#2d2418',
+  textSecondary: '#6b5e4f',
+  textMuted: '#9c8e7e',
+  border: '#e0d8cc',
   trail: '#16a34a',
   approach: '#f97316',
 }
@@ -393,6 +394,74 @@ export default function ActivityDetailScreen() {
           </View>
         )}
 
+        {/* Getting There — visible to participants */}
+        {(isCreator || myStatus === 'accepted') && (
+          <View style={st.logisticsSection}>
+            <Text style={st.sectionTitle}>Getting There</Text>
+
+            {/* Open in Maps buttons */}
+            <View style={st.mapsRow}>
+              <Pressable
+                style={st.mapButton}
+                onPress={() => {
+                  const lat = activity.trailhead_lat ?? activity.location_lat
+                  const lng = activity.trailhead_lng ?? activity.location_lng
+                  if (lat && lng) Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`)
+                }}
+              >
+                <Text style={st.mapButtonText}>Google Maps</Text>
+              </Pressable>
+              <Pressable
+                style={st.mapButton}
+                onPress={() => {
+                  const lat = activity.trailhead_lat ?? activity.location_lat
+                  const lng = activity.trailhead_lng ?? activity.location_lng
+                  if (lat && lng) Linking.openURL(`https://maps.apple.com/?daddr=${lat},${lng}`)
+                }}
+              >
+                <Text style={st.mapButtonText}>Apple Maps</Text>
+              </Pressable>
+              <Pressable
+                style={st.mapButton}
+                onPress={() => {
+                  const lat = activity.trailhead_lat ?? activity.location_lat
+                  const lng = activity.trailhead_lng ?? activity.location_lng
+                  if (lat && lng) Linking.openURL(`https://waze.com/ul?ll=${lat},${lng}&navigate=yes`)
+                }}
+              >
+                <Text style={st.mapButtonText}>Waze</Text>
+              </Pressable>
+            </View>
+
+            {/* Trip timeline */}
+            <View style={st.timeline}>
+              <View style={st.timelineItem}>
+                <View style={st.timelineDot} />
+                <View style={st.timelineContent}>
+                  <Text style={st.timelineLabel}>Meet at {activity.location_name}</Text>
+                  <Text style={st.timelineTime}>{timeStr}</Text>
+                </View>
+              </View>
+              {activity.trail_approach_duration_s != null && activity.trail_approach_duration_s > 0 && (
+                <View style={st.timelineItem}>
+                  <View style={[st.timelineDot, { backgroundColor: C.textMuted }]} />
+                  <View style={st.timelineContent}>
+                    <Text style={st.timelineLabel}>Drive to trailhead</Text>
+                    <Text style={st.timelineTime}>~{Math.round(activity.trail_approach_duration_s / 60)} min</Text>
+                  </View>
+                </View>
+              )}
+              <View style={st.timelineItem}>
+                <View style={[st.timelineDot, { backgroundColor: C.approach }]} />
+                <View style={st.timelineContent}>
+                  <Text style={st.timelineLabel}>Activity starts</Text>
+                  <Text style={st.timelineTime}>{timeStr}</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        )}
+
         {/* Host */}
         <Pressable style={st.hostCard} onPress={() => creator && router.push(`/user/${creator.id}`)}>
           {creator?.avatar_url ? (
@@ -495,6 +564,18 @@ const st = StyleSheet.create({
   trailMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   trailMetaText: { fontSize: 12, color: C.textSecondary },
   trailApproach: { fontSize: 12, color: C.approach, fontWeight: '500', marginTop: 6 },
+
+  // Logistics
+  logisticsSection: { marginTop: 20 },
+  mapsRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  mapButton: { flex: 1, backgroundColor: C.card, borderRadius: 10, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: C.border },
+  mapButtonText: { fontSize: 12, fontWeight: '600', color: C.primary },
+  timeline: { marginTop: 16, gap: 4 },
+  timelineItem: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  timelineDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: C.primary, marginTop: 4 },
+  timelineContent: { flex: 1, paddingBottom: 16, borderLeftWidth: 1, borderLeftColor: C.border, paddingLeft: 12, marginLeft: -16 },
+  timelineLabel: { fontSize: 14, fontWeight: '600', color: C.text },
+  timelineTime: { fontSize: 12, color: C.textSecondary, marginTop: 2 },
 
   hostCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.card, borderRadius: 14, padding: 14, marginTop: 20, borderWidth: 1, borderColor: C.border },
   avatar: { width: 40, height: 40, borderRadius: 20 },

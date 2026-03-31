@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 
 import { SPORT_LABELS, SKILL_LABELS, VISIBILITY_LABELS, VISIBILITY_DESCRIPTIONS } from '@groute/shared'
 import type { Trail, ApproachRoute } from '@groute/shared'
-import { fireConfetti } from '@/hooks/useConfetti'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,8 +18,8 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { LocationTrailStep } from '@/components/LocationTrailStep'
-import { Plus, Check, ImagePlus, X, ChevronLeft, ChevronRight, MapPin, Calendar, Users, Mountain } from 'lucide-react'
 import { UserAvatar } from '@/components/UserAvatar'
+import { Plus, Check, ImagePlus, X, ChevronLeft, ChevronRight, MapPin, Calendar, Users, Mountain, Car, Navigation, Pencil, Sparkles } from 'lucide-react'
 
 interface FriendInfo {
   id: string
@@ -28,7 +27,6 @@ interface FriendInfo {
   first_name: string | null
   last_name: string | null
   avatar_url: string | null
-  area: string | null
 }
 
 interface LocationValue {
@@ -38,8 +36,8 @@ interface LocationValue {
 }
 
 const STEPS = [
-  { label: 'Basics', number: 1 },
-  { label: 'Location', number: 2 },
+  { label: 'Trailhead', number: 1 },
+  { label: 'Transport', number: 2 },
   { label: 'Details', number: 3 },
   { label: 'Invite', number: 4 },
 ] as const
@@ -57,46 +55,93 @@ export function CreateActivityModal({ initialMapCenter }: CreateActivityModalPro
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Form state
+  // Step 1: Location/Trail
+  const [location, setLocation] = useState<LocationValue | null>(null)
+  const [selectedTrail, setSelectedTrail] = useState<Trail | null>(null)
+  const [approachRoute, setApproachRoute] = useState<ApproachRoute | null>(null)
+
+  // Step 2: Transport
+  const [parkingName, setParkingName] = useState('')
+  const [parkingPaid, setParkingPaid] = useState<boolean | null>(null)
+  const [parkingCost, setParkingCost] = useState('')
+  const [parkingNotes, setParkingNotes] = useState('')
+  const [transportNotes, setTransportNotes] = useState('')
+  const [meetingPointName, setMeetingPointName] = useState('')
+  const [carpoolMeetingNote, setCarpoolMeetingNote] = useState('')
+
+  // AI suggestions
+  interface AiSuggestions {
+    parking: Array<{ name: string; description: string; paid: boolean; cost: string; notes: string }>
+    meetingPoints: Array<{ name: string; description: string }>
+    transportTips: string[]
+    carpoolNotes: string
+  }
+  const [aiSuggestions, setAiSuggestions] = useState<AiSuggestions | null>(null)
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false)
+  const [selectedTips, setSelectedTips] = useState<Set<number>>(new Set())
+
+  // Step 3: Details
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [sportType, setSportType] = useState('')
   const [skillLevel, setSkillLevel] = useState('beginner')
   const [visibility, setVisibility] = useState('public')
-  const [location, setLocation] = useState<LocationValue | null>(null)
   const [maxParticipants, setMaxParticipants] = useState('4')
   const [scheduledAt, setScheduledAt] = useState('')
-  const [selectedTrail, setSelectedTrail] = useState<Trail | null>(null)
-  const [approachRoute, setApproachRoute] = useState<ApproachRoute | null>(null)
   const [coverPhoto, setCoverPhoto] = useState<File | null>(null)
   const [coverPreview, setCoverPreview] = useState<string | null>(null)
+
+  // Step 4: Invite
   const [friends, setFriends] = useState<FriendInfo[]>([])
   const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set())
 
-  const isTrailSport = sportType === 'hiking' || sportType === 'trail_running'
+  const isTrailSport = sportType === 'hiking' || sportType === 'trail_running' || !sportType
 
-  // Fetch friends when we reach step 4
+  // Fetch AI suggestions when entering Step 2
   useEffect(() => {
-    if (!open || step !== 4) return
-    async function fetchFriends() {
-      try {
-        const res = await fetch('/api/friends')
-        if (res.ok) {
-          const data = await res.json()
-          setFriends(data.data ?? [])
-        }
-      } catch {
-        // ignore
-      }
+    if (step === 2 && location && !aiSuggestions && !isLoadingSuggestions) {
+      setIsLoadingSuggestions(true)
+      fetch('/api/activities/suggest-logistics', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          trailName: selectedTrail?.name ?? null,
+          locationName: location.name,
+          locationLat: location.latitude,
+          locationLng: location.longitude,
+          trailheadLat: selectedTrail?.trailheadLat,
+          trailheadLng: selectedTrail?.trailheadLng,
+          approachDurationMin: approachRoute ? Math.ceil(approachRoute.durationSeconds / 60) : undefined,
+        }),
+      })
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.data) {
+            setAiSuggestions(d.data)
+            // Auto-select all transport tips
+            if (d.data.transportTips) {
+              setSelectedTips(new Set(d.data.transportTips.map((_: string, i: number) => i)))
+            }
+          }
+        })
+        .catch(() => {})
+        .finally(() => setIsLoadingSuggestions(false))
     }
-    fetchFriends()
-  }, [open, step])
+  }, [step, location, selectedTrail, approachRoute, aiSuggestions, isLoadingSuggestions])
+
+  useEffect(() => {
+    if (step === 4 && friends.length === 0) {
+      fetch('/api/friends')
+        .then((r) => r.json())
+        .then((d) => setFriends(d.data ?? []))
+        .catch(() => {})
+    }
+  }, [step, friends.length])
 
   function toggleInvite(id: string) {
     setInvitedIds((prev) => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+      next.has(id) ? next.delete(id) : next.add(id)
       return next
     })
   }
@@ -125,16 +170,26 @@ export function CreateActivityModal({ initialMapCenter }: CreateActivityModalPro
 
   function resetForm() {
     setStep(1)
+    setLocation(null)
+    setSelectedTrail(null)
+    setApproachRoute(null)
+    setParkingName('')
+    setParkingPaid(null)
+    setParkingCost('')
+    setParkingNotes('')
+    setTransportNotes('')
+    setMeetingPointName('')
+    setCarpoolMeetingNote('')
+    setAiSuggestions(null)
+    setIsLoadingSuggestions(false)
+    setSelectedTips(new Set())
     setTitle('')
     setDescription('')
     setSportType('')
     setSkillLevel('beginner')
     setVisibility('public')
-    setLocation(null)
     setMaxParticipants('4')
     setScheduledAt('')
-    setSelectedTrail(null)
-    setApproachRoute(null)
     removeCoverPhoto()
     setInvitedIds(new Set())
     setError(null)
@@ -143,13 +198,13 @@ export function CreateActivityModal({ initialMapCenter }: CreateActivityModalPro
   function validateStep(s: number): string | null {
     switch (s) {
       case 1:
-        if (!sportType) return 'Please select an activity type'
-        if (!title.trim()) return 'Please enter a title'
-        return null
-      case 2:
         if (!location) return 'Please select a location'
         return null
+      case 2:
+        return null // transport is optional
       case 3:
+        if (!sportType) return 'Please select an activity type'
+        if (!title.trim()) return 'Please enter a title'
         if (!scheduledAt) return 'Please select a date and time'
         return null
       default:
@@ -219,7 +274,7 @@ export function CreateActivityModal({ initialMapCenter }: CreateActivityModalPro
         return
       }
 
-      // Upload cover photo if selected
+      // Upload cover photo
       if (coverPhoto && data.data?.id) {
         const formData = new FormData()
         formData.append('file', coverPhoto)
@@ -229,15 +284,60 @@ export function CreateActivityModal({ initialMapCenter }: CreateActivityModalPro
         })
       }
 
+      // Always save logistics if we have any suggestions or user input
+      if (data.data?.id) {
+        const hasAny = meetingPointName || parkingName || transportNotes || carpoolMeetingNote || aiSuggestions
+        if (hasAny) {
+          // Build notes from all sources
+          const notesParts: string[] = []
+          if (carpoolMeetingNote) notesParts.push(`Carpool meeting: ${carpoolMeetingNote}`)
+
+          // Build transport notes combining user input and selected AI tips
+          const allTransportNotes: string[] = []
+          if (transportNotes) allTransportNotes.push(transportNotes)
+          if (aiSuggestions?.transportTips) {
+            aiSuggestions.transportTips.forEach((tip, i) => {
+              if (selectedTips.has(i)) allTransportNotes.push(tip)
+            })
+          }
+
+          // Build checklist from AI suggestions
+          const checklist: string[] = []
+          if (approachRoute) {
+            checklist.push(`${Math.ceil(approachRoute.durationSeconds / 60)} min walk from parking to trailhead`)
+          }
+
+          await fetch(`/api/activities/${data.data.id}/logistics`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              meetingPointName: meetingPointName || undefined,
+              parkingName: parkingName || undefined,
+              parkingPaid: parkingPaid ?? undefined,
+              parkingCost: parkingCost || undefined,
+              parkingNotes: parkingNotes || undefined,
+              transportNotes: allTransportNotes.join('\n') || undefined,
+              checklistItems: checklist.length > 0 ? checklist : undefined,
+              notes: notesParts.join('\n') || undefined,
+            }),
+          })
+        }
+      }
+
       setOpen(false)
       resetForm()
-      fireConfetti()
       router.refresh()
     } catch {
-      setError('Network error. Please try again.')
-    } finally {
-      setIsSubmitting(false)
+      setError('Something went wrong')
     }
+    setIsSubmitting(false)
+  }
+
+  // Auto-generate title from trail/location
+  function suggestTitle() {
+    if (title) return
+    const base = selectedTrail?.name ?? location?.name ?? ''
+    if (base) setTitle(base)
   }
 
   return (
@@ -280,20 +380,252 @@ export function CreateActivityModal({ initialMapCenter }: CreateActivityModalPro
             <p className="mb-3 text-sm text-destructive">{error}</p>
           )}
 
-          {/* Step 1: Basics */}
+          {/* Step 1: Trailhead / Location */}
           {step === 1 && (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Start by choosing where you want to go. Search for a location or select a trail.
+              </p>
+              <LocationTrailStep
+                location={location}
+                onLocationChange={(loc) => {
+                  setLocation(loc)
+                  setSelectedTrail(null)
+                  setApproachRoute(null)
+                }}
+                isTrailSport={isTrailSport}
+                selectedTrail={selectedTrail}
+                onTrailSelect={(trail) => {
+                  setSelectedTrail(trail)
+                  if (!trail) setApproachRoute(null)
+                }}
+                onApproachRouteChange={setApproachRoute}
+                initialMapCenter={initialMapCenter}
+              />
+            </div>
+          )}
+
+          {/* Step 2: Transport / Logistics (AI-powered) */}
+          {step === 2 && (
+            <div className="space-y-4">
+              {/* Destination summary */}
+              {(selectedTrail || location) && (
+                <div className="rounded-xl border border-border/50 bg-muted/30 p-3 space-y-1.5">
+                  <div className="space-y-1 text-sm">
+                    {selectedTrail && (
+                      <div className="flex items-center gap-2">
+                        <Mountain className="size-3.5 text-primary" />
+                        <span className="font-medium">{selectedTrail.name}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <MapPin className="size-3.5" />
+                      <span>{location?.name}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {isLoadingSuggestions && (
+                <div className="space-y-2 py-4">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="size-4 text-primary animate-pulse" />
+                    <span className="text-sm font-medium text-primary">AI is planning your trip...</span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                    <div className="h-full w-2/3 animate-pulse rounded-full bg-gradient-to-r from-primary/60 via-primary to-primary/60" style={{ animation: 'shimmer 1.5s ease-in-out infinite' }} />
+                  </div>
+                  <style dangerouslySetInnerHTML={{ __html: `
+                    @keyframes shimmer {
+                      0% { transform: translateX(-100%); }
+                      100% { transform: translateX(200%); }
+                    }
+                  `}} />
+                </div>
+              )}
+
+              {/* Parking — AI suggestions + custom */}
+              <div className="space-y-2">
+                <Label><Car className="inline size-3.5 mr-1" />Parking</Label>
+                {aiSuggestions?.parking && aiSuggestions.parking.length > 0 && (
+                  <div className="space-y-1.5">
+                    {aiSuggestions.parking.map((p, i) => {
+                      const isSelected = parkingName === p.name
+                      return (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => {
+                            if (isSelected) {
+                              setParkingName(''); setParkingPaid(null); setParkingCost(''); setParkingNotes('')
+                            } else {
+                              setParkingName(p.name); setParkingPaid(p.paid); setParkingCost(p.cost); setParkingNotes(p.notes)
+                            }
+                          }}
+                          className={`flex w-full flex-col gap-0.5 rounded-xl px-3 py-2.5 text-left text-sm transition-colors ${
+                            isSelected
+                              ? 'bg-primary/10 ring-1 ring-primary/30'
+                              : 'bg-muted/40 hover:bg-muted/60'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{p.name}</span>
+                            <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                              p.paid ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
+                            }`}>
+                              {p.cost}
+                            </span>
+                          </div>
+                          <span className="text-xs text-muted-foreground">{p.description}</span>
+                          {p.notes && <span className="text-[11px] text-muted-foreground italic">{p.notes}</span>}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+                <Input
+                  value={parkingName}
+                  onChange={(e) => setParkingName(e.target.value)}
+                  placeholder="Or enter custom parking location..."
+                />
+                {parkingName && (
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-1.5 text-xs">
+                      <input type="checkbox" checked={parkingPaid === true} onChange={(e) => { setParkingPaid(e.target.checked); if (!e.target.checked) setParkingCost('') }} className="rounded" />
+                      Paid parking
+                    </label>
+                    {parkingPaid && (
+                      <Input
+                        value={parkingCost}
+                        onChange={(e) => setParkingCost(e.target.value)}
+                        placeholder="Cost (e.g. $10/day)"
+                        className="w-32"
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Meeting point — AI suggestions + custom */}
+              <div className="space-y-2">
+                <Label><MapPin className="inline size-3.5 mr-1" />Meeting point</Label>
+                {aiSuggestions?.meetingPoints && aiSuggestions.meetingPoints.length > 0 && (
+                  <div className="space-y-1.5">
+                    {aiSuggestions.meetingPoints.map((mp, i) => {
+                      const isSelected = meetingPointName === mp.name
+                      return (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => setMeetingPointName(isSelected ? '' : mp.name)}
+                          className={`flex w-full flex-col gap-0.5 rounded-xl px-3 py-2.5 text-left text-sm transition-colors ${
+                            isSelected
+                              ? 'bg-primary/10 ring-1 ring-primary/30'
+                              : 'bg-muted/40 hover:bg-muted/60'
+                          }`}
+                        >
+                          <span className="font-medium">{mp.name}</span>
+                          <span className="text-xs text-muted-foreground">{mp.description}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+                <Input
+                  value={meetingPointName}
+                  onChange={(e) => setMeetingPointName(e.target.value)}
+                  placeholder="Or enter custom meeting point..."
+                />
+              </div>
+
+              {/* Carpool meeting — AI suggestion for pre-trail meetup */}
+              <div className="space-y-2">
+                <Label><Users className="inline size-3.5 mr-1" />Carpool meeting spot</Label>
+                <p className="text-[11px] text-muted-foreground">
+                  Where should people sharing rides meet before heading to the trail?
+                </p>
+                {aiSuggestions?.carpoolNotes && (
+                  <button
+                    type="button"
+                    onClick={() => setCarpoolMeetingNote(aiSuggestions.carpoolNotes)}
+                    className={`flex w-full rounded-xl px-3 py-2.5 text-left text-sm transition-colors ${
+                      carpoolMeetingNote === aiSuggestions.carpoolNotes
+                        ? 'bg-primary/10 ring-1 ring-primary/30'
+                        : 'bg-muted/40 hover:bg-muted/60'
+                    }`}
+                  >
+                    <span className="text-xs">{aiSuggestions.carpoolNotes}</span>
+                  </button>
+                )}
+                <Input
+                  value={carpoolMeetingNote}
+                  onChange={(e) => setCarpoolMeetingNote(e.target.value)}
+                  placeholder="Or enter custom carpool meeting spot..."
+                />
+              </div>
+
+              {/* Transport tips — AI generated, toggleable */}
+              {aiSuggestions?.transportTips && aiSuggestions.transportTips.length > 0 && (
+                <div className="space-y-2">
+                  <Label><Navigation className="inline size-3.5 mr-1" />Transport tips (uncheck to remove)</Label>
+                  <div className="space-y-1">
+                    {aiSuggestions.transportTips.map((tip, i) => {
+                      const isChecked = selectedTips.has(i)
+                      return (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => {
+                            setSelectedTips((prev) => {
+                              const next = new Set(prev)
+                              next.has(i) ? next.delete(i) : next.add(i)
+                              return next
+                            })
+                          }}
+                          className={`flex w-full items-start gap-2 rounded-lg px-3 py-2 text-left text-xs transition-colors ${
+                            isChecked ? 'bg-primary/5 text-foreground' : 'bg-muted/20 text-muted-foreground line-through'
+                          }`}
+                        >
+                          <div className={`mt-0.5 flex size-3.5 shrink-0 items-center justify-center rounded border transition-colors ${
+                            isChecked ? 'border-primary bg-primary text-primary-foreground' : 'border-border'
+                          }`}>
+                            {isChecked && <Check className="size-2" />}
+                          </div>
+                          <span>{tip}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Custom transport notes */}
+              <div className="space-y-1.5">
+                <Label htmlFor="transport-notes">
+                  <Pencil className="inline size-3.5 mr-1" />
+                  Additional notes (optional)
+                </Label>
+                <textarea
+                  id="transport-notes"
+                  value={transportNotes}
+                  onChange={(e) => setTransportNotes(e.target.value)}
+                  placeholder="Any other transport info for your group..."
+                  rows={2}
+                  className="w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 resize-none"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Activity Details */}
+          {step === 3 && (
             <div className="space-y-3">
               <div className="space-y-1.5">
                 <Label htmlFor="act-sport">Activity type</Label>
                 <select
                   id="act-sport"
                   value={sportType}
-                  onChange={(e) => {
-                    setSportType(e.target.value)
-                    if (e.target.value !== 'hiking' && e.target.value !== 'trail_running') {
-                      setSelectedTrail(null)
-                    }
-                  }}
+                  onChange={(e) => setSportType(e.target.value)}
                   className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                 >
                   <option value="">Select type</option>
@@ -309,7 +641,8 @@ export function CreateActivityModal({ initialMapCenter }: CreateActivityModalPro
                   id="act-title"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Morning hike at Griffith Park"
+                  onFocus={suggestTitle}
+                  placeholder={selectedTrail ? `Hike at ${selectedTrail.name}` : 'Morning hike at Griffith Park'}
                   maxLength={200}
                 />
               </div>
@@ -324,6 +657,43 @@ export function CreateActivityModal({ initialMapCenter }: CreateActivityModalPro
                   maxLength={2000}
                   rows={2}
                   className="w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 resize-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="act-skill">Skill level</Label>
+                  <select
+                    id="act-skill"
+                    value={skillLevel}
+                    onChange={(e) => setSkillLevel(e.target.value)}
+                    className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  >
+                    {Object.entries(SKILL_LABELS).map(([key, label]) => (
+                      <option key={key} value={key}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="act-max">Max participants</Label>
+                  <Input
+                    id="act-max"
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={maxParticipants}
+                    onChange={(e) => setMaxParticipants(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="act-date">Date & Time</Label>
+                <Input
+                  id="act-date"
+                  type="datetime-local"
+                  value={scheduledAt}
+                  onChange={(e) => setScheduledAt(e.target.value)}
                 />
               </div>
 
@@ -346,9 +716,9 @@ export function CreateActivityModal({ initialMapCenter }: CreateActivityModalPro
                     </button>
                   </div>
                 ) : (
-                  <label className="flex h-20 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border hover:border-primary/50 hover:bg-muted/50 transition-colors">
-                    <ImagePlus className="size-5 text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">Add a photo</span>
+                  <label className="flex h-16 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border hover:border-primary/50 hover:bg-muted/50 transition-colors">
+                    <ImagePlus className="size-4 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">Add a photo (or we&apos;ll find one)</span>
                     <input
                       type="file"
                       accept="image/jpeg,image/png,image/webp"
@@ -379,98 +749,6 @@ export function CreateActivityModal({ initialMapCenter }: CreateActivityModalPro
                       </div>
                     </button>
                   ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Step 2: Location & Trail (single map) */}
-          {step === 2 && (
-            <LocationTrailStep
-              location={location}
-              onLocationChange={(loc) => {
-                setLocation(loc)
-                setSelectedTrail(null)
-                setApproachRoute(null)
-              }}
-              isTrailSport={isTrailSport}
-              selectedTrail={selectedTrail}
-              onTrailSelect={(trail) => {
-                setSelectedTrail(trail)
-                if (!trail) setApproachRoute(null)
-              }}
-              onApproachRouteChange={setApproachRoute}
-              initialMapCenter={initialMapCenter}
-            />
-          )}
-
-          {/* Step 3: Details */}
-          {step === 3 && (
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="act-skill">Skill level</Label>
-                <select
-                  id="act-skill"
-                  value={skillLevel}
-                  onChange={(e) => setSkillLevel(e.target.value)}
-                  className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                >
-                  {Object.entries(SKILL_LABELS).map(([key, label]) => (
-                    <option key={key} value={key}>{label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label htmlFor="act-date">Date & Time</Label>
-                  <Input
-                    id="act-date"
-                    type="datetime-local"
-                    value={scheduledAt}
-                    onChange={(e) => setScheduledAt(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="act-max">Max participants</Label>
-                  <Input
-                    id="act-max"
-                    type="number"
-                    min={1}
-                    max={50}
-                    value={maxParticipants}
-                    onChange={(e) => setMaxParticipants(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              {/* Summary so far */}
-              <div className="mt-2 rounded-lg border border-border/50 bg-muted/30 p-3 space-y-2">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Summary</p>
-                <div className="space-y-1.5 text-sm">
-                  <div className="flex items-center gap-2">
-                    <Mountain className="size-3.5 text-muted-foreground" />
-                    <span>{SPORT_LABELS[sportType] ?? sportType}</span>
-                    <span className="text-muted-foreground">·</span>
-                    <span className="truncate text-muted-foreground">{title}</span>
-                  </div>
-                  {location && (
-                    <div className="flex items-center gap-2">
-                      <MapPin className="size-3.5 text-muted-foreground" />
-                      <span className="truncate text-muted-foreground">{location.name}</span>
-                    </div>
-                  )}
-                  {selectedTrail && (
-                    <div className="flex items-center gap-2">
-                      <Mountain className="size-3.5 text-primary" />
-                      <span className="truncate text-primary">{selectedTrail.name}</span>
-                      {approachRoute && (
-                        <span className="text-xs text-muted-foreground">
-                          · {Math.ceil(approachRoute.durationSeconds / 60)} min walk
-                        </span>
-                      )}
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
@@ -517,6 +795,12 @@ export function CreateActivityModal({ initialMapCenter }: CreateActivityModalPro
                     <span>·</span>
                     <span>{VISIBILITY_LABELS[visibility]}</span>
                   </div>
+                  {meetingPointName && (
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Navigation className="size-3.5" />
+                      <span>Meet at {meetingPointName}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 

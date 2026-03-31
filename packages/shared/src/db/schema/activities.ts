@@ -36,6 +36,7 @@ export const activities = pgTable("activities", {
   trailApproachDurationS: integer("trail_approach_duration_s"),
   trailGeometry: text("trail_geometry"),
   approachGeometry: text("approach_geometry"),
+  unsplashImageUrl: text("unsplash_image_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });

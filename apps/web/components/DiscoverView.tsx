@@ -41,6 +41,7 @@ export interface ActivityData {
   trail_approach_duration_s: number | null
   trail_geometry: string | null
   approach_geometry: string | null
+  unsplash_image_url: string | null
   creator: {
     id: string
     display_name: string
@@ -114,6 +115,7 @@ export function DiscoverView({ initialActivities, currentUserId, friends = [] }:
     d.setDate(d.getDate() + 7)
     return d.toISOString().slice(0, 10)
   })
+  const [specificDate, setSpecificDate] = useState<string | null>(null) // when set, show only this day
   const mapRef = useRef<DiscoverMapHandle>(null)
 
   // Fetch personalized recommendations on mount
@@ -137,13 +139,20 @@ export function DiscoverView({ initialActivities, currentUserId, friends = [] }:
 
   const filtered = useMemo(() => {
     const now = new Date()
-    const end = endOfDay(endDate)
     const q = searchQuery.trim().toLowerCase()
 
     const result = initialActivities
       .filter((a) => {
         const scheduled = new Date(a.scheduled_at)
-        if (scheduled < now || scheduled > end) return false
+        if (scheduled < now) return false
+        if (specificDate) {
+          // Show only activities on the specific selected date
+          const activityDate = scheduled.toISOString().slice(0, 10)
+          if (activityDate !== specificDate) return false
+        } else {
+          const end = endOfDay(endDate)
+          if (scheduled > end) return false
+        }
         if (selectedSport && a.sport_type !== selectedSport) return false
         if (selectedSkill && a.skill_level !== selectedSkill) return false
         if (q) {
@@ -169,7 +178,7 @@ export function DiscoverView({ initialActivities, currentUserId, friends = [] }:
     }
 
     return result
-  }, [initialActivities, selectedSport, selectedSkill, endDate, userLocation, searchQuery])
+  }, [initialActivities, selectedSport, selectedSkill, endDate, specificDate, userLocation, searchQuery])
 
   const mapActivities = filtered.map((a) => ({
     id: a.id,
@@ -215,6 +224,7 @@ export function DiscoverView({ initialActivities, currentUserId, friends = [] }:
     const d = new Date()
     d.setDate(d.getDate() + days)
     setEndDate(d.toISOString().slice(0, 10))
+    setSpecificDate(null) // clear specific date when using presets
   }
 
   function handleSearch(query: string) {
@@ -229,6 +239,7 @@ export function DiscoverView({ initialActivities, currentUserId, friends = [] }:
   function clearSearch() {
     setSearchQuery('')
     setSelectedSport(null)
+    setSpecificDate(null)
     setSelectedSkill(null)
   }
 
@@ -267,7 +278,7 @@ export function DiscoverView({ initialActivities, currentUserId, friends = [] }:
         {TIMEFRAME_OPTIONS.map(({ label, days }) => {
           const target = new Date()
           target.setDate(target.getDate() + days)
-          const isActive = endDate === target.toISOString().slice(0, 10)
+          const isActive = !specificDate && endDate === target.toISOString().slice(0, 10)
           return (
             <button
               key={label}
@@ -288,12 +299,33 @@ export function DiscoverView({ initialActivities, currentUserId, friends = [] }:
           <Calendar className="pointer-events-none absolute left-2 top-1/2 size-3 -translate-y-1/2 text-muted-foreground" />
           <input
             type="date"
-            value={endDate}
+            value={specificDate ?? ''}
             min={today}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="h-7 rounded-full border border-border bg-transparent pl-6 pr-2 text-xs text-muted-foreground outline-none focus-visible:border-ring"
+            onChange={(e) => {
+              if (e.target.value) {
+                setSpecificDate(e.target.value)
+              } else {
+                setSpecificDate(null)
+              }
+            }}
+            className={`h-7 rounded-full border bg-transparent pl-6 pr-2 text-xs outline-none focus-visible:border-ring ${
+              specificDate
+                ? 'border-accent text-accent-foreground'
+                : 'border-border text-muted-foreground'
+            }`}
           />
         </div>
+
+        {specificDate && (
+          <button
+            type="button"
+            onClick={() => setSpecificDate(null)}
+            className="shrink-0 rounded-full bg-accent/20 px-2.5 py-1.5 text-xs font-semibold text-accent-foreground ring-1 ring-accent/30 hover:bg-accent/30 transition-colors"
+          >
+            <X className="inline size-3 mr-0.5" />
+            {new Date(specificDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+          </button>
+        )}
       </div>
 
       {/* Sidebar + Map */}

@@ -8,3 +8,7 @@ export * from "./messages";
 export * from "./follows";
 export * from "./notifications";
 export * from "./strava-activities";
+export * from "./activity-logistics";
+export * from "./activity-rides";
+export * from "./ride-passengers";
+export * from "./user-transit-plans";

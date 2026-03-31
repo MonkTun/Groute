@@ -31,6 +31,9 @@ export const users = pgTable("users", {
   stravaAccessToken: text("strava_access_token"),
   stravaRefreshToken: text("strava_refresh_token"),
   stravaTokenExpiresAt: bigint("strava_token_expires_at", { mode: "number" }),
+  homeLat: text("home_lat"),
+  homeLng: text("home_lng"),
+  homeLocationName: text("home_location_name"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });

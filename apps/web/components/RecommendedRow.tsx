@@ -2,21 +2,21 @@
 
 import { useState } from 'react'
 import { SPORT_LABELS } from '@groute/shared'
-import { MapPin, Users, Sparkles, X } from 'lucide-react'
+import { MapPin, Users, Sparkles, X, Mountain } from 'lucide-react'
 import { UserAvatar } from '@/components/UserAvatar'
 
 import type { ActivityData } from '@/components/DiscoverView'
 
 const SPORT_COLORS: Record<string, string> = {
-  hiking: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-  climbing: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
-  trail_running: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400',
-  surfing: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',
-  cycling: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400',
-  mountain_biking: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-  skiing: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  kayaking: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
-  yoga: 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400',
+  hiking: 'bg-emerald-100/80 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400',
+  climbing: 'bg-orange-100/80 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
+  trail_running: 'bg-lime-100/80 text-lime-800 dark:bg-lime-900/30 dark:text-lime-400',
+  surfing: 'bg-cyan-100/80 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-400',
+  cycling: 'bg-violet-100/80 text-violet-800 dark:bg-violet-900/30 dark:text-violet-400',
+  mountain_biking: 'bg-amber-100/80 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
+  skiing: 'bg-sky-100/80 text-sky-800 dark:bg-sky-900/30 dark:text-sky-400',
+  kayaking: 'bg-teal-100/80 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400',
+  yoga: 'bg-rose-100/80 text-rose-800 dark:bg-rose-900/30 dark:text-rose-400',
 }
 
 const SPORT_EMOJIS: Record<string, string> = {
@@ -79,9 +79,9 @@ export function RecommendedRow({ activities, onSelect }: RecommendedRowProps) {
               className="group flex w-full gap-2.5 rounded-lg p-2 text-left transition-colors hover:bg-muted/60"
             >
               {/* Thumbnail */}
-              {activity.banner_url ? (
+              {(activity.banner_url || activity.unsplash_image_url) ? (
                 <div className="size-14 shrink-0 overflow-hidden rounded-lg bg-muted">
-                  <img src={activity.banner_url} alt="" className="size-full object-cover" />
+                  <img src={(activity.banner_url || activity.unsplash_image_url)!} alt="" className="size-full object-cover" />
                 </div>
               ) : (
                 <div className="flex size-14 shrink-0 items-center justify-center rounded-lg bg-linear-to-br from-primary/10 to-accent/10">
@@ -105,7 +105,7 @@ export function RecommendedRow({ activities, onSelect }: RecommendedRowProps) {
                 <div className="mt-1 flex items-center gap-2">
                   <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
                     <MapPin className="size-2.5" />
-                    <span className="truncate max-w-20">{activity.location_name}</span>
+                    <span className="truncate max-w-20">{activity.trail_name ?? activity.location_name}</span>
                   </div>
                   <div className="flex items-center gap-0.5">
                     {activity.creator && (
