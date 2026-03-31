@@ -385,43 +385,40 @@ export function LocationTrailStep({
 
   // ── Approach route fetching ──────────────────────────────────────────────
 
+  // When a trail is selected, update the location to the trailhead
+  // The approach route (parking → trailhead) will be computed in Step 2
+  // after the user selects a parking/dropoff location
   useEffect(() => {
-    if (!selectedTrail || !location) {
+    if (!selectedTrail) {
       clearApproachLayer()
       setApproachRoute(null)
       onApproachRouteChange(null)
       return
     }
 
-    let cancelled = false
-    setIsLoadingApproach(true)
+    // Move location to the trailhead so the activity is centered on where the hike starts
+    onLocationChange({
+      name: selectedTrail.name,
+      latitude: selectedTrail.trailheadLat,
+      longitude: selectedTrail.trailheadLng,
+    })
+    setQuery(selectedTrail.name)
 
-    async function fetchApproach() {
-      const params = new URLSearchParams({
-        fromLat: String(location!.latitude),
-        fromLng: String(location!.longitude),
-        toLat: String(selectedTrail!.trailheadLat),
-        toLng: String(selectedTrail!.trailheadLng),
+    // Clear approach route — will be computed from parking in Step 2
+    setApproachRoute(null)
+    onApproachRouteChange(null)
+    clearApproachLayer()
+
+    // Fly map to trailhead
+    if (mapRef.current) {
+      mapRef.current.flyTo({
+        center: [selectedTrail.trailheadLng, selectedTrail.trailheadLat],
+        zoom: 15,
+        duration: 800,
       })
-      try {
-        const res = await fetch(`/api/trails/approach?${params}`)
-        if (cancelled) return
-        if (res.ok) {
-          const data = await res.json()
-          const route: ApproachRoute | null = data.data ?? null
-          setApproachRoute(route)
-          onApproachRouteChange(route)
-          if (route) renderApproachLine(route)
-        }
-      } catch { /* silent */ } finally {
-        if (!cancelled) setIsLoadingApproach(false)
-      }
     }
-
-    fetchApproach()
-    return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTrail?.osmId, location?.latitude, location?.longitude])
+  }, [selectedTrail?.osmId])
 
   // ── Render trails on the map ─────────────────────────────────────────────
 

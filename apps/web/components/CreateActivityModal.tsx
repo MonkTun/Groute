@@ -303,8 +303,8 @@ export function CreateActivityModal({ initialMapCenter }: CreateActivityModalPro
 
           // Build checklist from AI suggestions
           const checklist: string[] = []
-          if (approachRoute) {
-            checklist.push(`${Math.ceil(approachRoute.durationSeconds / 60)} min walk from parking to trailhead`)
+          if (parkingName && selectedTrail) {
+            checklist.push(`Walk from ${parkingName} to ${selectedTrail.name} trailhead`)
           }
 
           await fetch(`/api/activities/${data.data.id}/logistics`, {
@@ -420,9 +420,12 @@ export function CreateActivityModal({ initialMapCenter }: CreateActivityModalPro
                     )}
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <MapPin className="size-3.5" />
-                      <span>{location?.name}</span>
+                      <span>Trailhead: {location?.name}</span>
                     </div>
                   </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Select a parking or dropoff location below. Groute will calculate how to get from parking to the trailhead.
+                  </p>
                 </div>
               )}
 
@@ -444,9 +447,9 @@ export function CreateActivityModal({ initialMapCenter }: CreateActivityModalPro
                 </div>
               )}
 
-              {/* Parking — AI suggestions + custom */}
+              {/* Parking/Dropoff — AI suggestions + custom */}
               <div className="space-y-2">
-                <Label><Car className="inline size-3.5 mr-1" />Parking</Label>
+                <Label><Car className="inline size-3.5 mr-1" />Parking / Dropoff Location</Label>
                 {aiSuggestions?.parking && aiSuggestions.parking.length > 0 && (
                   <div className="space-y-1.5">
                     {aiSuggestions.parking.map((p, i) => {
