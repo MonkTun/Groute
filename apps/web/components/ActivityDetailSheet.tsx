@@ -2,12 +2,13 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { X, MapPin, Clock, Users, Eye, Lock, Globe, Mountain, Ruler, Footprints } from 'lucide-react'
+import { X, MapPin, Clock, Users, Eye, Lock, Globe, Mountain, Ruler, Footprints, Car, Backpack, Check } from 'lucide-react'
 
 import { SPORT_LABELS, SKILL_LABELS, VISIBILITY_LABELS, SAC_SCALE_LABELS, SURFACE_LABELS } from '@groute/shared'
 import { fireConfetti } from '@/hooks/useConfetti'
 
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { UserAvatar } from '@/components/UserAvatar'
 import { TrailMapView } from '@/components/TrailMapView'
 
@@ -38,6 +39,11 @@ export function ActivityDetailSheet({
   const router = useRouter()
   const [joinState, setJoinState] = useState<string | null>(activity.participantStatus)
   const [isJoining, setIsJoining] = useState(false)
+  const [showPostJoin, setShowPostJoin] = useState(false)
+  const [postJoinTown, setPostJoinTown] = useState('')
+  const [postJoinDriving, setPostJoinDriving] = useState<'yes' | 'no' | 'maybe' | null>(null)
+  const [postJoinEquipment, setPostJoinEquipment] = useState<Set<string>>(new Set())
+  const [isSavingTripInfo, setIsSavingTripInfo] = useState(false)
 
   const isOwner = activity.isOwner
 
@@ -95,6 +101,30 @@ export function ActivityDetailSheet({
     }
   }
 
+  async function handleSaveTripInfo() {
+    setIsSavingTripInfo(true)
+    try {
+      // Save transport plan with town and driving info
+      await fetch(`/api/activities/${activity.id}/transport-plan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transportMode: postJoinDriving === 'yes' ? 'driving' : postJoinDriving === 'maybe' ? 'driving' : 'transit',
+          originName: postJoinTown || undefined,
+          originLat: 0,
+          originLng: 0,
+        }),
+      })
+      setShowPostJoin(false)
+      onClose()
+      router.refresh()
+    } catch {
+      // ignore
+    } finally {
+      setIsSavingTripInfo(false)
+    }
+  }
+
   async function handleJoin() {
     setIsJoining(true)
     try {
@@ -106,6 +136,7 @@ export function ActivityDetailSheet({
         setJoinState(data.data.status)
         if (data.data.status === 'accepted') {
           fireConfetti()
+          setShowPostJoin(true) // Show trip info form after joining
         }
         router.refresh()
       }
@@ -125,7 +156,7 @@ export function ActivityDetailSheet({
       />
 
       {/* Sheet — centered card */}
-      <div className="absolute inset-x-0 bottom-0 z-50 max-h-[92%] overflow-hidden rounded-t-3xl bg-card shadow-2xl ring-1 ring-border/50 animate-in slide-in-from-bottom duration-300 sm:inset-x-0 sm:inset-y-0 sm:m-auto sm:h-fit sm:max-h-[90%] sm:w-105 sm:rounded-3xl">
+      <div className="absolute inset-x-0 bottom-0 z-50 flex max-h-[92%] flex-col overflow-hidden rounded-t-3xl bg-card shadow-2xl ring-1 ring-border/50 animate-in slide-in-from-bottom duration-300 sm:inset-x-0 sm:inset-y-0 sm:m-auto sm:h-fit sm:max-h-[90%] sm:w-105 sm:rounded-3xl">
         {/* Banner */}
         {(activity.banner_url || activity.unsplash_image_url) ? (
           <div className="relative h-44 w-full overflow-hidden bg-muted sm:rounded-t-3xl">
@@ -155,7 +186,7 @@ export function ActivityDetailSheet({
         )}
 
         {/* Content */}
-        <div className="overflow-y-auto px-5 pb-5 pt-4 scrollbar-none" style={{ maxHeight: 'calc(92vh - 12rem)' }}>
+        <div className="flex-1 overflow-y-auto px-5 pb-5 pt-4 scrollbar-none">
           {/* Title + sport badge */}
           <div className="flex items-start justify-between gap-3">
             <h2 className="text-lg font-bold leading-snug">{activity.title}</h2>
@@ -286,35 +317,116 @@ export function ActivityDetailSheet({
             </div>
           )}
 
-          {/* Action button */}
-          <div className="mt-6">
-            {isOwner ? (
-              <Button className="w-full rounded-xl h-10" variant="outline" onClick={() => { onClose(); router.push(`/activity/${activity.id}`) }}>
-                Manage Activity
-              </Button>
-            ) : joinState === 'accepted' ? (
-              <div className="flex gap-2">
-                <Button className="flex-1 rounded-xl h-10" variant="outline" onClick={() => { onClose(); router.push(`/trips`) }}>
-                  Open Chat
+        </div>
+
+        {/* Action area — fixed at bottom */}
+        <div className="shrink-0 border-t border-border/30 bg-card px-5 py-3">
+          {showPostJoin ? (
+            /* Post-join trip info form */
+            <div className="space-y-3">
+              <p className="text-sm font-semibold">You&apos;re in! Help plan the trip:</p>
+
+              {/* Town */}
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Where are you coming from?</label>
+                <Input
+                  value={postJoinTown}
+                  onChange={(e) => setPostJoinTown(e.target.value)}
+                  placeholder="e.g. Santa Monica, Downtown LA"
+                />
+              </div>
+
+              {/* Driving */}
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Can you drive?</label>
+                <div className="flex gap-1.5">
+                  {([['yes', 'Yes, I can drive'], ['maybe', 'Maybe / carpool'], ['no', 'No, need a ride']] as const).map(([val, label]) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setPostJoinDriving(val)}
+                      className={`flex-1 rounded-lg border px-2 py-2 text-xs font-medium transition-colors ${
+                        postJoinDriving === val
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-border hover:bg-muted'
+                      }`}
+                    >
+                      {val === 'yes' && <Car className="inline size-3 mr-1" />}
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Equipment (placeholder) */}
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">
+                  <Backpack className="inline size-3 mr-1" />
+                  Equipment you have (optional)
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {['Water bottle', 'Hiking poles', 'First aid kit', 'Headlamp', 'Snacks'].map((item) => {
+                    const isSelected = postJoinEquipment.has(item)
+                    return (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => {
+                          setPostJoinEquipment((prev) => {
+                            const next = new Set(prev)
+                            next.has(item) ? next.delete(item) : next.add(item)
+                            return next
+                          })
+                        }}
+                        className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                          isSelected
+                            ? 'bg-primary/10 text-primary ring-1 ring-primary/30'
+                            : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                        }`}
+                      >
+                        {isSelected && <Check className="inline size-2.5 mr-0.5" />}
+                        {item}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <Button className="flex-1 rounded-xl h-10" onClick={handleSaveTripInfo} disabled={isSavingTripInfo}>
+                  {isSavingTripInfo ? 'Saving...' : 'Save & View Trip'}
                 </Button>
-                <Button className="flex-1 rounded-xl h-10" variant="outline" onClick={() => { onClose(); router.push(`/activity/${activity.id}`) }}>
-                  View Details
+                <Button className="rounded-xl h-10" variant="ghost" onClick={() => { setShowPostJoin(false); onClose(); router.refresh() }}>
+                  Skip
                 </Button>
               </div>
-            ) : joinState === 'requested' ? (
-              <Button className="w-full rounded-xl h-10" disabled variant="secondary">
-                Request Pending
+            </div>
+          ) : isOwner ? (
+            <Button className="w-full rounded-xl h-10" variant="outline" onClick={() => { onClose(); router.push(`/activity/${activity.id}`) }}>
+              Manage Activity
+            </Button>
+          ) : joinState === 'accepted' ? (
+            <div className="flex gap-2">
+              <Button className="flex-1 rounded-xl h-10" variant="outline" onClick={() => { onClose(); router.push(`/trips`) }}>
+                Open Chat
               </Button>
-            ) : (
-              <Button className="w-full rounded-xl h-10 shadow-md" onClick={handleJoin} disabled={isJoining}>
-                {isJoining
-                  ? 'Joining...'
-                  : activity.visibility === 'public'
-                    ? 'Join Activity'
-                    : 'Request to Join'}
+              <Button className="flex-1 rounded-xl h-10" variant="outline" onClick={() => { onClose(); router.push(`/activity/${activity.id}`) }}>
+                View Details
               </Button>
-            )}
-          </div>
+            </div>
+          ) : joinState === 'requested' ? (
+            <Button className="w-full rounded-xl h-10" disabled variant="secondary">
+              Request Pending
+            </Button>
+          ) : (
+            <Button className="w-full rounded-xl h-10 shadow-md" onClick={handleJoin} disabled={isJoining}>
+              {isJoining
+                ? 'Joining...'
+                : activity.visibility === 'public'
+                  ? 'Join Activity'
+                  : 'Request to Join'}
+            </Button>
+          )}
         </div>
       </div>
     </>

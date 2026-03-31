@@ -430,7 +430,7 @@ export function CreateActivityModal({ initialMapCenter }: CreateActivityModalPro
                 <div className="space-y-2 py-4">
                   <div className="flex items-center gap-2">
                     <Sparkles className="size-4 text-primary animate-pulse" />
-                    <span className="text-sm font-medium text-primary">AI is planning your trip...</span>
+                    <span className="text-sm font-medium text-primary">Groute is planning your trip...</span>
                   </div>
                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
                     <div className="h-full w-2/3 animate-pulse rounded-full bg-gradient-to-r from-primary/60 via-primary to-primary/60" style={{ animation: 'shimmer 1.5s ease-in-out infinite' }} />

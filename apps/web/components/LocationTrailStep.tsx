@@ -170,36 +170,45 @@ export function LocationTrailStep({
 
       setIsSearching(false)
 
-      // Trail name search via Nominatim (direct, no auth needed)
+      // Trail name search via Nominatim — run multiple queries for better coverage
       if (q.length >= 3) {
-        const hasTrailKeyword = /trail|hike|path|peak|canyon|falls|landing/i.test(q)
-        const nominatimQuery = hasTrailKeyword ? q : q + ' trail'
-        fetch(
-          `https://nominatim.openstreetmap.org/search?${new URLSearchParams({
-            q: nominatimQuery,
-            format: 'json',
-            limit: '4',
-          })}`,
-          { headers: { 'User-Agent': 'Groute/1.0' } }
+        const queries = [q, q + ' trail', q + ' hike']
+        // Deduplicate by running all queries and merging unique results
+        Promise.all(
+          queries.map((query) =>
+            fetch(
+              `https://nominatim.openstreetmap.org/search?${new URLSearchParams({
+                q: query,
+                format: 'json',
+                limit: '3',
+              })}`,
+              { headers: { 'User-Agent': 'Groute/1.0' } }
+            )
+              .then((res) => (res.ok ? res.json() : []))
+              .catch(() => [])
+          )
         )
-          .then(async (res) => {
-            if (res.ok) {
-              const data = await res.json()
-              const trails = data
-                .filter((r: { lat: string; lon: string }) => r.lat && r.lon)
-                .map((r: { place_id: number; lat: string; lon: string; display_name: string; name?: string }) => {
-                  const parts = r.display_name.split(',').map((s: string) => s.trim())
-                  return {
-                    osmId: r.place_id,
-                    name: r.name || parts[0],
-                    location: parts.slice(1, 3).join(', '), // e.g. "Washington County, Utah"
-                    lat: parseFloat(r.lat),
-                    lng: parseFloat(r.lon),
-                  }
+          .then((allResults) => {
+            const seen = new Set<string>()
+            const trails: Array<{ osmId: number; name: string; location: string; lat: number; lng: number }> = []
+            for (const data of allResults) {
+              for (const r of data) {
+                if (!r.lat || !r.lon) continue
+                const key = `${parseFloat(r.lat).toFixed(3)},${parseFloat(r.lon).toFixed(3)}`
+                if (seen.has(key)) continue
+                seen.add(key)
+                const parts = r.display_name.split(',').map((s: string) => s.trim())
+                trails.push({
+                  osmId: r.place_id,
+                  name: r.name || parts[0],
+                  location: parts.slice(1, 3).join(', '),
+                  lat: parseFloat(r.lat),
+                  lng: parseFloat(r.lon),
                 })
-              setTrailNameResults(trails)
-              if (trails.length > 0) setShowResults(true)
+              }
             }
+            setTrailNameResults(trails.slice(0, 6))
+            if (trails.length > 0) setShowResults(true)
           })
           .catch(() => setTrailNameResults([]))
       } else {
