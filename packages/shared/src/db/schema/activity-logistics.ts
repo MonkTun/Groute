@@ -21,6 +21,7 @@ export const activityLogistics = pgTable("activity_logistics", {
   parkingNotes: text("parking_notes"), // e.g. "Fill at 8am on weekends"
   transportNotes: text("transport_notes"),
   checklistItems: jsonb("checklist_items").$type<string[]>().default([]),
+  computedTimeline: jsonb("computed_timeline"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),

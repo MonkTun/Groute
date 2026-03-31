@@ -1,4 +1,4 @@
-import type { DrivingDirections } from "@groute/shared";
+import type { DrivingDirections, MultiStopRouteResult } from "@groute/shared";
 
 const MAPBOX_TOKEN =
   process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? process.env.MAPBOX_TOKEN ?? "";
@@ -45,6 +45,22 @@ export async function getDrivingRoute(
 export async function getMultiStopDrivingRoute(
   waypoints: Array<{ lat: number; lng: number }>
 ): Promise<DrivingDirections | null> {
+  const result = await getMultiStopDrivingRouteWithLegs(waypoints);
+  if (!result) return null;
+  return {
+    distanceMeters: result.totalDistanceMeters,
+    durationSeconds: result.totalDurationSeconds,
+    coordinates: result.coordinates,
+  };
+}
+
+/**
+ * Get a multi-stop driving route with per-leg duration/distance breakdown.
+ * Used for computing pickup times in carpool routes.
+ */
+export async function getMultiStopDrivingRouteWithLegs(
+  waypoints: Array<{ lat: number; lng: number }>
+): Promise<MultiStopRouteResult | null> {
   if (waypoints.length < 2) return null;
 
   const coords = waypoints.map((w) => `${w.lng},${w.lat}`).join(";");
@@ -66,9 +82,13 @@ export async function getMultiStopDrivingRoute(
   if (!route) return null;
 
   return {
-    distanceMeters: Math.round(route.distance),
-    durationSeconds: Math.round(route.duration),
+    totalDistanceMeters: Math.round(route.distance),
+    totalDurationSeconds: Math.round(route.duration),
     coordinates: route.geometry.coordinates as [number, number][],
+    legs: (route.legs ?? []).map((leg: { distance: number; duration: number }) => ({
+      distanceMeters: Math.round(leg.distance),
+      durationSeconds: Math.round(leg.duration),
+    })),
   };
 }
 

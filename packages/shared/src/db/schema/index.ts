@@ -12,3 +12,4 @@ export * from "./activity-logistics";
 export * from "./activity-rides";
 export * from "./ride-passengers";
 export * from "./user-transit-plans";
+export * from "./activity-equipment";

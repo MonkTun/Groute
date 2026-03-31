@@ -73,6 +73,8 @@ export async function POST(
     estimated_travel_seconds: parsed.data.estimatedTravelSeconds ?? null,
     leave_at: parsed.data.leaveAt ?? null,
     route_summary: parsed.data.routeSummary ?? null,
+    vehicle_capacity: parsed.data.vehicleCapacity ?? null,
+    needs_ride: parsed.data.needsRide ?? false,
     updated_at: new Date().toISOString(),
   };
 

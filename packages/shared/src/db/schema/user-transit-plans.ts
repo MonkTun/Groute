@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
 
 import { users } from "./users";
 import { activities } from "./activities";
@@ -22,6 +22,8 @@ export const userTransitPlans = pgTable("user_transit_plans", {
   estimatedTravelSeconds: integer("estimated_travel_seconds"),
   leaveAt: timestamp("leave_at", { withTimezone: true }),
   routeSummary: jsonb("route_summary"),
+  vehicleCapacity: integer("vehicle_capacity"),
+  needsRide: boolean("needs_ride").default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),

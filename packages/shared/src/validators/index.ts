@@ -292,8 +292,42 @@ export const createTransitPlanSchema = z.object({
   estimatedTravelSeconds: z.number().int().min(0).optional(),
   leaveAt: z.string().datetime().optional(),
   routeSummary: z.any().optional(),
+  vehicleCapacity: z.number().int().min(1).max(10).optional(),
+  needsRide: z.boolean().optional(),
+});
+
+// ── Equipment schemas ──
+
+export const equipmentStatusSchema = z.enum(["have", "need", "lending"]);
+
+export const bulkCreateEquipmentSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        itemName: z.string().min(1).max(100),
+        status: equipmentStatusSchema,
+      })
+    )
+    .min(1)
+    .max(50),
+});
+
+export const updateEquipmentItemSchema = z.object({
+  status: equipmentStatusSchema.optional(),
+  lenderId: z.string().uuid().nullable().optional(),
+});
+
+export const suggestEquipmentSchema = z.object({
+  sportType: sportTypeSchema,
+  trailName: z.string().max(500).optional(),
+  trailSacScale: trailSacScaleSchema.optional().nullable(),
+  trailSurface: trailSurfaceSchema.optional(),
+  scheduledAt: z.string().datetime().optional(),
+  locationName: z.string().max(200).optional(),
 });
 
 export type CreateRideInput = z.infer<typeof createRideSchema>;
 export type UpsertActivityLogisticsInput = z.infer<typeof upsertActivityLogisticsSchema>;
 export type CreateTransitPlanInput = z.infer<typeof createTransitPlanSchema>;
+export type BulkCreateEquipmentInput = z.infer<typeof bulkCreateEquipmentSchema>;
+export type SuggestEquipmentInput = z.infer<typeof suggestEquipmentSchema>;

@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { GettingTherePanel } from '@/components/GettingTherePanel'
 import { CarpoolBoard } from '@/components/CarpoolBoard'
 import { LogisticsTab } from '@/components/LogisticsTab'
+import { TimelineWeb } from '@/components/TimelineWeb'
+import type { ComputedTimeline } from '@groute/shared'
 
 interface ParticipantData {
   id: string
@@ -39,6 +41,7 @@ interface ActivityLogisticsSectionProps {
     parking_notes: string | null
     transport_notes: string | null
     checklist_items: string[] | null
+    computed_timeline: ComputedTimeline | null
     notes: string | null
   } | null
   rides: Array<{
@@ -114,18 +117,29 @@ export function ActivityLogisticsSection({
         onRefresh={handleRefresh}
       />
 
-      <LogisticsTab
-        activityId={activityId}
-        scheduledAt={scheduledAt}
-        locationName={locationName}
-        trailName={trailName}
-        trailApproachDurationS={trailApproachDurationS}
-        logistics={logistics}
-        isCreator={isCreator}
-        participants={participantList}
-        currentUserId={currentUserId}
-        onRefresh={handleRefresh}
-      />
+      {/* Show converging timeline if computed, otherwise show simple timeline */}
+      {logistics?.computed_timeline ? (
+        <TimelineWeb
+          timeline={logistics.computed_timeline}
+          currentUserId={currentUserId}
+          isCreator={isCreator}
+          activityId={activityId}
+          onRecompute={handleRefresh}
+        />
+      ) : (
+        <LogisticsTab
+          activityId={activityId}
+          scheduledAt={scheduledAt}
+          locationName={locationName}
+          trailName={trailName}
+          trailApproachDurationS={trailApproachDurationS}
+          logistics={logistics}
+          isCreator={isCreator}
+          participants={participantList}
+          currentUserId={currentUserId}
+          onRefresh={handleRefresh}
+        />
+      )}
 
       {/* CarpoolBoard shown for creator as management view */}
       {isCreator && (

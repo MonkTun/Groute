@@ -136,3 +136,75 @@ export interface TransportOption {
   costEstimate?: string;
   details: DrivingDirections | TransitRoute | CarpoolRouteDetails;
 }
+
+// ── Equipment types ──
+
+export type EquipmentStatus = "have" | "need" | "lending";
+
+// ── Timeline Web types ──
+
+export type TimelineNodeType =
+  | "leave_home"
+  | "pickup"
+  | "arrive_meeting"
+  | "arrive_trailhead"
+  | "activity_start"
+  | "transit_depart"
+  | "get_ready";
+
+export interface TimelineNode {
+  type: TimelineNodeType;
+  time: string;
+  label: string;
+  locationName?: string;
+}
+
+export interface ParticipantTimeline {
+  userId: string;
+  displayName: string;
+  avatarUrl: string | null;
+  role: "driver" | "passenger" | "solo";
+  transportMode: TransportMode;
+  carpoolGroupId?: string;
+  nodes: TimelineNode[];
+}
+
+export interface CarpoolGroup {
+  id: string;
+  driverId: string;
+  driverName: string;
+  passengerIds: string[];
+  vehicleCapacity: number;
+  totalDurationSeconds: number;
+  pickupOrder: Array<{
+    userId: string;
+    userName: string;
+    pickupTime: string;
+    pickupLocationName: string;
+    legDurationSeconds: number;
+  }>;
+}
+
+export interface ComputedTimeline {
+  computedAt: string;
+  activityStartTime: string;
+  meetingPointName: string | null;
+  carpoolGroups: CarpoolGroup[];
+  participantTimelines: ParticipantTimeline[];
+  convergencePoints: Array<{
+    time: string;
+    locationName: string;
+    participantIds: string[];
+    type: "pickup" | "meeting_point" | "trailhead";
+  }>;
+}
+
+export interface MultiStopRouteResult {
+  totalDistanceMeters: number;
+  totalDurationSeconds: number;
+  coordinates: [number, number][];
+  legs: Array<{
+    distanceMeters: number;
+    durationSeconds: number;
+  }>;
+}

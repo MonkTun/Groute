@@ -10,6 +10,7 @@ import { DeleteActivityButton } from '@/components/DeleteActivityButton'
 import { ActivityBanner } from '@/components/ActivityBanner'
 import { TrailMapView } from '@/components/TrailMapView'
 import { ActivityLogisticsSection } from './LogisticsSection'
+import { EquipmentSection } from '@/components/EquipmentSection'
 
 export default async function ActivityDetailPage({
   params,
@@ -271,6 +272,23 @@ export default async function ActivityDetailPage({
         logistics={logisticsResult.data}
         rides={ridesResult.data ?? []}
       />
+
+      {/* Equipment — visible to participants */}
+      {(participants.some((p) => p.user?.id === user.id) || isCreator) && (
+        <section className="mb-6">
+          <EquipmentSection
+            activityId={id}
+            currentUserId={user.id}
+            isParticipant={participants.some((p) => p.user?.id === user.id) || isCreator}
+            sportType={activity.sport_type}
+            trailName={activity.trail_name}
+            trailSacScale={activity.trail_sac_scale}
+            trailSurface={activity.trail_surface}
+            scheduledAt={activity.scheduled_at}
+            locationName={activity.location_name}
+          />
+        </section>
+      )}
 
       {/* Members */}
       <section>

@@ -41,7 +41,9 @@ export function ActivityDetailSheet({
   const [isJoining, setIsJoining] = useState(false)
   const [showPostJoin, setShowPostJoin] = useState(false)
   const [postJoinTown, setPostJoinTown] = useState('')
-  const [postJoinDriving, setPostJoinDriving] = useState<'yes' | 'no' | 'maybe' | null>(null)
+  const [postJoinTransport, setPostJoinTransport] = useState<'drive_others' | 'need_ride' | 'solo' | null>(null)
+  const [postJoinSeats, setPostJoinSeats] = useState('3')
+  const [postJoinSoloMode, setPostJoinSoloMode] = useState<'driving' | 'transit' | 'rideshare' | 'walking'>('driving')
   const [postJoinEquipment, setPostJoinEquipment] = useState<Set<string>>(new Set())
   const [isSavingTripInfo, setIsSavingTripInfo] = useState(false)
 
@@ -104,17 +106,41 @@ export function ActivityDetailSheet({
   async function handleSaveTripInfo() {
     setIsSavingTripInfo(true)
     try {
-      // Save transport plan with town and driving info
+      const transportMode =
+        postJoinTransport === 'drive_others' ? 'carpool_driver' :
+        postJoinTransport === 'need_ride' ? 'carpool_passenger' :
+        postJoinSoloMode
+
       await fetch(`/api/activities/${activity.id}/transport-plan`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          transportMode: postJoinDriving === 'yes' ? 'driving' : postJoinDriving === 'maybe' ? 'driving' : 'transit',
+          transportMode,
           originName: postJoinTown || undefined,
           originLat: 0,
           originLng: 0,
+          vehicleCapacity: postJoinTransport === 'drive_others' ? parseInt(postJoinSeats, 10) : undefined,
+          needsRide: postJoinTransport === 'need_ride' ? true : false,
         }),
       })
+
+      // Save equipment if any selected
+      if (postJoinEquipment.size > 0) {
+        await fetch(`/api/activities/${activity.id}/equipment`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            items: Array.from(postJoinEquipment).map((name) => ({
+              itemName: name,
+              status: 'have',
+            })),
+          }),
+        })
+      }
+
+      // Trigger timeline recompute
+      fetch(`/api/activities/${activity.id}/compute-timeline`, { method: 'POST' }).catch(() => {})
+
       setShowPostJoin(false)
       onClose()
       router.refresh()
@@ -336,26 +362,66 @@ export function ActivityDetailSheet({
                 />
               </div>
 
-              {/* Driving */}
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Can you drive?</label>
+              {/* Transport */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">How are you getting there?</label>
                 <div className="flex gap-1.5">
-                  {([['yes', 'Yes, I can drive'], ['maybe', 'Maybe / carpool'], ['no', 'No, need a ride']] as const).map(([val, label]) => (
+                  {([
+                    ['drive_others', 'I can drive others', Car],
+                    ['need_ride', 'I need a ride', Users],
+                    ['solo', 'On my own', MapPin],
+                  ] as const).map(([val, label, Icon]) => (
                     <button
                       key={val}
                       type="button"
-                      onClick={() => setPostJoinDriving(val)}
+                      onClick={() => setPostJoinTransport(val)}
                       className={`flex-1 rounded-lg border px-2 py-2 text-xs font-medium transition-colors ${
-                        postJoinDriving === val
+                        postJoinTransport === val
                           ? 'border-primary bg-primary/10 text-primary'
                           : 'border-border hover:bg-muted'
                       }`}
                     >
-                      {val === 'yes' && <Car className="inline size-3 mr-1" />}
+                      <Icon className="inline size-3 mr-1" />
                       {label}
                     </button>
                   ))}
                 </div>
+
+                {/* Seats selector for drivers */}
+                {postJoinTransport === 'drive_others' && (
+                  <div className="flex items-center gap-2 pt-1">
+                    <label className="text-xs text-muted-foreground">Available seats:</label>
+                    <select
+                      value={postJoinSeats}
+                      onChange={(e) => setPostJoinSeats(e.target.value)}
+                      className="h-7 rounded-lg border border-input bg-transparent px-2 text-xs"
+                    >
+                      {[1, 2, 3, 4, 5, 6, 7].map((n) => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Solo mode selector */}
+                {postJoinTransport === 'solo' && (
+                  <div className="flex gap-1 pt-1">
+                    {(['driving', 'transit', 'rideshare', 'walking'] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setPostJoinSoloMode(mode)}
+                        className={`rounded-full px-2 py-1 text-[10px] font-medium transition-colors ${
+                          postJoinSoloMode === mode
+                            ? 'bg-primary/10 text-primary ring-1 ring-primary/30'
+                            : 'bg-muted text-muted-foreground'
+                        }`}
+                      >
+                        {mode === 'driving' ? 'Driving solo' : mode === 'transit' ? 'Transit' : mode === 'rideshare' ? 'Rideshare' : 'Walking'}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Equipment (placeholder) */}
