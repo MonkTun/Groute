@@ -13,17 +13,18 @@ const SPORT_EMOJIS: Record<string, string> = {
 interface ActivityBannerProps {
   activityId: string
   bannerUrl: string | null
+  unsplashImageUrl?: string | null
   isCreator: boolean
   sportType: string
 }
 
-export function ActivityBanner({ activityId, bannerUrl, isCreator, sportType }: ActivityBannerProps) {
+export function ActivityBanner({ activityId, bannerUrl, unsplashImageUrl, isCreator, sportType }: ActivityBannerProps) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
 
-  const displayUrl = preview ?? bannerUrl
+  const displayUrl = preview ?? bannerUrl ?? unsplashImageUrl
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]

@@ -152,6 +152,7 @@ export default async function ActivityDetailPage({
       <ActivityBanner
         activityId={id}
         bannerUrl={activity.banner_url}
+        unsplashImageUrl={activity.unsplash_image_url}
         isCreator={isCreator}
         sportType={activity.sport_type}
       />

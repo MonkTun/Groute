@@ -125,12 +125,12 @@ export function ActivityDetailSheet({
       />
 
       {/* Sheet — centered card */}
-      <div className="absolute inset-x-0 bottom-0 z-50 max-h-[85%] overflow-hidden rounded-t-3xl bg-card shadow-2xl ring-1 ring-border/50 animate-in slide-in-from-bottom duration-300 sm:inset-x-0 sm:inset-y-0 sm:m-auto sm:h-fit sm:max-h-[80%] sm:w-105 sm:rounded-3xl">
+      <div className="absolute inset-x-0 bottom-0 z-50 max-h-[92%] overflow-hidden rounded-t-3xl bg-card shadow-2xl ring-1 ring-border/50 animate-in slide-in-from-bottom duration-300 sm:inset-x-0 sm:inset-y-0 sm:m-auto sm:h-fit sm:max-h-[90%] sm:w-105 sm:rounded-3xl">
         {/* Banner */}
-        {activity.banner_url ? (
+        {(activity.banner_url || activity.unsplash_image_url) ? (
           <div className="relative h-44 w-full overflow-hidden bg-muted sm:rounded-t-3xl">
             <img
-              src={activity.banner_url}
+              src={(activity.banner_url || activity.unsplash_image_url)!}
               alt={activity.title}
               className="size-full object-cover"
             />
@@ -155,7 +155,7 @@ export function ActivityDetailSheet({
         )}
 
         {/* Content */}
-        <div className="overflow-y-auto px-5 pb-5 pt-4 scrollbar-none" style={{ maxHeight: 'calc(85vh - 10rem)' }}>
+        <div className="overflow-y-auto px-5 pb-5 pt-4 scrollbar-none" style={{ maxHeight: 'calc(92vh - 12rem)' }}>
           {/* Title + sport badge */}
           <div className="flex items-start justify-between gap-3">
             <h2 className="text-lg font-bold leading-snug">{activity.title}</h2>
