@@ -7,3 +7,4 @@ export * from "./activity-participants";
 export * from "./messages";
 export * from "./follows";
 export * from "./notifications";
+export * from "./strava-activities";

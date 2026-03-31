@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
   const [{ data: sports }, { data: experience }, { data: preferences }] = await Promise.all([
     supabase
       .from("user_sports")
-      .select("sport_type, self_reported_level, strava_verified_level")
+      .select("sport_type, self_reported_level, strava_verified_level, strava_stats")
       .eq("user_id", user.id),
     supabase
       .from("user_experience")

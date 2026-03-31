@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useRef, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Pencil, Camera, MapPin, Calendar } from 'lucide-react'
 
 import {
   SPORT_LABELS,
   SKILL_LABELS,
+  STRAVA_VERIFIED_SKILL_LABELS,
   COUNTRIES,
   REGIONS,
   PREFERRED_LANGUAGES,
@@ -34,6 +35,7 @@ import {
   COMFORT_WITH_STRANGERS_OPTIONS,
   COMFORT_WITH_STRANGERS_LABELS,
   type UserSportInput,
+  type StravaStats,
 } from '@groute/shared'
 
 import { Button } from '@/components/ui/button'
@@ -95,6 +97,7 @@ interface SportData {
   sport_type: string
   self_reported_level: string
   strava_verified_level: string | null
+  strava_stats: StravaStats | null
 }
 
 interface UserInfo {
@@ -137,14 +140,67 @@ interface ProfileViewProps {
   pastActivities?: PastActivity[]
 }
 
-export function ProfileView({ profile, sports: initialSports, experience = [], preferences = null, friends = [], incomingFollows = [], notifications = [], currentUserId, pastActivities = [] }: ProfileViewProps) {
+export function ProfileView({ profile, sports: initialSports, experience = [], preferences = null, friends = [], incomingFollows = [], notifications = [], currentUserId: _currentUserId, pastActivities = [] }: ProfileViewProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const [stravaNotice, setStravaNotice] = useState<string | null>(null)
   const [isEditing, setIsEditing] = useState(false)
+
+  useEffect(() => {
+    const stravaParam = searchParams.get('strava')
+    if (stravaParam === 'connected') {
+      setStravaNotice('Strava connected! Analyzing your activities to verify skill levels...')
+      const timer = setTimeout(() => setStravaNotice(null), 8000)
+      return () => clearTimeout(timer)
+    }
+    if (stravaParam === 'error') {
+      setStravaNotice('Failed to connect Strava. Please try again.')
+      const timer = setTimeout(() => setStravaNotice(null), 8000)
+      return () => clearTimeout(timer)
+    }
+  }, [searchParams])
   const [isSaving, setIsSaving] = useState(false)
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState(profile.avatar_url)
   const [error, setError] = useState<string | null>(null)
+  const [isStravaSyncing, setIsStravaSyncing] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const isOwnProfile = true // ProfileView is currently only used for the logged-in user's own profile
+
+  async function handleStravaConnect() {
+    try {
+      const res = await fetch('/api/strava/authorize')
+      const json = await res.json()
+      if (json.data?.url) {
+        window.location.href = json.data.url
+      }
+    } catch {
+      setError('Failed to start Strava connection')
+    }
+  }
+
+  async function handleStravaDisconnect() {
+    try {
+      await fetch('/api/strava/disconnect', { method: 'POST' })
+      router.refresh()
+    } catch {
+      setError('Failed to disconnect Strava')
+    }
+  }
+
+  async function handleStravaResync() {
+    setIsStravaSyncing(true)
+    try {
+      const res = await fetch('/api/strava/sync', { method: 'POST' })
+      if (res.status === 429) {
+        setError('Sync already in progress. Please wait a few minutes.')
+      }
+    } catch {
+      setError('Failed to start Strava sync')
+    } finally {
+      setIsStravaSyncing(false)
+    }
+  }
 
   async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -361,6 +417,11 @@ export function ProfileView({ profile, sports: initialSports, experience = [], p
   if (!isEditing) {
     return (
       <div className="mx-auto w-full max-w-2xl px-4 py-6 sm:py-8">
+        {stravaNotice && (
+          <div className={`mb-4 rounded-lg px-4 py-3 text-sm ${stravaNotice.includes('Failed') ? 'bg-red-50 text-red-800 dark:bg-red-900/20 dark:text-red-400' : 'bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-400'}`}>
+            {stravaNotice}
+          </div>
+        )}
         {/* Avatar + header */}
         <div className="mb-6 flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex flex-col items-center gap-3 sm:flex-row">
@@ -465,12 +526,42 @@ export function ProfileView({ profile, sports: initialSports, experience = [], p
                     <dd className="truncate font-medium">{profile.edu_email}</dd>
                   </div>
                 )}
-                {profile.strava_connected && (
-                  <div>
-                    <dt className="text-muted-foreground">Strava</dt>
-                    <dd className="font-medium text-green-600">Connected</dd>
-                  </div>
-                )}
+                <div>
+                  <dt className="text-muted-foreground">Strava</dt>
+                  <dd>
+                    {profile.strava_connected ? (
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-green-600">Connected</span>
+                        {isOwnProfile && (
+                          <>
+                            <button
+                              onClick={handleStravaResync}
+                              disabled={isStravaSyncing}
+                              className="text-xs text-muted-foreground underline hover:text-foreground disabled:opacity-50"
+                            >
+                              {isStravaSyncing ? 'Syncing...' : 'Re-sync'}
+                            </button>
+                            <button
+                              onClick={handleStravaDisconnect}
+                              className="text-xs text-red-500 underline hover:text-red-600"
+                            >
+                              Disconnect
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    ) : isOwnProfile ? (
+                      <button
+                        onClick={handleStravaConnect}
+                        className="rounded-md bg-[#FC4C02] px-3 py-1 text-xs font-medium text-white hover:bg-[#e04400] transition-colors"
+                      >
+                        Connect Strava
+                      </button>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">Not connected</span>
+                    )}
+                  </dd>
+                </div>
                 <div>
                   <dt className="text-muted-foreground">Member since</dt>
                   <dd className="font-medium">
@@ -504,9 +595,10 @@ export function ProfileView({ profile, sports: initialSports, experience = [], p
                               {SKILL_LABELS[sport.self_reported_level] ?? sport.self_reported_level}
                             </span>
                             {sport.strava_verified_level && (
-                              <span className="rounded-md bg-green-100 px-2 py-1 text-xs text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                                Strava: {SKILL_LABELS[sport.strava_verified_level]}
-                              </span>
+                              <StravaVerifiedBadge
+                                level={sport.strava_verified_level}
+                                stats={sport.strava_stats}
+                              />
                             )}
                           </div>
                         </div>
@@ -1424,6 +1516,56 @@ export function ProfileView({ profile, sports: initialSports, experience = [], p
           </Button>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ── Strava Verified Badge with AI analysis details ──
+
+const CONFIDENCE_STYLES: Record<string, { dot: string; label: string }> = {
+  high: { dot: 'bg-green-500', label: 'High confidence' },
+  medium: { dot: 'bg-yellow-500', label: 'Medium confidence' },
+  low: { dot: 'bg-gray-400', label: 'Low confidence' },
+}
+
+function StravaVerifiedBadge({ level, stats }: { level: string; stats: StravaStats | null }) {
+  const [isExpanded, setIsExpanded] = useState(false)
+  const analysis = stats?.aiAnalysis
+  const confidence = analysis?.confidence ?? 'low'
+  const style = CONFIDENCE_STYLES[confidence] ?? CONFIDENCE_STYLES.low
+
+  return (
+    <div className="inline-flex flex-col">
+      <button
+        type="button"
+        onClick={() => analysis && setIsExpanded(!isExpanded)}
+        className="inline-flex items-center gap-1.5 rounded-md bg-green-100 px-2 py-1 text-xs text-green-800 transition-colors hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400 dark:hover:bg-green-900/50"
+      >
+        <span className={`inline-block size-1.5 rounded-full ${style.dot}`} title={style.label} />
+        Strava: {STRAVA_VERIFIED_SKILL_LABELS[level] ?? level}
+      </button>
+      {isExpanded && analysis && (
+        <div className="mt-1.5 rounded-md border border-border bg-muted/50 p-2 text-xs">
+          <p className="text-muted-foreground">{analysis.reasoning}</p>
+          {analysis.highlights.length > 0 && (
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {analysis.highlights.map((h) => (
+                <span
+                  key={h}
+                  className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                >
+                  {h}
+                </span>
+              ))}
+            </div>
+          )}
+          {stats.totalActivities > 0 && (
+            <p className="mt-1 text-[10px] text-muted-foreground">
+              Based on {stats.totalActivities} activities &middot; {stats.avgDistanceKm}km avg &middot; {stats.avgElevationM}m avg elevation
+            </p>
+          )}
+        </div>
+      )}
     </div>
   )
 }

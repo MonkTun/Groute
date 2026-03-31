@@ -70,14 +70,15 @@ messages
 strava_activities                              — cached from Strava API, never queried live
 ├── id (uuid, PK)
 ├── user_id (FK → users, on delete cascade)
-├── strava_activity_id (bigint, unique)
-├── sport_type (text)
-├── distance_meters (float)
-├── elevation_gain_meters (float)
-├── moving_time_seconds (int)
-├── start_date (timestamptz)
-├── start_latlng (geography POINT, 4326)
-└── synced_at (timestamptz, default now())
+├── strava_activity_id (bigint, unique, not null)
+├── sport_type (text, not null)
+├── name (text, nullable)                      — activity name from Strava
+├── distance_meters (double precision, nullable)
+├── elevation_gain_meters (double precision, nullable)
+├── moving_time_seconds (int, nullable)
+├── start_date (timestamptz, nullable)
+├── start_latlng (text, nullable)              — stored as "lat,lng" string
+└── synced_at (timestamptz, not null, default now())
 ```
 
 ## Required Indexes

@@ -210,7 +210,10 @@ importers:
     dependencies:
       drizzle-orm:
         specifier: ^0.39
-        version: 0.39.3
+        version: 0.39.3(postgres@3.4.8)
+      postgres:
+        specifier: ^3.4.8
+        version: 3.4.8
       zod:
         specifier: ^3
         version: 3.25.76
@@ -5378,6 +5381,10 @@ packages:
     resolution: {integrity: sha512-OW/rX8O/jXnm82Ey1k44pObPtdblfiuWnrd8X7GJ7emImCOstunGbXUpp7HdBrFQX6rJzn3sPT397Wp5aCwCHg==}
     engines: {node: ^10 || ^12 || >=14}
 
+  postgres@3.4.8:
+    resolution: {integrity: sha512-d+JFcLM17njZaOLkv6SCev7uoLaBtfK86vMUXhW1Z4glPWh4jozno9APvW/XKFJ3CCxVoC7OL38BqRydtu5nGg==}
+    engines: {node: '>=12'}
+
   potpack@2.1.0:
     resolution: {integrity: sha512-pcaShQc1Shq0y+E7GqJqvZj8DTthWV1KeHGdi0Z6IAin2Oi3JnLCOfwnCo84qc+HAp52wT9nK9H7FAJp5a44GQ==}
 
@@ -9900,7 +9907,9 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  drizzle-orm@0.39.3: {}
+  drizzle-orm@0.39.3(postgres@3.4.8):
+    optionalDependencies:
+      postgres: 3.4.8
 
   dunder-proto@1.0.1:
     dependencies:
@@ -12343,6 +12352,8 @@ snapshots:
       nanoid: 3.3.11
       picocolors: 1.1.1
       source-map-js: 1.2.1
+
+  postgres@3.4.8: {}
 
   potpack@2.1.0: {}
 

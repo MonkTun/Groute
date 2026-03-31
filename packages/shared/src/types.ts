@@ -1,8 +1,34 @@
 export type SportType =
   | "hiking"
-  | "trail_running";
+  | "trail_running"
+  | "running"
+  | "cycling";
 
 export type SkillLevel = "beginner" | "intermediate" | "advanced";
+
+export type StravaVerifiedLevel =
+  | "beginner"
+  | "intermediate"
+  | "advanced"
+  | "expert";
+
+export type StravaAiConfidence = "low" | "medium" | "high";
+
+export interface StravaAiAnalysis {
+  level: StravaVerifiedLevel;
+  confidence: StravaAiConfidence;
+  reasoning: string;
+  highlights: string[];
+}
+
+export interface StravaStats {
+  totalActivities: number;
+  avgDistanceKm: number;
+  avgElevationM: number;
+  totalDistanceKm: number;
+  lastSyncedAt: string;
+  aiAnalysis: StravaAiAnalysis | null;
+}
 
 export type ActivityStatus = "open" | "full" | "completed" | "cancelled";
 

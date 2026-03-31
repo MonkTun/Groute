@@ -3,6 +3,8 @@ import { z } from "zod";
 export const sportTypeSchema = z.enum([
   "hiking",
   "trail_running",
+  "running",
+  "cycling",
 ]);
 
 export const skillLevelSchema = z.enum([
@@ -181,8 +183,25 @@ export const onboardingProfileExtendedSchema = onboardingProfileSchema.extend({
   preferences: userPreferencesSchema.optional(),
 });
 
+// ── Strava verification schemas ──
+
+export const stravaVerifiedLevelSchema = z.enum([
+  "beginner",
+  "intermediate",
+  "advanced",
+  "expert",
+]);
+
+export const stravaAiAnalysisSchema = z.object({
+  level: stravaVerifiedLevelSchema,
+  confidence: z.enum(["low", "medium", "high"]),
+  reasoning: z.string().max(500),
+  highlights: z.array(z.string().max(100)).max(5),
+});
+
 export type OnboardingProfileInput = z.infer<typeof onboardingProfileSchema>;
 export type OnboardingProfileExtendedInput = z.infer<typeof onboardingProfileExtendedSchema>;
 export type UserSportInput = z.infer<typeof userSportSchema>;
 export type UserExperienceInput = z.infer<typeof userExperienceSchema>;
 export type UserPreferencesInput = z.infer<typeof userPreferencesSchema>;
+export type StravaAiAnalysisInput = z.infer<typeof stravaAiAnalysisSchema>;

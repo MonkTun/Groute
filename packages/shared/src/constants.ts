@@ -1,6 +1,8 @@
 export const SPORT_LABELS: Record<string, string> = {
   hiking: "Hiking",
   trail_running: "Trail Running",
+  running: "Running",
+  cycling: "Cycling",
 };
 
 export const COUNTRIES = [
@@ -86,6 +88,13 @@ export const SKILL_LABELS: Record<string, string> = {
   advanced: "Advanced",
 };
 
+export const STRAVA_VERIFIED_SKILL_LABELS: Record<string, string> = {
+  beginner: "Beginner",
+  intermediate: "Intermediate",
+  advanced: "Advanced",
+  expert: "Expert",
+};
+
 export const VISIBILITY_LABELS: Record<string, string> = {
   public: "Public",
   discoverable: "Discoverable",
@@ -99,7 +108,7 @@ export const VISIBILITY_DESCRIPTIONS: Record<string, string> = {
 };
 
 export const DEFAULT_SEARCH_RADIUS_METERS = 32_187; // ~20 miles
-export const STRAVA_SYNC_MONTHS = 6;
+export const STRAVA_SYNC_MONTHS = 24;
 
 export const SAC_SCALE_LABELS: Record<string, string> = {
   hiking: "T1 — Easy hiking",

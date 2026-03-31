@@ -15,7 +15,7 @@ export default async function ProfilePage() {
     supabase.from('users').select('*').eq('id', user.id).single(),
     supabase
       .from('user_sports')
-      .select('sport_type, self_reported_level, strava_verified_level')
+      .select('sport_type, self_reported_level, strava_verified_level, strava_stats')
       .eq('user_id', user.id),
 
     supabase
