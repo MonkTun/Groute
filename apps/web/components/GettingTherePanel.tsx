@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import {
   Car, Train, UserPlus, Footprints, Navigation, Clock, ExternalLink,
-  ChevronDown, ChevronUp, MapPin, DollarSign, Save,
+  ChevronDown, ChevronUp, MapPin, DollarSign,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { UserAvatar } from '@/components/UserAvatar'
@@ -173,11 +173,22 @@ export function GettingTherePanel({
       .finally(() => setLoading(false))
   }, [userLocation, activityId])
 
-  // Fetch saved plan
+  // Fetch saved plan and auto-select the tab
   useEffect(() => {
     fetch(`/api/activities/${activityId}/transport-plan`)
       .then((res) => res.json())
-      .then((json) => { if (json.data?.transport_mode) setSavedMode(json.data.transport_mode) })
+      .then((json) => {
+        if (json.data?.transport_mode) {
+          setSavedMode(json.data.transport_mode)
+          // Map transport mode to tab key
+          const mode = json.data.transport_mode
+          if (mode === 'driving') setActiveTab('drive')
+          else if (mode === 'transit') setActiveTab('transit')
+          else if (mode === 'rideshare') setActiveTab('rideshare')
+          else if (mode === 'carpool_driver' || mode === 'carpool_passenger') setActiveTab('carpool')
+          else if (mode === 'walking') setActiveTab('walk')
+        }
+      })
       .catch(() => {})
   }, [activityId])
 
@@ -198,23 +209,32 @@ export function GettingTherePanel({
     return false
   })
 
-  async function handleSavePlan() {
+  // Auto-save plan when tab changes
+  function handleTabSelect(tab: TabKey) {
+    setActiveTab(tab)
     if (!userLocation) return
-    setSaving(true)
-    const selectedOpt = optionByMode(activeTab) ?? driveOpt
-    await fetch(`/api/activities/${activityId}/transport-plan`, {
+    const selectedOpt = optionByMode(tab) ?? driveOpt
+    // Map tab to transport mode
+    const modeMap: Record<TabKey, string> = {
+      drive: 'driving',
+      transit: 'transit',
+      rideshare: 'rideshare',
+      carpool: savedMode === 'carpool_driver' ? 'carpool_driver' : 'carpool_passenger',
+      walk: 'walking',
+    }
+    fetch(`/api/activities/${activityId}/transport-plan`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        transportMode: activeTab,
+        transportMode: modeMap[tab],
         originLat: userLocation.lat,
         originLng: userLocation.lng,
         estimatedTravelSeconds: selectedOpt?.durationSeconds,
         leaveAt: selectedOpt?.leaveAt,
       }),
     })
-    setSavedMode(activeTab)
-    setSaving(false)
+      .then(() => setSavedMode(modeMap[tab]))
+      .catch(() => {})
   }
 
   async function handleCarpoolSubmit() {
@@ -275,22 +295,20 @@ export function GettingTherePanel({
         )}
       </div>
 
-      {/* Meeting point info */}
-      {meetingPointName && (
-        <div className="mt-3 flex items-start gap-2 rounded-xl bg-primary/5 px-3 py-2.5">
-          <MapPin className="mt-0.5 size-3.5 shrink-0 text-primary" />
-          <div className="text-sm">
-            <p className="font-medium">Meeting Point</p>
-            <p className="text-muted-foreground">{meetingPointName}</p>
-            {meetingTime && (
-              <p className="mt-1 flex items-center gap-1 text-muted-foreground">
-                <Clock className="size-3" />
-                {formatTime(meetingTime)}
-              </p>
-            )}
-          </div>
+      {/* Trailhead info */}
+      <div className="mt-3 flex items-start gap-2 rounded-xl bg-primary/5 px-3 py-2.5">
+        <MapPin className="mt-0.5 size-3.5 shrink-0 text-primary" />
+        <div className="text-sm flex-1">
+          <p className="font-medium">Trailhead</p>
+          <p className="text-muted-foreground">{destinationName}</p>
+          {meetingTime && (
+            <p className="mt-1 flex items-center gap-1 text-muted-foreground">
+              <Clock className="size-3" />
+              Meet at {formatTime(meetingTime)}
+            </p>
+          )}
         </div>
-      )}
+      </div>
 
       {loading && <p className="mt-3 text-sm text-muted-foreground">Finding routes...</p>}
 
@@ -306,7 +324,7 @@ export function GettingTherePanel({
               <button
                 key={tab.key}
                 type="button"
-                onClick={() => setActiveTab(tab.key)}
+                onClick={() => handleTabSelect(tab.key)}
                 className={`flex items-center gap-1 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
                   activeTab === tab.key
                     ? 'bg-primary text-primary-foreground'
@@ -562,18 +580,6 @@ export function GettingTherePanel({
             </div>
           )}
 
-          {/* Save plan */}
-          <div className="mt-4 border-t border-border/30 pt-3">
-            <Button
-              size="sm"
-              variant={savedMode === activeTab ? 'outline' : 'default'}
-              onClick={handleSavePlan}
-              disabled={saving || !userLocation}
-            >
-              <Save className="size-3" data-icon="inline-start" />
-              {saving ? 'Saving...' : savedMode === activeTab ? 'Plan saved' : 'Save this plan'}
-            </Button>
-          </div>
         </>
       )}
 
