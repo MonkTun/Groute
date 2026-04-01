@@ -352,14 +352,24 @@ export function ActivityDetailSheet({
             <div className="space-y-3">
               <p className="text-sm font-semibold">You&apos;re in! Help plan the trip:</p>
 
-              {/* Town */}
+              {/* Starting address */}
               <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Where are you coming from?</label>
+                <label className="text-xs font-medium text-muted-foreground">
+                  Where are you coming from?
+                  {(postJoinTransport === 'drive_others' || postJoinTransport === 'need_ride') && (
+                    <span className="ml-1 text-destructive">*</span>
+                  )}
+                </label>
                 <Input
                   value={postJoinTown}
                   onChange={(e) => setPostJoinTown(e.target.value)}
-                  placeholder="e.g. Santa Monica, Downtown LA"
+                  placeholder={postJoinTransport === 'drive_others' || postJoinTransport === 'need_ride'
+                    ? "Full address required for carpool"
+                    : "e.g. Santa Monica, Downtown LA"}
                 />
+                {(postJoinTransport === 'drive_others' || postJoinTransport === 'need_ride') && (
+                  <p className="text-[10px] text-muted-foreground">Required for pickup coordination</p>
+                )}
               </div>
 
               {/* Transport */}

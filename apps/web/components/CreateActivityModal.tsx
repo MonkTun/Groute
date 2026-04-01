@@ -39,7 +39,8 @@ const STEPS = [
   { label: 'Trailhead', number: 1 },
   { label: 'Transport', number: 2 },
   { label: 'Details', number: 3 },
-  { label: 'Invite', number: 4 },
+  { label: 'Your Info', number: 4 },
+  { label: 'Invite', number: 5 },
 ] as const
 
 const TOTAL_STEPS = STEPS.length
@@ -65,9 +66,11 @@ export function CreateActivityModal({ initialMapCenter }: CreateActivityModalPro
   const [parkingPaid, setParkingPaid] = useState<boolean | null>(null)
   const [parkingCost, setParkingCost] = useState('')
   const [parkingNotes, setParkingNotes] = useState('')
-  const [transportNotes, setTransportNotes] = useState('')
-  const [meetingPointName, setMeetingPointName] = useState('')
-  const [carpoolMeetingNote, setCarpoolMeetingNote] = useState('')
+  const [hostTransport, setHostTransport] = useState<'individual' | 'carpool_driver' | 'carpool_passenger' | null>(null)
+  const [hostSeats, setHostSeats] = useState('3')
+
+  // Step 4: Personal Info
+  const [startingAddress, setStartingAddress] = useState('')
 
   // AI suggestions
   interface AiSuggestions {
@@ -130,7 +133,7 @@ export function CreateActivityModal({ initialMapCenter }: CreateActivityModalPro
   }, [step, location, selectedTrail, approachRoute, aiSuggestions, isLoadingSuggestions])
 
   useEffect(() => {
-    if (step === 4 && friends.length === 0) {
+    if (step === 5 && friends.length === 0) {
       fetch('/api/friends')
         .then((r) => r.json())
         .then((d) => setFriends(d.data ?? []))
@@ -177,9 +180,9 @@ export function CreateActivityModal({ initialMapCenter }: CreateActivityModalPro
     setParkingPaid(null)
     setParkingCost('')
     setParkingNotes('')
-    setTransportNotes('')
-    setMeetingPointName('')
-    setCarpoolMeetingNote('')
+    setHostTransport(null)
+    setHostSeats('3')
+    setStartingAddress('')
     setAiSuggestions(null)
     setIsLoadingSuggestions(false)
     setSelectedTips(new Set())
@@ -201,11 +204,17 @@ export function CreateActivityModal({ initialMapCenter }: CreateActivityModalPro
         if (!location) return 'Please select a location'
         return null
       case 2:
-        return null // transport is optional
+        if (!hostTransport) return 'Please select a transportation option'
+        return null
       case 3:
         if (!sportType) return 'Please select an activity type'
         if (!title.trim()) return 'Please enter a title'
         if (!scheduledAt) return 'Please select a date and time'
+        return null
+      case 4:
+        if ((hostTransport === 'carpool_driver' || hostTransport === 'carpool_passenger') && !startingAddress.trim()) {
+          return 'Starting address is required for carpool coordination'
+        }
         return null
       default:
         return null
@@ -284,44 +293,34 @@ export function CreateActivityModal({ initialMapCenter }: CreateActivityModalPro
         })
       }
 
-      // Always save logistics if we have any suggestions or user input
-      if (data.data?.id) {
-        const hasAny = meetingPointName || parkingName || transportNotes || carpoolMeetingNote || aiSuggestions
-        if (hasAny) {
-          // Build notes from all sources
-          const notesParts: string[] = []
-          if (carpoolMeetingNote) notesParts.push(`Carpool meeting: ${carpoolMeetingNote}`)
+      // Save logistics (parking info)
+      if (data.data?.id && parkingName) {
+        await fetch(`/api/activities/${data.data.id}/logistics`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            parkingName: parkingName || undefined,
+            parkingPaid: parkingPaid ?? undefined,
+            parkingCost: parkingCost || undefined,
+            parkingNotes: parkingNotes || undefined,
+          }),
+        })
+      }
 
-          // Build transport notes combining user input and selected AI tips
-          const allTransportNotes: string[] = []
-          if (transportNotes) allTransportNotes.push(transportNotes)
-          if (aiSuggestions?.transportTips) {
-            aiSuggestions.transportTips.forEach((tip, i) => {
-              if (selectedTips.has(i)) allTransportNotes.push(tip)
-            })
-          }
-
-          // Build checklist from AI suggestions
-          const checklist: string[] = []
-          if (parkingName && selectedTrail) {
-            checklist.push(`Walk from ${parkingName} to ${selectedTrail.name} trailhead`)
-          }
-
-          await fetch(`/api/activities/${data.data.id}/logistics`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              meetingPointName: meetingPointName || undefined,
-              parkingName: parkingName || undefined,
-              parkingPaid: parkingPaid ?? undefined,
-              parkingCost: parkingCost || undefined,
-              parkingNotes: parkingNotes || undefined,
-              transportNotes: allTransportNotes.join('\n') || undefined,
-              checklistItems: checklist.length > 0 ? checklist : undefined,
-              notes: notesParts.join('\n') || undefined,
-            }),
-          })
-        }
+      // Save host's transport plan
+      if (data.data?.id && hostTransport) {
+        await fetch(`/api/activities/${data.data.id}/transport-plan`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            transportMode: hostTransport === 'individual' ? 'driving' : hostTransport,
+            originName: startingAddress || undefined,
+            originLat: 0,
+            originLng: 0,
+            vehicleCapacity: hostTransport === 'carpool_driver' ? parseInt(hostSeats, 10) : undefined,
+            needsRide: hostTransport === 'carpool_passenger',
+          }),
+        })
       }
 
       setOpen(false)
@@ -405,30 +404,9 @@ export function CreateActivityModal({ initialMapCenter }: CreateActivityModalPro
             </div>
           )}
 
-          {/* Step 2: Transport / Logistics (AI-powered) */}
+          {/* Step 2: Transport */}
           {step === 2 && (
             <div className="space-y-4">
-              {/* Destination summary */}
-              {(selectedTrail || location) && (
-                <div className="rounded-xl border border-border/50 bg-muted/30 p-3 space-y-1.5">
-                  <div className="space-y-1 text-sm">
-                    {selectedTrail && (
-                      <div className="flex items-center gap-2">
-                        <Mountain className="size-3.5 text-primary" />
-                        <span className="font-medium">{selectedTrail.name}</span>
-                      </div>
-                    )}
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <MapPin className="size-3.5" />
-                      <span>Trailhead: {location?.name}</span>
-                    </div>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    Select a parking or dropoff location below. Groute will calculate how to get from parking to the trailhead.
-                  </p>
-                </div>
-              )}
-
               {isLoadingSuggestions && (
                 <div className="space-y-2 py-4">
                   <div className="flex items-center gap-2">
@@ -480,7 +458,6 @@ export function CreateActivityModal({ initialMapCenter }: CreateActivityModalPro
                             </span>
                           </div>
                           <span className="text-xs text-muted-foreground">{p.description}</span>
-                          {p.notes && <span className="text-[11px] text-muted-foreground italic">{p.notes}</span>}
                         </button>
                       )
                     })}
@@ -509,113 +486,62 @@ export function CreateActivityModal({ initialMapCenter }: CreateActivityModalPro
                 )}
               </div>
 
-              {/* Meeting point — AI suggestions + custom */}
+              {/* Transportation */}
               <div className="space-y-2">
-                <Label><MapPin className="inline size-3.5 mr-1" />Meeting point</Label>
-                {aiSuggestions?.meetingPoints && aiSuggestions.meetingPoints.length > 0 && (
-                  <div className="space-y-1.5">
-                    {aiSuggestions.meetingPoints.map((mp, i) => {
-                      const isSelected = meetingPointName === mp.name
-                      return (
-                        <button
-                          key={i}
-                          type="button"
-                          onClick={() => setMeetingPointName(isSelected ? '' : mp.name)}
-                          className={`flex w-full flex-col gap-0.5 rounded-xl px-3 py-2.5 text-left text-sm transition-colors ${
-                            isSelected
-                              ? 'bg-primary/10 ring-1 ring-primary/30'
-                              : 'bg-muted/40 hover:bg-muted/60'
-                          }`}
-                        >
-                          <span className="font-medium">{mp.name}</span>
-                          <span className="text-xs text-muted-foreground">{mp.description}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
-                <Input
-                  value={meetingPointName}
-                  onChange={(e) => setMeetingPointName(e.target.value)}
-                  placeholder="Or enter custom meeting point..."
-                />
-              </div>
-
-              {/* Carpool meeting — AI suggestion for pre-trail meetup */}
-              <div className="space-y-2">
-                <Label><Users className="inline size-3.5 mr-1" />Carpool meeting spot</Label>
-                <p className="text-[11px] text-muted-foreground">
-                  Where should people sharing rides meet before heading to the trail?
-                </p>
-                {aiSuggestions?.carpoolNotes && (
+                <Label><Navigation className="inline size-3.5 mr-1" />Transportation</Label>
+                <div className="grid grid-cols-3 gap-1.5">
                   <button
                     type="button"
-                    onClick={() => setCarpoolMeetingNote(aiSuggestions.carpoolNotes)}
-                    className={`flex w-full rounded-xl px-3 py-2.5 text-left text-sm transition-colors ${
-                      carpoolMeetingNote === aiSuggestions.carpoolNotes
-                        ? 'bg-primary/10 ring-1 ring-primary/30'
-                        : 'bg-muted/40 hover:bg-muted/60'
+                    onClick={() => setHostTransport('individual')}
+                    className={`rounded-lg border px-2 py-3 text-center text-xs font-medium transition-colors ${
+                      hostTransport === 'individual'
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border hover:bg-muted'
                     }`}
                   >
-                    <span className="text-xs">{aiSuggestions.carpoolNotes}</span>
+                    <Car className="mx-auto mb-1 size-4" />
+                    Individual plan
                   </button>
-                )}
-                <Input
-                  value={carpoolMeetingNote}
-                  onChange={(e) => setCarpoolMeetingNote(e.target.value)}
-                  placeholder="Or enter custom carpool meeting spot..."
-                />
-              </div>
-
-              {/* Transport tips — AI generated, toggleable */}
-              {aiSuggestions?.transportTips && aiSuggestions.transportTips.length > 0 && (
-                <div className="space-y-2">
-                  <Label><Navigation className="inline size-3.5 mr-1" />Transport tips (uncheck to remove)</Label>
-                  <div className="space-y-1">
-                    {aiSuggestions.transportTips.map((tip, i) => {
-                      const isChecked = selectedTips.has(i)
-                      return (
-                        <button
-                          key={i}
-                          type="button"
-                          onClick={() => {
-                            setSelectedTips((prev) => {
-                              const next = new Set(prev)
-                              next.has(i) ? next.delete(i) : next.add(i)
-                              return next
-                            })
-                          }}
-                          className={`flex w-full items-start gap-2 rounded-lg px-3 py-2 text-left text-xs transition-colors ${
-                            isChecked ? 'bg-primary/5 text-foreground' : 'bg-muted/20 text-muted-foreground line-through'
-                          }`}
-                        >
-                          <div className={`mt-0.5 flex size-3.5 shrink-0 items-center justify-center rounded border transition-colors ${
-                            isChecked ? 'border-primary bg-primary text-primary-foreground' : 'border-border'
-                          }`}>
-                            {isChecked && <Check className="size-2" />}
-                          </div>
-                          <span>{tip}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setHostTransport('carpool_driver')}
+                    className={`rounded-lg border px-2 py-3 text-center text-xs font-medium transition-colors ${
+                      hostTransport === 'carpool_driver'
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border hover:bg-muted'
+                    }`}
+                  >
+                    <Car className="mx-auto mb-1 size-4" />
+                    I can drive others
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHostTransport('carpool_passenger')}
+                    className={`rounded-lg border px-2 py-3 text-center text-xs font-medium transition-colors ${
+                      hostTransport === 'carpool_passenger'
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border hover:bg-muted'
+                    }`}
+                  >
+                    <Users className="mx-auto mb-1 size-4" />
+                    I need a ride
+                  </button>
                 </div>
-              )}
 
-              {/* Custom transport notes */}
-              <div className="space-y-1.5">
-                <Label htmlFor="transport-notes">
-                  <Pencil className="inline size-3.5 mr-1" />
-                  Additional notes (optional)
-                </Label>
-                <textarea
-                  id="transport-notes"
-                  value={transportNotes}
-                  onChange={(e) => setTransportNotes(e.target.value)}
-                  placeholder="Any other transport info for your group..."
-                  rows={2}
-                  className="w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 resize-none"
-                />
+                {hostTransport === 'carpool_driver' && (
+                  <div className="flex items-center gap-2 pt-1">
+                    <label className="text-xs text-muted-foreground">Available seats:</label>
+                    <select
+                      value={hostSeats}
+                      onChange={(e) => setHostSeats(e.target.value)}
+                      className="h-7 rounded-lg border border-input bg-transparent px-2 text-xs"
+                    >
+                      {[1, 2, 3, 4, 5, 6, 7].map((n) => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -757,8 +683,61 @@ export function CreateActivityModal({ initialMapCenter }: CreateActivityModalPro
             </div>
           )}
 
-          {/* Step 4: Invite friends + review */}
+          {/* Step 4: Personal Info */}
           {step === 4 && (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                This helps coordinate carpooling and logistics.
+              </p>
+
+              {/* Starting address — mandatory for carpool */}
+              <div className="space-y-1.5">
+                <Label htmlFor="start-address">
+                  <MapPin className="inline size-3.5 mr-1" />
+                  Starting address
+                  {(hostTransport === 'carpool_driver' || hostTransport === 'carpool_passenger') && (
+                    <span className="ml-1 text-destructive">*</span>
+                  )}
+                </Label>
+                <Input
+                  id="start-address"
+                  value={startingAddress}
+                  onChange={(e) => setStartingAddress(e.target.value)}
+                  placeholder="Where will you be leaving from?"
+                />
+                {(hostTransport === 'carpool_driver' || hostTransport === 'carpool_passenger') && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Required for carpool coordination — Groute uses this to plan pickup routes.
+                  </p>
+                )}
+              </div>
+
+              {/* Transport summary */}
+              <div className="rounded-lg border border-border/50 bg-muted/30 p-3 space-y-1.5">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Your plan</p>
+                <div className="space-y-1 text-sm">
+                  <div className="flex items-center gap-2">
+                    {hostTransport === 'carpool_driver' ? (
+                      <><Car className="size-3.5 text-primary" /><span>Driving — {hostSeats} seats available</span></>
+                    ) : hostTransport === 'carpool_passenger' ? (
+                      <><Users className="size-3.5 text-accent" /><span>Need a ride</span></>
+                    ) : (
+                      <><Car className="size-3.5 text-muted-foreground" /><span>Individual transport</span></>
+                    )}
+                  </div>
+                  {startingAddress && (
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <MapPin className="size-3.5" />
+                      <span className="truncate">From: {startingAddress}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Step 5: Invite friends + review */}
+          {step === 5 && (
             <div className="space-y-3">
               {/* Full summary */}
               <div className="rounded-lg border border-border/50 bg-muted/30 p-3 space-y-1.5">
@@ -798,10 +777,10 @@ export function CreateActivityModal({ initialMapCenter }: CreateActivityModalPro
                     <span>·</span>
                     <span>{VISIBILITY_LABELS[visibility]}</span>
                   </div>
-                  {meetingPointName && (
+                  {startingAddress && (
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Navigation className="size-3.5" />
-                      <span>Meet at {meetingPointName}</span>
+                      <span>From: {startingAddress}</span>
                     </div>
                   )}
                 </div>

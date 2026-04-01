@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Car, Users, Clock, MapPin, RefreshCw, Footprints, Train, DollarSign, ArrowDown } from 'lucide-react'
+import { Car, Users, Clock, MapPin, RefreshCw, Footprints, Train, DollarSign, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { UserAvatar } from '@/components/UserAvatar'
 import type { ComputedTimeline, ParticipantTimeline, CarpoolGroup } from '@groute/shared'
@@ -16,30 +16,6 @@ interface TimelineWebProps {
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-}
-
-function modeIcon(mode: string) {
-  switch (mode) {
-    case 'driving':
-    case 'carpool_driver': return <Car className="size-3" />
-    case 'carpool_passenger': return <Users className="size-3" />
-    case 'transit': return <Train className="size-3" />
-    case 'rideshare': return <DollarSign className="size-3" />
-    case 'walking': return <Footprints className="size-3" />
-    default: return <MapPin className="size-3" />
-  }
-}
-
-function modeLabel(mode: string): string {
-  switch (mode) {
-    case 'driving': return 'Driving'
-    case 'carpool_driver': return 'Driver'
-    case 'carpool_passenger': return 'Passenger'
-    case 'transit': return 'Transit'
-    case 'rideshare': return 'Rideshare'
-    case 'walking': return 'Walking'
-    default: return mode
-  }
 }
 
 export function TimelineWeb({
@@ -61,25 +37,28 @@ export function TimelineWeb({
     }
   }
 
-  // Separate timelines by type
-  const carpoolGroupMap = new Map<string, { group: CarpoolGroup; timelines: ParticipantTimeline[] }>()
-  const soloTimelines: ParticipantTimeline[] = []
+  // Group participants by transport type
+  const carpoolGroupMap = new Map<string, { group: CarpoolGroup; driver: ParticipantTimeline | null; passengers: ParticipantTimeline[] }>()
+  const needRide: ParticipantTimeline[] = []
+  const otherTransport: ParticipantTimeline[] = []
 
   for (const group of timeline.carpoolGroups) {
-    carpoolGroupMap.set(group.id, { group, timelines: [] })
+    carpoolGroupMap.set(group.id, { group, driver: null, passengers: [] })
   }
+
   for (const pt of timeline.participantTimelines) {
     if (pt.carpoolGroupId && carpoolGroupMap.has(pt.carpoolGroupId)) {
-      carpoolGroupMap.get(pt.carpoolGroupId)!.timelines.push(pt)
+      const entry = carpoolGroupMap.get(pt.carpoolGroupId)!
+      if (pt.role === 'driver') entry.driver = pt
+      else entry.passengers.push(pt)
+    } else if (pt.transportMode === 'carpool_passenger') {
+      needRide.push(pt)
     } else {
-      soloTimelines.push(pt)
+      otherTransport.push(pt)
     }
   }
 
-  const allBranches = [
-    ...Array.from(carpoolGroupMap.values()),
-    ...soloTimelines.map((pt) => ({ group: null, timelines: [pt] })),
-  ]
+  const carpoolGroups = Array.from(carpoolGroupMap.values())
 
   return (
     <div className="rounded-2xl border border-border/60 bg-card p-4">
@@ -96,122 +75,157 @@ export function TimelineWeb({
         )}
       </div>
 
-      {/* Tree: branches at top, converging to trunk at bottom */}
-      <div className="mt-4">
-        {/* Individual branches */}
-        <div className="flex gap-2 overflow-x-auto scrollbar-none pb-3">
-          {allBranches.map((branch, branchIdx) => {
-            const isCarpool = branch.group != null
-            const driver = isCarpool ? branch.timelines.find((t) => t.role === 'driver') : null
-            const passengers = isCarpool ? branch.timelines.filter((t) => t.role === 'passenger') : []
-            const solo = !isCarpool ? branch.timelines[0] : null
+      <div className="mt-4 space-y-4">
+        {/* Carpool Groups — each car gets its own timeline */}
+        {carpoolGroups.map(({ group, driver, passengers }) => {
+          if (!driver) return null
+          const allInCar = [driver, ...passengers]
+          const isMyGroup = allInCar.some((p) => p.userId === currentUserId)
 
-            return (
-              <div
-                key={branchIdx}
-                className="flex-shrink-0 w-48 rounded-xl border border-border/40 bg-muted/10 p-2.5"
-              >
-                {/* Branch header */}
-                {isCarpool && driver ? (
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <UserAvatar src={driver.avatarUrl} name={driver.displayName} size="xs" />
-                    <div className="min-w-0 flex-1">
-                      <p className={`text-xs font-medium truncate ${driver.userId === currentUserId ? 'text-primary' : ''}`}>
-                        {driver.displayName}{driver.userId === currentUserId ? ' (you)' : ''}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">
-                        <Car className="inline size-2.5 mr-0.5" />
-                        Driver &middot; {passengers.length} passenger{passengers.length !== 1 ? 's' : ''}
-                      </p>
-                    </div>
-                  </div>
-                ) : solo ? (
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <UserAvatar src={solo.avatarUrl} name={solo.displayName} size="xs" />
-                    <div className="min-w-0 flex-1">
-                      <p className={`text-xs font-medium truncate ${solo.userId === currentUserId ? 'text-primary' : ''}`}>
-                        {solo.displayName}{solo.userId === currentUserId ? ' (you)' : ''}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {modeIcon(solo.transportMode)}
-                        <span className="ml-0.5">{modeLabel(solo.transportMode)}</span>
-                      </p>
-                    </div>
-                  </div>
-                ) : null}
+          return (
+            <div key={group.id} className={`rounded-xl border p-3 ${isMyGroup ? 'border-primary/30 bg-primary/5' : 'border-border/40 bg-muted/10'}`}>
+              {/* Car header */}
+              <div className="flex items-center gap-2 mb-3">
+                <Car className="size-4 text-primary" />
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {driver.displayName}&apos;s car
+                </span>
+                <div className="flex -space-x-1 ml-auto">
+                  {allInCar.map((p) => (
+                    <UserAvatar key={p.userId} src={p.avatarUrl} name={p.displayName} size="xs" className="ring-1 ring-card" />
+                  ))}
+                </div>
+              </div>
 
-                {/* Branch timeline nodes */}
-                <div className="space-y-0">
-                  {(isCarpool && driver ? driver.nodes : solo?.nodes ?? []).map((node, i, arr) => (
-                    <div key={i} className="flex gap-2">
+              {/* Car timeline — vertical with detailed stops */}
+              <div className="space-y-0 pl-1">
+                {driver.nodes.map((node, i) => {
+                  const isMe = driver.userId === currentUserId && node.type === 'leave_home'
+                  const pickedUpPassenger = node.type === 'pickup'
+                    ? passengers.find((p) => p.nodes.some((n) => n.type === 'pickup' && n.time === node.time))
+                    : null
+
+                  return (
+                    <div key={i} className="flex gap-3">
+                      {/* Timeline line + dot */}
                       <div className="flex flex-col items-center">
-                        <div className={`size-3 rounded-full ${
+                        <div className={`size-3 rounded-full shrink-0 ${
                           node.type === 'leave_home' ? 'bg-primary' :
                           node.type === 'pickup' ? 'bg-accent' :
-                          node.type === 'arrive_trailhead' || node.type === 'arrive_meeting' ? 'bg-emerald-500' :
-                          'bg-muted-foreground'
+                          'bg-emerald-500'
                         }`} />
-                        {i < arr.length - 1 && <div className="h-5 w-px bg-border" />}
+                        {i < driver.nodes.length - 1 && (
+                          <div className="w-px flex-1 min-h-6 bg-border" />
+                        )}
                       </div>
-                      <div className="pb-1 min-w-0">
-                        <p className="text-[10px] font-medium text-muted-foreground">{formatTime(node.time)}</p>
-                        <p className="text-[11px] leading-tight truncate">{node.label}</p>
-                        {/* Show passenger joining at pickup */}
-                        {node.type === 'pickup' && passengers.length > 0 && (
-                          <div className="flex items-center gap-1 mt-0.5">
-                            {passengers
-                              .filter((p) => p.nodes.some((n) => n.type === 'pickup' && n.time === node.time))
-                              .map((p) => (
-                                <UserAvatar key={p.userId} src={p.avatarUrl} name={p.displayName} size="xs" />
-                              ))}
+
+                      {/* Content */}
+                      <div className="pb-3 -mt-0.5">
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-xs font-semibold tabular-nums text-muted-foreground w-16 shrink-0">
+                            {formatTime(node.time)}
+                          </span>
+                          <span className={`text-sm ${isMe ? 'font-semibold text-primary' : ''}`}>
+                            {node.label}
+                          </span>
+                        </div>
+                        {node.locationName && (
+                          <p className="text-xs text-muted-foreground ml-18 pl-18" style={{ marginLeft: '4.5rem' }}>
+                            <MapPin className="inline size-2.5 mr-0.5" />{node.locationName}
+                          </p>
+                        )}
+                        {pickedUpPassenger && (
+                          <div className="flex items-center gap-1.5 mt-1" style={{ marginLeft: '4.5rem' }}>
+                            <UserAvatar src={pickedUpPassenger.avatarUrl} name={pickedUpPassenger.displayName} size="xs" />
+                            <span className={`text-xs ${pickedUpPassenger.userId === currentUserId ? 'font-semibold text-primary' : 'text-muted-foreground'}`}>
+                              {pickedUpPassenger.displayName}{pickedUpPassenger.userId === currentUserId ? ' (you)' : ''} gets in
+                            </span>
                           </div>
                         )}
                       </div>
                     </div>
-                  ))}
-                </div>
-
-                {/* Passengers waiting (for carpool) */}
-                {passengers.length > 0 && (
-                  <div className="mt-2 border-t border-border/20 pt-1.5 space-y-1">
-                    {passengers.map((p) => {
-                      const pickupNode = p.nodes.find((n) => n.type === 'pickup')
-                      const isMe = p.userId === currentUserId
-                      return (
-                        <div key={p.userId} className={`flex items-center gap-1.5 rounded px-1 py-0.5 ${isMe ? 'bg-primary/5' : ''}`}>
-                          <UserAvatar src={p.avatarUrl} name={p.displayName} size="xs" />
-                          <span className={`text-[10px] flex-1 truncate ${isMe ? 'font-semibold' : ''}`}>
-                            {p.displayName}{isMe ? ' (you)' : ''}
-                          </span>
-                          {pickupNode && (
-                            <span className="text-[9px] text-muted-foreground shrink-0">
-                              {formatTime(pickupNode.time)}
-                            </span>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
+                  )
+                })}
               </div>
-            )
-          })}
-        </div>
+            </div>
+          )
+        })}
 
-        {/* Converging arrows */}
-        <div className="flex justify-center py-1">
-          <div className="flex items-center gap-1 text-muted-foreground">
-            {allBranches.length > 1 && (
-              <>
-                <div className="h-px w-8 bg-border" />
-                <ArrowDown className="size-4" />
-                <div className="h-px w-8 bg-border" />
-              </>
-            )}
+        {/* Still need a ride */}
+        {needRide.length > 0 && (
+          <div className="rounded-xl border border-amber-200/50 bg-amber-50/50 p-3 dark:border-amber-800/30 dark:bg-amber-950/10">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertCircle className="size-4 text-amber-600" />
+              <span className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                Need a ride ({needRide.length})
+              </span>
+            </div>
+            <div className="space-y-1.5">
+              {needRide.map((pt) => {
+                const isMe = pt.userId === currentUserId
+                const leaveNode = pt.nodes[0]
+                return (
+                  <div key={pt.userId} className={`flex items-center gap-2 rounded-lg px-2 py-1.5 ${isMe ? 'bg-amber-100/50 dark:bg-amber-900/20' : ''}`}>
+                    <UserAvatar src={pt.avatarUrl} name={pt.displayName} size="sm" />
+                    <div className="flex-1 min-w-0">
+                      <span className={`text-sm ${isMe ? 'font-semibold' : ''}`}>
+                        {pt.displayName}{isMe ? ' (you)' : ''}
+                      </span>
+                      {leaveNode?.locationName && (
+                        <p className="text-xs text-muted-foreground">
+                          <MapPin className="inline size-2.5 mr-0.5" />{leaveNode.locationName}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Convergence: everyone arrives */}
+        {/* Other transportation */}
+        {otherTransport.length > 0 && (
+          <div className="rounded-xl border border-border/40 bg-muted/10 p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Train className="size-4 text-muted-foreground" />
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Individual transport ({otherTransport.length})
+              </span>
+            </div>
+            <div className="space-y-1.5">
+              {otherTransport.map((pt) => {
+                const isMe = pt.userId === currentUserId
+                const leaveNode = pt.nodes.find((n) => n.type === 'leave_home')
+                const arriveNode = pt.nodes.find((n) => n.type === 'arrive_trailhead' || n.type === 'arrive_meeting')
+                return (
+                  <div key={pt.userId} className={`flex items-center gap-2 rounded-lg px-2 py-1.5 ${isMe ? 'bg-primary/5' : ''}`}>
+                    <UserAvatar src={pt.avatarUrl} name={pt.displayName} size="sm" />
+                    <div className="flex-1 min-w-0">
+                      <span className={`text-sm ${isMe ? 'font-semibold' : ''}`}>
+                        {pt.displayName}{isMe ? ' (you)' : ''}
+                      </span>
+                      <p className="text-xs text-muted-foreground">
+                        {pt.transportMode === 'driving' ? 'Driving' :
+                         pt.transportMode === 'transit' ? 'Transit' :
+                         pt.transportMode === 'rideshare' ? 'Rideshare' :
+                         pt.transportMode === 'walking' ? 'Walking' : pt.transportMode}
+                        {leaveNode && <> &middot; Leaves {formatTime(leaveNode.time)}</>}
+                      </p>
+                    </div>
+                    {arriveNode && (
+                      <span className="text-xs text-muted-foreground shrink-0">
+                        Arrives {formatTime(arriveNode.time)}
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Convergence: everyone arrives at trailhead */}
         {timeline.convergencePoints.filter((cp) => cp.type === 'trailhead').map((cp, i) => (
           <div key={i} className="rounded-xl bg-emerald-50 px-4 py-3 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-800/30">
             <div className="flex items-center gap-3">
@@ -227,7 +241,7 @@ export function TimelineWeb({
               </div>
               <div className="flex-1">
                 <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">
-                  Everyone arrives by {formatTime(cp.time)}
+                  Everyone at trailhead by {formatTime(cp.time)}
                 </p>
                 <p className="text-xs text-emerald-600 dark:text-emerald-400">{cp.locationName}</p>
               </div>
@@ -236,7 +250,7 @@ export function TimelineWeb({
         ))}
 
         {/* Activity start */}
-        <div className="mt-3 flex items-center gap-2 px-1 text-sm">
+        <div className="flex items-center gap-2 px-1 text-sm">
           <span className="text-base">🥾</span>
           <span className="font-medium">Activity starts {formatTime(timeline.activityStartTime)}</span>
         </div>
