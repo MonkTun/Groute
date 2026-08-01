@@ -10,7 +10,7 @@ import {
   Text,
   View,
 } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useRouter, usePathname } from 'expo-router'
 
 import ConfettiCannon from 'react-native-confetti-cannon'
 
@@ -131,9 +131,18 @@ export default function TripsScreen() {
     setPast(allTrips.filter((t) => new Date(t.scheduled_at) < now))
   }, [user])
 
+  const pathname = usePathname()
+
   useEffect(() => {
     fetchTrips().finally(() => setIsLoading(false))
   }, [fetchTrips])
+
+  // Refetch when navigating back to this tab
+  useEffect(() => {
+    if (pathname === '/trips' && !isLoading) {
+      fetchTrips()
+    }
+  }, [pathname]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleRefresh() {
     setIsRefreshing(true)

@@ -44,6 +44,7 @@ interface ActivityDetail {
   visibility: string
   creator_id: string
   banner_url: string | null
+  unsplash_image_url: string | null
   location_name: string
   location_lat: string | null
   location_lng: string | null
@@ -184,7 +185,7 @@ export default function ActivityDetailScreen() {
     async function load() {
       const { data, error } = await apiFetch<{
         id: string; title: string; description: string | null; sport_type: string
-        skill_level: string; visibility: string; creator_id: string; banner_url: string | null
+        skill_level: string; visibility: string; creator_id: string; banner_url: string | null; unsplash_image_url: string | null
         location_name: string; location_lat: string | null; location_lng: string | null
         scheduled_at: string; max_participants: number; status: string
         trail_osm_id: number | null; trail_name: string | null
@@ -203,7 +204,7 @@ export default function ActivityDetailScreen() {
       setActivity({
         id: data.id, title: data.title, description: data.description,
         sport_type: data.sport_type, skill_level: data.skill_level, visibility: data.visibility,
-        creator_id: data.creator_id, banner_url: data.banner_url,
+        creator_id: data.creator_id, banner_url: data.banner_url, unsplash_image_url: data.unsplash_image_url,
         location_name: data.location_name, location_lat: data.location_lat, location_lng: data.location_lng,
         scheduled_at: data.scheduled_at, max_participants: data.max_participants, status: data.status,
         trail_osm_id: data.trail_osm_id, trail_name: data.trail_name,
@@ -215,7 +216,7 @@ export default function ActivityDetailScreen() {
         trail_geometry: data.trail_geometry, approach_geometry: data.approach_geometry,
         creator: data.creator,
       })
-      setBannerUrl(data.banner_url)
+      setBannerUrl(data.banner_url || data.unsplash_image_url)
       setParticipants(data.participants.map((p) => ({ id: p.id, status: p.status, user: p.user })))
       setMyStatus(data.myStatus)
       setIsLoading(false)

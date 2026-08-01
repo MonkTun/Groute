@@ -9,7 +9,7 @@ import {
   Text,
   View,
 } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useRouter, usePathname } from 'expo-router'
 
 import { SPORT_LABELS, SKILL_LABELS } from '@groute/shared'
 import { useSession } from '../../lib/AuthProvider'
@@ -37,6 +37,7 @@ interface Activity {
   sport_type: string
   skill_level: string
   banner_url: string | null
+  unsplash_image_url: string | null
   creator_id: string
   location_name: string
   scheduled_at: string
@@ -80,6 +81,7 @@ export default function RightNowScreen() {
         sport_type: string
         skill_level: string
         banner_url: string | null
+        unsplash_image_url: string | null
         creator_id: string
         location_name: string
         scheduled_at: string
@@ -115,9 +117,18 @@ export default function RightNowScreen() {
     )
   }, [user])
 
+  const pathname = usePathname()
+
   useEffect(() => {
     fetchData().finally(() => setIsLoading(false))
   }, [fetchData])
+
+  // Refetch when navigating back to this tab
+  useEffect(() => {
+    if (pathname === '/' && !isLoading) {
+      fetchData()
+    }
+  }, [pathname]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleRefresh() {
     setIsRefreshing(true)
@@ -312,8 +323,8 @@ export default function RightNowScreen() {
         style={s.card}
         onPress={() => router.push(`/activity/${activity.id}`)}
       >
-        {activity.banner_url ? (
-          <Image source={{ uri: activity.banner_url }} style={featured ? s.cardImageFeatured : s.cardImage} />
+        {(activity.banner_url || activity.unsplash_image_url) ? (
+          <Image source={{ uri: (activity.banner_url || activity.unsplash_image_url)! }} style={featured ? s.cardImageFeatured : s.cardImage} />
         ) : (
           <View style={[s.cardImageFallback, featured && s.cardImageFeatured]}>
             <Text style={s.cardEmoji}>{SPORT_EMOJIS[activity.sport_type] ?? '\u{1F3DE}'}</Text>

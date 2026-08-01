@@ -270,6 +270,7 @@ export default function ExploreScreen() {
   const [isLoading, setIsLoading] = useState(true)
   const [locationReady, setLocationReady] = useState(false)
   const mapCenterRef = useRef({ lat: 34.0522, lng: -118.2437 })
+  const [mapCenter, setMapCenter] = useState({ lat: 34.0522, lng: -118.2437 })
   const webViewRef = useRef<WebView>(null)
 
   // Get user location — wait for it before showing map
@@ -395,6 +396,21 @@ export default function ExploreScreen() {
 
   const activeTimeLabel = TIMEFRAMES.find((t) => t.days === timeframeDays)?.label ?? 'Week'
 
+  // Show recenter button when map is >500m from user location (~0.005 degrees)
+  const showRecenter = userLocation != null && (
+    Math.sqrt(
+      (mapCenter.lat - userLocation.lat) ** 2 +
+      (mapCenter.lng - userLocation.lng) ** 2
+    ) > 0.005
+  )
+
+  function handleRecenter() {
+    if (!userLocation || !webViewRef.current) return
+    webViewRef.current.injectJavaScript(
+      `window.flyTo(${userLocation.lng},${userLocation.lat});true;`
+    )
+  }
+
   function handleMapMessage(event: { nativeEvent: { data: string } }) {
     try {
       const msg = JSON.parse(event.nativeEvent.data)
@@ -402,6 +418,7 @@ export default function ExploreScreen() {
         router.push(`/activity/${msg.id}`)
       } else if (msg.type === 'center') {
         mapCenterRef.current = { lat: msg.lat, lng: msg.lng }
+        setMapCenter({ lat: msg.lat, lng: msg.lng })
       } else if (msg.type === 'error') {
         console.warn('Map error:', msg.msg)
       } else if (msg.type === 'loaded') {
@@ -478,6 +495,13 @@ export default function ExploreScreen() {
           )}
         </View>
 
+        {/* Recenter button — below search bar, top-left */}
+        {showRecenter && (
+          <Pressable style={s.recenterButton} onPress={handleRecenter}>
+            <Text style={s.recenterText}>Recenter</Text>
+          </Pressable>
+        )}
+
         {/* Filter bar at bottom */}
         <View style={s.filterOverlay}>
           <BlurView intensity={80} tint="light" style={s.filterBar}>
@@ -545,6 +569,23 @@ const s = StyleSheet.create({
 
   mapContainer: { flex: 1, position: 'relative' },
   map: { flex: 1, backgroundColor: '#e8e0d8' },
+
+  recenterButton: {
+    position: 'absolute',
+    top: 60,
+    left: 12,
+    zIndex: 10,
+    borderRadius: 20,
+    backgroundColor: '#fff',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  recenterText: { fontSize: 13, fontWeight: '600', color: '#374151' },
 
   searchOverlay: { position: 'absolute', top: 8, left: 0, right: 0, zIndex: 10 },
   searchResults: {

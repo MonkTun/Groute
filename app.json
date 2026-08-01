@@ -1,3 +1,15 @@
 {
-  "expo": {}
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "89f29baf-b117-4d7a-b341-76c8991d6baf"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.groute.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    }
+  }
 }

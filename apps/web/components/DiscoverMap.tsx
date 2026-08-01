@@ -79,6 +79,8 @@ export const DiscoverMap = forwardRef<DiscoverMapHandle, DiscoverMapProps>(
     const friendMarkersRef = useRef<mapboxgl.Marker[]>([])
     const [isMapReady, setIsMapReady] = useState(false)
     const prevHoveredRef = useRef<string | null>(null)
+    const userLocationRef = useRef<{ lat: number; lng: number } | null>(null)
+    const [showRecenter, setShowRecenter] = useState(false)
 
     useImperativeHandle(ref, () => ({
       flyTo(lng: number, lat: number) {
@@ -109,7 +111,20 @@ export const DiscoverMap = forwardRef<DiscoverMapHandle, DiscoverMapProps>(
       m.addControl(geolocate, 'bottom-right')
 
       geolocate.on('geolocate', (e: GeolocationPosition) => {
+        userLocationRef.current = { lat: e.coords.latitude, lng: e.coords.longitude }
         onUserLocationChange?.(e.coords.latitude, e.coords.longitude)
+      })
+
+      // Track map movement to show/hide recenter button
+      m.on('moveend', () => {
+        const loc = userLocationRef.current
+        if (!loc) return
+        const center = m.getCenter()
+        const dist = Math.sqrt(
+          (center.lat - loc.lat) ** 2 + (center.lng - loc.lng) ** 2
+        )
+        // ~0.005 degrees ≈ 500m
+        setShowRecenter(dist > 0.005)
       })
 
       m.on('load', () => {
@@ -381,6 +396,26 @@ export const DiscoverMap = forwardRef<DiscoverMapHandle, DiscoverMapProps>(
       prevHoveredRef.current = hoveredActivityId
     }, [hoveredActivityId, isMapReady])
 
-    return <div ref={mapContainer} className="size-full" />
+    function handleRecenter() {
+      const loc = userLocationRef.current
+      if (!loc || !map.current) return
+      map.current.flyTo({ center: [loc.lng, loc.lat], zoom: 13, duration: 800 })
+      setShowRecenter(false)
+    }
+
+    return (
+      <div className="relative size-full">
+        <div ref={mapContainer} className="size-full" />
+        {showRecenter && (
+          <button
+            type="button"
+            onClick={handleRecenter}
+            className="absolute left-3 top-3 z-10 rounded-full bg-white px-3.5 py-1.5 text-xs font-semibold text-gray-700 shadow-md ring-1 ring-black/10 transition-colors hover:bg-gray-50"
+          >
+            Recenter
+          </button>
+        )}
+      </div>
+    )
   }
 )
